@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import {
-  Anchor, AlertTriangle, ChevronLeft, ChevronRight, CircleAlert, CircleCheck,
+  Anchor, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, CircleAlert, CircleCheck,
   RadioTower, RefreshCw, Ship, Wifi, WifiOff,
   Activity, LayoutList, Search, ShieldAlert, Gauge, Clock,
   Send, Bot, X, RotateCcw, ArrowUpRight, FileText, CheckCircle2
@@ -1082,17 +1082,25 @@ onUnmounted(() => {
 
             <!-- Copilot Structured Response -->
             <div v-else class="rounded-lg border border-border/80 bg-background/90 p-3 space-y-2.5 shadow-xs">
-              <!-- Tool Executions Trace -->
-              <div v-if="msg.tools?.length" class="space-y-1">
-                <div
-                  v-for="(t, idx) in msg.tools"
-                  :key="idx"
-                  class="flex items-center gap-1.5 text-[10px] font-mono bg-muted/40 border border-border/40 rounded px-2 py-0.5 text-muted-foreground"
-                >
-                  <span class="text-emerald-500 font-bold">✓</span>
-                  <span class="text-foreground/90 font-semibold">{{ toolLabel(t.name) }}</span>
-                  <span class="opacity-70 truncate">{{ t.summary }}</span>
-                </div>
+              <!-- Tool Executions Diagnostic Summary -->
+              <div v-if="msg.tools?.length" class="pb-1">
+                <details class="group text-[11px] font-mono">
+                  <summary class="inline-flex items-center gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground select-none py-1 px-2 rounded-md bg-muted/40 hover:bg-muted/70 border border-border/50 transition-colors">
+                    <span class="text-emerald-500 font-bold">✓</span>
+                    <span class="font-medium text-[10px]">{{ msg.tools.length }} diagnostic {{ msg.tools.length === 1 ? 'source' : 'sources' }} verified</span>
+                    <ChevronDown class="size-3 text-muted-foreground transition-transform group-open:rotate-180 ml-0.5" />
+                  </summary>
+                  <div class="mt-1.5 space-y-1 pl-2.5 border-l-2 border-border/70 pt-0.5">
+                    <div
+                      v-for="(t, idx) in msg.tools"
+                      :key="idx"
+                      class="flex items-start gap-1.5 text-[10px] text-muted-foreground"
+                    >
+                      <span class="text-foreground font-semibold shrink-0">{{ toolLabel(t.name) }}:</span>
+                      <span class="opacity-80 leading-tight">{{ t.summary }}</span>
+                    </div>
+                  </div>
+                </details>
               </div>
 
               <!-- Blocks Renderer -->
