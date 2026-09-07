@@ -66,8 +66,8 @@ const personas: Array<{ key: Persona; label: string; tagline: string }> = [
                 <Logo class="size-7" />
               </div>
               <div class="flex flex-col leading-tight">
-                <span class="text-sm font-semibold tracking-tight">Zepp Ebikes</span>
-                <span class="text-muted-foreground text-xs">Ebike operations · reference template</span>
+                <span class="text-sm font-semibold tracking-tight">Smart Ship Hub</span>
+                <span class="text-muted-foreground text-xs">Marine operations · reference template</span>
               </div>
             </div>
             <div class="space-y-1 pt-2">

@@ -1,9 +1,8 @@
 <script setup lang="ts">
 /**
- * Zepp Ebikes brand mark — "ebike in motion" (logo-lab #11): a bicycle with a
- * lightning-bolt frame and trailing speed lines. One `currentColor` glyph so
- * it sits on the primary-tinted tile in the sidebar header + sign-in card and
- * scales from the collapsed rail up.
+ * Smart Ship Hub brand mark — a simple ship silhouette. One `currentColor`
+ * glyph keeps it readable on the primary-tinted tile in the sidebar header and
+ * sign-in card, scaling cleanly from the collapsed rail up.
  */
 const props = defineProps<{
   class?: string
@@ -18,14 +17,10 @@ const props = defineProps<{
     :class="props.class"
     aria-hidden="true"
   >
-    <!-- Speed / motion lines -->
-    <path d="M2 9 H8 M1 14 H6.5 M2.5 19 H7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-    <!-- Wheels -->
-    <circle cx="13" cy="22" r="4.8" stroke="currentColor" stroke-width="1.9" />
-    <circle cx="25" cy="22" r="4.8" stroke="currentColor" stroke-width="1.9" />
-    <!-- Stays + handlebar -->
-    <path d="M13 22 L18.5 21 M25 22 L20.5 14.5 M19.5 11 H22.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
-    <!-- Lightning-bolt frame -->
-    <path d="M21 6.5 L15.5 16.5 H18.8 L17.4 23.5 L23 13.5 H19.6 Z" fill="currentColor" />
+    <!-- Ship and cabin -->
+    <path d="M4 18H28L24.5 24H7.5L4 18Z" fill="currentColor" />
+    <path d="M8 18V12H21V18M12 12V8H21V12M16 8V4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+    <!-- Water -->
+    <path d="M3 27C5 25.7 7 25.7 9 27C11 28.3 13 28.3 15 27C17 25.7 19 25.7 21 27C23 28.3 25 28.3 29 26.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
   </svg>
 </template>

@@ -93,7 +93,7 @@ function toggleIntegration(id: string) {
 
 // ── Organization (admin) ───────────────────────────────────────────
 const org = ref({
-  name: 'Zepp Ebikes',
+  name: 'Smart Ship Hub',
   domain: 'zepp.dev',
   hq: 'Los Angeles, CA',
   units: 'imperial',

@@ -69,7 +69,7 @@ const NAV_BADGE: Record<string, number> = {
     <SidebarHeader>
       <SidebarMenu>
         <SidebarMenuItem>
-          <SidebarMenuButton size="lg" as-child tooltip="Zepp Ebikes" class="group-data-[collapsible=icon]:!justify-center">
+          <SidebarMenuButton size="lg" as-child tooltip="Smart Ship Hub" class="group-data-[collapsible=icon]:!justify-center">
             <NuxtLink to="/dashboard">
               <span
                 class="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-xl shadow-sm group-data-[collapsible=icon]:size-6"
@@ -77,8 +77,8 @@ const NAV_BADGE: Record<string, number> = {
                 <Logo class="size-6 group-data-[collapsible=icon]:size-5" />
               </span>
               <div class="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                <span class="font-display truncate font-semibold tracking-tight">Zepp Ebikes</span>
-                <span class="text-muted-foreground truncate text-xs tracking-wide">Ebike operations</span>
+                <span class="font-display truncate font-semibold tracking-tight">Smart Ship Hub</span>
+                <span class="text-muted-foreground truncate text-xs tracking-wide">Marine operations</span>
               </div>
             </NuxtLink>
           </SidebarMenuButton>
