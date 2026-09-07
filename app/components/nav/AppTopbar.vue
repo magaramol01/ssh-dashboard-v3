@@ -26,6 +26,10 @@ import type { CommandPaletteGroup, CommandPaletteItem } from '~/components/block
 const { current: persona, set: setPersona } = usePersona()
 const { theme, setTheme } = useTheme()
 
+function handleSignOut() {
+  return navigateTo('/auth/sign-in')
+}
+
 const cycleTheme = () => {
   const order: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system']
   const next = order[(order.indexOf(theme.value) + 1) % order.length]
@@ -131,7 +135,7 @@ const paletteGroups = computed<CommandPaletteGroup[]>(() =>
           </NuxtLink>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled class="flex items-center gap-2">
+        <DropdownMenuItem class="flex items-center gap-2" @select="handleSignOut">
           <LogOut class="size-3.5" />Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>

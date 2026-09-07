@@ -1,16 +1,16 @@
-import tailwindcss from '@tailwindcss/vite'
+import tailwindcss from "@tailwindcss/vite";
 
 export default defineNuxtConfig({
-  compatibilityDate: '2025-07-15',
+  compatibilityDate: "2025-07-15",
   devtools: { enabled: false },
   css: [
-    '@fontsource-variable/inter',
-    '@fontsource-variable/geist',
-    '@fontsource/dm-mono/400.css',
-    '@fontsource/dm-mono/500.css',
-    '~/assets/css/main.css',
-    '~/assets/css/live-map.css',
-    'leaflet/dist/leaflet.css',
+    "@fontsource-variable/inter",
+    "@fontsource-variable/geist",
+    "@fontsource/dm-mono/400.css",
+    "@fontsource/dm-mono/500.css",
+    "~/assets/css/main.css",
+    "~/assets/css/live-map.css",
+    "leaflet/dist/leaflet.css",
   ],
   components: [
     // Allow `<AppTopbar />` etc. without the folder prefix. The Nuxt 4
@@ -21,25 +21,27 @@ export default defineNuxtConfig({
     // `index.ts` re-exports and `context.ts` helpers stop registering as
     // duplicate auto-imports (was causing "Two component files resolving
     // to the same name" warnings on Textarea / Timeline / Tooltip / Context).
-    { path: '~/components', pathPrefix: false, pattern: '**/*.vue' },
+    { path: "~/components", pathPrefix: false, pattern: "**/*.vue" },
   ],
   vite: {
     plugins: [tailwindcss()],
   },
   app: {
-    pageTransition: { name: 'page', mode: 'out-in' },
+    pageTransition: { name: "page", mode: "out-in" },
     head: {
-      htmlAttrs: { lang: 'en' },
-      title: 'ShipTrack — Shipment Tracking template on Vue 3 + Nuxt 4',
-      link: [
-        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
-      ],
+      htmlAttrs: { lang: "en" },
+      title: "ShipTrack — Shipment Tracking template on Vue 3 + Nuxt 4",
+      link: [{ rel: "icon", type: "image/svg+xml", href: "/favicon.svg" }],
       meta: [
-        { name: 'description', content: 'Reference shipment-tracking & logistics template built end-to-end on the uipkge UI registry. Mock data, mock auth — copy any page as a starting point.' },
-        { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
-        { property: 'og:title', content: 'ShipTrack — shipment tracking reference template' },
-        { property: 'og:type', content: 'website' },
+        {
+          name: "description",
+          content:
+            "Reference shipment-tracking & logistics template built end-to-end on the uipkge UI registry. Mock data, mock auth — copy any page as a starting point.",
+        },
+        { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+        { property: "og:title", content: "ShipTrack — shipment tracking" },
+        { property: "og:type", content: "website" },
       ],
     },
   },
-})
+});
