@@ -1,9 +1,13 @@
 /**
- * Live-map marker styles. Global (not scoped): Mapbox moves marker elements out
- * of the component subtree into its own .mapboxgl-marker containers, so scoped
- * `data-v-*` selectors would never match. Prefixed `lm-` to avoid collisions.
+ * Live-map marker styles. Global because Leaflet renders marker HTML outside
+ * the component subtree, so scoped `data-v-*` selectors would never match.
+ * Prefixed `lm-` to avoid collisions.
  * Pills use semantic tokens so they track the theme.
  */
+.lm-leaflet-icon {
+  background: transparent;
+  border: 0;
+}
 .lm-marker {
   position: relative;
   display: flex;
@@ -17,6 +21,24 @@
   border-radius: 9999px;
   border: 2.5px solid #fff;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.lm-truck-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid;
+  border-radius: 9999px;
+  background: var(--card);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.lm-truck-icon svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .lm-puck {
   display: flex;
@@ -103,6 +125,55 @@
   border: 1px solid var(--border);
   box-shadow: var(--elev-2);
   pointer-events: none;
+}
+.jm-leaflet-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 2px solid #fff;
+  border-radius: 9999px;
+  color: #04201d;
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+.cm-marker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cm-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #fff;
+  border-radius: 9999px;
+  background: #0ea5b7;
+  color: #04201d;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.cm-warehouse { border-radius: 6px; background: #2dd4bf; }
+.cm-label {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  margin-bottom: 4px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  font-size: 10px;
+  font-weight: 600;
 }
 .lm-label-sm {
   font-weight: 500;

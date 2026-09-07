@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/timeline'
 import KpiTile from '@/components/KpiTile.vue'
 import JourneyMap from '@/components/JourneyMap.vue'
-import JourneyMapMapbox from '@/components/JourneyMapMapbox.vue'
+import JourneyMapLeaflet from '@/components/JourneyMapLeaflet.vue'
 import { toast } from 'vue-sonner'
 import { toneBadge, toneDot, shortDate } from '@/lib/utils'
 
@@ -146,7 +146,7 @@ const esStatus = (s: EventState): 'success' | 'default' | 'muted' =>
         <!-- Real road map when the movement has baked geometry; the stylised arc otherwise. -->
         <div v-if="liveGeo" class="relative h-[280px] w-full overflow-hidden rounded-xl border">
           <ClientOnly>
-            <JourneyMapMapbox
+            <JourneyMapLeaflet
               :coords="liveGeo.coords"
               :stops="liveGeo.stops"
               :progress="shipment.progress"

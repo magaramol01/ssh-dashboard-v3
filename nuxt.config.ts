@@ -3,11 +3,6 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: false },
-  runtimeConfig: {
-    public: {
-      mapboxToken: process.env.MAPBOX_ACCESS_TOKEN || '',
-    },
-  },
   css: [
     '@fontsource-variable/inter',
     '@fontsource-variable/geist',

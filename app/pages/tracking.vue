@@ -19,7 +19,7 @@ import {
   Timeline, TimelineItem, TimelineMedia, TimelineContent, TimelineTitle, TimelineDate, TimelineDescription,
 } from '@/components/ui/timeline'
 import JourneyMap from '@/components/JourneyMap.vue'
-import JourneyMapMapbox from '@/components/JourneyMapMapbox.vue'
+import JourneyMapLeaflet from '@/components/JourneyMapLeaflet.vue'
 import { toneBadge, toneDot, shortDate } from '@/lib/utils'
 
 import { findShipment, STATUS_LABELS, STATUS_TONE, lastMile } from '~/mocks/shipments'
@@ -125,7 +125,7 @@ const esStatus = (s: EventState): 'success' | 'default' | 'muted' =>
           <!-- Live journey — real road map when geometry exists, stylised arc otherwise -->
           <div v-if="liveGeo" class="relative h-[260px] w-full overflow-hidden rounded-xl border">
             <ClientOnly>
-              <JourneyMapMapbox
+              <JourneyMapLeaflet
                 :coords="liveGeo.coords"
                 :stops="liveGeo.stops"
                 :progress="shipment.progress"

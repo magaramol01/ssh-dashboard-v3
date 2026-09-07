@@ -17,10 +17,10 @@ point for a real build.
 
 ## ★ Live fleet tracking
 
-The headline feature: a real-time fleet map built on **Mapbox GL JS**. Every
-active trip is drawn as a real road polyline over a live basemap, alongside a
-trip list and a click-through **inspector drawer** with per-trip stops,
-distance, and status.
+The headline feature: a real-time fleet map built on **Leaflet** and
+**OpenStreetMap**. Every active trip is drawn as a real road polyline over a
+live basemap, alongside a trip list and a click-through **inspector drawer**
+with per-trip stops, distance, and status.
 
 | Light | Dark |
 | --- | --- |
@@ -56,7 +56,7 @@ distance, and status.
 - **Framework** — Nuxt 4 + Vue 3 (Composition API, `<script setup>`)
 - **UI components** — shadcn-vue primitives from the `@uipkge` registry on [Reka UI](https://reka-ui.com)
 - **Styling** — Tailwind CSS v4 with OKLCH design tokens (light + dark)
-- **Maps** — Mapbox GL JS for the live fleet map (`/live`)
+- **Maps** — Leaflet with OpenStreetMap tiles for live fleet tracking (`/live`)
 - **Charts** — ECharts via `vue-echarts`
 - **Tables** — TanStack Table (`@tanstack/vue-table`)
 - **State** — `useState` + composables (no Pinia)
@@ -67,7 +67,7 @@ distance, and status.
 
 ```bash
 npm install
-cp .env.example .env   # optional — only the /live Mapbox map needs a token
+cp .env.example .env   # optional — maps need no API key
 npm run dev            # http://localhost:3340
 ```
 
@@ -82,9 +82,7 @@ Requires Node 20+ (see `.nvmrc`).
 
 | Variable | Required | What it's for |
 | --- | --- | --- |
-| `MAPBOX_ACCESS_TOKEN` | Optional | Powers the live fleet-tracking map at `/live`. Get a free token at [account.mapbox.com](https://account.mapbox.com/access-tokens/). Every other screen runs on mock data without it. |
-
-Exposed to the client via `runtimeConfig.public.mapboxToken` (see `nuxt.config.ts`).
+No environment variables are required. Maps use public OpenStreetMap tiles.
 
 ## Personas
 
@@ -109,7 +107,7 @@ route middleware (`app/middleware/require-dispatcher.ts`,
 | `/shipments` | Filterable, sortable shipment ledger (data table) with a `?status=` deep-link filter |
 | `/shipments/[id]` | Shipment detail — status hero, route progress, tracking timeline, packages, documents |
 | `/shipments/new` | Mock booking form (dispatcher) |
-| `/live` | Live fleet map (Mapbox GL JS) with per-trip route polylines + an inspector drawer |
+| `/live` | Live fleet map (Leaflet + OpenStreetMap) with per-trip route polylines + an inspector drawer |
 | `/tracking` | Public-style "track a package" lookup by tracking number |
 | `/fleet` | Vehicle roster with utilization + status (dispatcher) |
 | `/drivers` | Driver roster card grid (dispatcher) |

@@ -2,9 +2,9 @@
 /**
  * Live tracking — a logistics control tower. A triage-sorted dispatch queue on
  * the left, a near-monochrome graphite fleet map on the right under a docked
- * KPI ribbon, and a right-edge inspector drawer for the selected trip. The map
- * is forced dark (a control tower reads dark); hovering a rail card lights its
- * lane, selecting opens the inspector and flies the map. Dispatcher-gated.
+ * KPI ribbon, and a right-edge inspector drawer for the selected trip. Hovering
+ * a rail card lights its lane, selecting opens the inspector and flies the map.
+ * Dispatcher-gated.
  */
 import { ref, computed, watch, nextTick } from 'vue'
 import { Target, MapPin, Truck, Star, X } from 'lucide-vue-next'
@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { OverlayScroll } from '@/components/ui/overlay-scroll'
-import LiveMapMapbox from '@/components/LiveMapMapbox.vue'
+import LiveMapLeaflet from '@/components/LiveMapLeaflet.vue'
 import { toneBadge, toneDot, shortDate } from '@/lib/utils'
 
 import { resolvedTrips, type ResolvedTrip } from '~/mocks/live'
@@ -250,8 +250,8 @@ const vehicles = computed(() => VEHICLES.filter((v) => v.status === 'active'))
       <!-- Map fills remaining height; inspector drawer docks to its right edge -->
       <div class="relative flex-1">
         <ClientOnly>
-          <LiveMapMapbox ref="mapRef" :trips="trips" :selected-id="selectedId" @select="select" />
-          <!-- Calm placeholder while Mapbox's JS + tiles load — no second map. -->
+          <LiveMapLeaflet ref="mapRef" :trips="trips" :selected-id="selectedId" @select="select" />
+          <!-- Calm placeholder while Leaflet's JS + tiles load — no second map. -->
           <template #fallback>
             <div class="bg-muted size-full" />
           </template>

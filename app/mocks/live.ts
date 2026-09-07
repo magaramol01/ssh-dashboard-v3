@@ -1,7 +1,7 @@
 /**
  * Live-tracking trips for the map view. Each entry references a real active
  * shipment and carries a `coords` polyline that follows actual roads — the
- * geometry is real Mapbox Directions output (origin → corridor waypoint →
+ * geometry follows real road corridors (origin → waypoint →
  * destination), baked to static [lat, lng] by scripts/gen-live-routes.mjs so
  * routes curve along real highways while the runtime stays fully offline.
  *
@@ -9,7 +9,7 @@
  * a dense Northeast cluster, Chicago/Denver hubs) so the fleet map reads like a
  * live dispatch board — many roads crossing rather than a few straight lines.
  *
- * `coords` drives the Mapbox map; the 1000×700 `path` used by the offline
+ * `coords` drives the Leaflet map; the 1000×700 `path` used by the offline
  * vector fallback is derived from it via a US-bounds projection. Truck position
  * is interpolated from the shipment's progress. All values are static (no
  * Math.random / Date.now) so server + client render identically.
