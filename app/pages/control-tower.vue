@@ -7,6 +7,7 @@ import {
   Send, CornerDownLeft, ChevronDown, ChevronUp, Bot, X, RotateCcw, ArrowUpRight, Zap, FileText
 } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
+import type { SentinelAction, SentinelAnswer, SentinelChatResponse } from '#shared/types/sentinel'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -86,7 +87,16 @@ const searchQuery = ref('')
 const isAgentPrioritized = ref(true)
 
 const { data, pending, error, refresh } = await useFetch<ControlTowerResponse>('/api/control-tower', {
-  query: { page: alertPage, pageSize: ALERT_PAGE_SIZE },
+  query: {
+    page: alertPage,
+    pageSize: ALERT_PAGE_SIZE,
+    severity: filterSeverity,
+    search: searchQuery,
+  },
+})
+
+watch([filterSeverity, searchQuery], () => {
+  alertPage.value = 1
 })
 
 const zeroKpis = {
@@ -187,71 +197,11 @@ function parseAlertDetails(alert: Alert) {
   }
 }
 
-// Minimal, professional agentic assessment for each alert
-function getAgentInsight(alert: Alert): { insight: string; status: string; confidence: string } {
-  const msg = (alert.message || '').toUpperCase()
-
-  if (msg.includes('FO IN.TEMP') || msg.includes('F.O. INLET TEMP') || msg.includes('FO TEMP')) {
-    return {
-      insight: 'Steam tracing thermal drop · check pre-heater bypass',
-      status: 'Auto-Triaged',
-      confidence: '96%',
-    }
-  }
-  if (msg.includes('F.O. IN PRESS') || msg.includes('F.O INLET PRESS') || msg.includes('FO PRESS')) {
-    return {
-      insight: 'Filter differential-P spike · booster pump check required',
-      status: 'Auto-Triaged',
-      confidence: '94%',
-    }
-  }
-  if (msg.includes('STARTING AIR')) {
-    return {
-      insight: 'Air bank pressure low · verify compressor automatic start',
-      status: 'Escalated',
-      confidence: '97%',
-    }
-  }
-  if (msg.includes('VISCOSITY')) {
-    return {
-      insight: 'Viscometer loop drift · atomization setpoint trim advised',
-      status: 'Auto-Triaged',
-      confidence: '93%',
-    }
-  }
-  if (msg.includes('L.O INLET TEMP') || msg.includes('L.O. INLET')) {
-    return {
-      insight: 'Cooler heat exchange drop · adjust seawater bypass',
-      status: 'Auto-Triaged',
-      confidence: '95%',
-    }
-  }
-  return {
-    insight: 'Telemetry variance beyond baseline operational envelope',
-    status: 'Auto-Triaged',
-    confidence: '91%',
-  }
-}
-
 const criticalCount = computed(() => alerts.value.filter((a) => alertTone(a) === 'destructive').length)
 const warningCount = computed(() => alerts.value.filter((a) => alertTone(a) === 'warning').length)
 
 const filteredAlerts = computed(() => {
-  let list = alerts.value.filter((alert) => {
-    if (filterSeverity.value === 'critical' && alertTone(alert) !== 'destructive') return false
-    if (filterSeverity.value === 'warning' && alertTone(alert) !== 'warning') return false
-
-    if (searchQuery.value.trim()) {
-      const q = searchQuery.value.toLowerCase().trim()
-      const vName = (alert.vessel_name || '').toLowerCase()
-      const msg = (alert.message || '').toLowerCase()
-      const sys = (alert.system_name || '').toLowerCase()
-      if (!vName.includes(q) && !msg.includes(q) && !sys.includes(q)) {
-        return false
-      }
-    }
-    return true
-  })
+  let list = [...alerts.value]
 
   if (isAgentPrioritized.value) {
     list = [...list].sort((a, b) => {
@@ -282,6 +232,7 @@ function vesselStatus(vessel: NetworkVessel) {
 type AgentToolCall = {
   name: string
   args: string
+  summary: string
 }
 
 type AgentAction = {
@@ -293,9 +244,8 @@ type AgentMessage = {
   id: string
   role: 'user' | 'agent'
   content: string
-  thought?: string
+  answer?: SentinelAnswer
   tools?: AgentToolCall[]
-  severity?: 'critical' | 'warning' | 'info'
   actions?: AgentAction[]
 }
 
@@ -331,255 +281,78 @@ const quickDirectives = [
 
 const agentMessages = ref<AgentMessage[]>([
   {
-    id: 'init-1',
+    id: 'sentinel-ready',
     role: 'agent',
-    content: 'Autonomous Sentinel active across 23 hulls. Continuous telemetry monitor streaming with anomaly triage enabled.',
-    thought: 'Queried open alert matrix & heartbeat latencies. Identified auxiliary generator temperature pattern across sister vessels.',
-    tools: [
-      { name: 'fleet_audit', args: 'scope="active_hulls", status="all"' },
-      { name: 'telemetry_scan', args: 'sensors=["TEMP", "PRESS", "VSAT"]' },
-    ],
-    severity: 'warning',
-    actions: [
-      {
-        label: 'Triage Critical (0)',
-        handler: () => {
-          filterSeverity.value = 'critical'
-          toast.info('Filtered to Critical alarms')
-        },
-      },
-      {
-        label: 'Focus JAG LAADKI',
-        handler: () => {
-          searchQuery.value = 'JAG LAADKI'
-          toast.success('Filtered to JAG LAADKI anomalies')
-        },
-      },
-      {
-        label: 'Reset Filters',
-        handler: () => {
-          searchQuery.value = ''
-          filterSeverity.value = 'all'
-        },
-      },
-    ],
+    content: 'Sentinel is ready. Ask about current alerts, vessel context, or fleet connectivity.',
   },
 ])
 
-function askAgent(promptText: string) {
-  if (!promptText.trim()) return
+async function askAgent(promptText: string, context?: { alertId?: number; vesselId?: number }) {
   const q = promptText.trim()
+  if (!q || isAgentProcessing.value) return
   agentInput.value = ''
   isWorkbenchOpen.value = true
-
-  agentMessages.value.push({
-    id: `user-${Date.now()}`,
-    role: 'user',
-    content: q,
-  })
-
+  agentMessages.value.push({ id: `user-${Date.now()}`, role: 'user', content: q })
   isAgentProcessing.value = true
 
-  setTimeout(() => {
+  try {
+    const response = await $fetch<SentinelChatResponse>('/api/sentinel/chat', {
+      method: 'POST',
+      body: {
+        messages: agentMessages.value.slice(-20).map(({ role, content }) => ({
+          role: role === 'agent' ? 'assistant' : 'user',
+          content,
+        })),
+        context,
+      },
+    })
+    agentMessages.value.push({
+      id: `agent-${Date.now()}`,
+      role: 'agent',
+      content: response.message.content,
+      answer: response.answer,
+      tools: response.activity.map(({ name, args, summary }) => ({ name, args: JSON.stringify(args), summary })),
+      actions: response.actions.map((action) => ({ label: action.label, handler: () => applyAgentAction(action) })),
+    })
+  } catch (requestError) {
+    toast.error(requestError instanceof Error ? requestError.message : 'Sentinel is temporarily unavailable.')
+  } finally {
     isAgentProcessing.value = false
-    handleAgentResponse(q)
-  }, 400)
+  }
+}
+
+function toolLabel(name: string) {
+  return name.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function applyAgentAction(action: SentinelAction) {
+  if (action.type === 'filter-alerts') {
+    filterSeverity.value = action.severity ?? 'all'
+    searchQuery.value = action.search ?? ''
+    alertPage.value = 1
+    toast.info('Alert filters updated')
+  } else {
+    searchQuery.value = action.label.replace(/^Focus /, '')
+    alertPage.value = 1
+    toast.info(`Focused ${action.label.replace(/^Focus /, '')}`)
+  }
 }
 
 function openAgentForAlert(alert: Alert) {
   isWorkbenchOpen.value = true
   const vName = alert.vessel_name || `Vessel ${alert.vessel_id ?? ''}`
-  askAgent(`Diagnose ${vName}: ${alert.message || 'Alert'}`)
-}
-
-function handleAgentResponse(query: string) {
-  const lower = query.toLowerCase()
-
-  if (lower.includes('laadki') || lower.includes('temp') || lower.includes('temperature')) {
-    agentMessages.value.push({
-      id: `agent-${Date.now()}`,
-      role: 'agent',
-      content: 'JAG LAADKI is triggering 3 auxiliary generator fuel temperature warnings (GE-1, GE-2, GE-3 under 110 °C). Live telemetry indicates steam tracing valve starvation on the fuel pre-heater.',
-      thought: 'Correlated 3 distinct sensor feeds: GE-1 (92.7 °C), GE-2 (101.6 °C), GE-3 (102.9 °C). Throttling detected on auxiliary boiler return loop.',
-      tools: [
-        { name: 'read_modbus_channel', args: 'vessel="JAG LAADKI", tag="GE_TEMP_INLET"' },
-        { name: 'cross_correlate', args: 'system="F.O. PREHEATER", threshold="<110C"' },
-      ],
-      severity: 'critical',
-      actions: [
-        {
-          label: 'Filter Table to JAG LAADKI',
-          handler: () => {
-            searchQuery.value = 'JAG LAADKI'
-            toast.info('Table filtered to JAG LAADKI')
-          },
-        },
-        {
-          label: 'Dispatch Chief Engineer Advisory',
-          handler: () => {
-            toast.success('Dispatched Advisory to JAG LAADKI', {
-              description: 'Requested verification of auxiliary boiler steam tracing supply to pre-heaters.',
-            })
-          },
-        },
-        {
-          label: 'Reset Filters',
-          handler: () => {
-            searchQuery.value = ''
-            filterSeverity.value = 'all'
-          },
-        },
-      ],
-    })
-    return
-  }
-
-  if (lower.includes('critical') || lower.includes('alarm') || lower.includes('triage')) {
-    agentMessages.value.push({
-      id: `agent-${Date.now()}`,
-      role: 'agent',
-      content: `Evaluated ${pagination.value.total} total open events across fleet nodes. There are currently ${criticalCount.value} critical propulsion trips and ${warningCount.value} thermal & pressure warnings.`,
-      thought: 'Prioritized alerts by severity weight and unacknowledged duration. Filtered out transient telemetry flutter.',
-      tools: [
-        { name: 'query_alert_matrix', args: 'min_severity="destructive", lookback="24h"' },
-      ],
-      severity: criticalCount.value > 0 ? 'critical' : 'info',
-      actions: [
-        {
-          label: 'Show Only Critical',
-          handler: () => {
-            filterSeverity.value = 'critical'
-            toast.info('Severity filter set to Critical')
-          },
-        },
-        {
-          label: 'Show All Warnings',
-          handler: () => {
-            filterSeverity.value = 'warning'
-            toast.info('Severity filter set to Warnings')
-          },
-        },
-        {
-          label: 'Show All Alerts',
-          handler: () => {
-            filterSeverity.value = 'all'
-            searchQuery.value = ''
-          },
-        },
-      ],
-    })
-    return
-  }
-
-  if (lower.includes('offline') || lower.includes('vsat') || lower.includes('network') || lower.includes('connectivity')) {
-    agentMessages.value.push({
-      id: `agent-${Date.now()}`,
-      role: 'agent',
-      content: `5 of 23 vessels are currently offline on VSAT. JAG LEELA has been offline for 7 hours, while JAG ADITI and JAG LOKESH have extended satellite silence.`,
-      thought: 'Evaluated ping packet drop & terminal sync across Inmarsat / Starlink marine terminals. 5 vessels silent over 2 hours.',
-      tools: [
-        { name: 'ping_fleet_vsat', args: 'timeout=15s, terminals="primary+backup"' },
-      ],
-      severity: 'warning',
-      actions: [
-        {
-          label: 'Highlight Offline Vessels',
-          handler: () => {
-            toast.info('Vessels highlighted in Fleet Connectivity grid')
-          },
-        },
-      ],
-    })
-    return
-  }
-
-  if (lower.includes('brief') || lower.includes('report') || lower.includes('shift') || lower.includes('summary')) {
-    const summaryText = `# Fleet Sentinel Brief (${new Date().toUTCString()})
-- Open Alerts: ${pagination.value.total} (${criticalCount.value} critical)
-- Primary Anomaly: Auxiliary generator thermal loop on JAG LAADKI & JAG LEENA
-- Network Status: ${kpis.value.connected} Online, ${kpis.value.offline} Offline
-- Recommended Action: Dispatch steam tracing check to engine room duty supervisors.`
-
-    agentMessages.value.push({
-      id: `agent-${Date.now()}`,
-      role: 'agent',
-      content: 'Generated shift briefing packet with alert triage and satellite health.',
-      thought: 'Synthesizing operational digest: 23 registered hulls, active voyages, alert clusters, and network availability for shift handover.',
-      tools: [
-        { name: 'generate_handover_matrix', args: 'format="markdown", recipients=["watchstanders"]' },
-      ],
-      severity: 'info',
-      actions: [
-        {
-          label: 'Copy Handover to Clipboard',
-          handler: () => {
-            if (typeof navigator !== 'undefined' && navigator.clipboard) {
-              navigator.clipboard.writeText(summaryText)
-            }
-            toast.success('Shift Brief copied to clipboard')
-          },
-        },
-      ],
-    })
-    return
-  }
-
-  // Generic natural language fallback
-  agentMessages.value.push({
-    id: `agent-${Date.now()}`,
-    role: 'agent',
-    content: `Analyzed fleet telemetry regarding "${query}". 0 catastrophic failures detected. 10 unacknowledged outcomes in active monitoring.`,
-    thought: `Full-text scan executed across alert categories, vessel names, and machine subsystems for query "${query}".`,
-    tools: [
-      { name: 'semantic_search', args: `query="${query}", top_k=5` },
-    ],
-    severity: 'info',
-    actions: [
-      {
-        label: `Filter Table by "${query}"`,
-        handler: () => {
-          searchQuery.value = query
-          toast.info(`Search filter set to: "${query}"`)
-        },
-      },
-      {
-        label: 'Clear Search',
-        handler: () => {
-          searchQuery.value = ''
-        },
-      },
-    ],
+  void askAgent(`Diagnose ${vName}: ${alert.message || 'Alert'}`, {
+    alertId: alert.id,
+    vesselId: alert.vessel_id ?? undefined,
   })
 }
 
 function resetAgentSession() {
-  agentMessages.value = [
-    {
-      id: `init-${Date.now()}`,
-      role: 'agent',
-      content: 'Sentinel Copilot refreshed. Continuous telemetry streaming active across all 23 hulls.',
-      thought: 'Telemetry buffers re-initialized. Multi-variable scan active.',
-      tools: [
-        { name: 'fleet_audit', args: 'status="all"' },
-      ],
-      severity: 'info',
-      actions: [
-        {
-          label: 'Triage Critical',
-          handler: () => {
-            filterSeverity.value = 'critical'
-          },
-        },
-        {
-          label: 'Show All Alerts',
-          handler: () => {
-            filterSeverity.value = 'all'
-            searchQuery.value = ''
-          },
-        },
-      ],
-    },
-  ]
+  agentMessages.value = [{
+    id: `ready-${Date.now()}`,
+    role: 'agent',
+    content: 'Sentinel session reset. Ask about current marine operations data.',
+  }]
 }
 
 function handleKeydown(e: KeyboardEvent) {
@@ -626,10 +399,10 @@ onUnmounted(() => {
             </span>
             <Bot class="size-3.5" />
             <span class="font-semibold">Sentinel Copilot</span>
-            <span class="text-[10px] bg-primary/20 px-1.5 py-0.2 rounded font-normal text-foreground">3 Actions</span>
+            <span class="text-[10px] bg-primary/20 px-1.5 py-0.2 rounded font-normal text-foreground">Live data</span>
           </button>
         </div>
-        <p class="text-muted-foreground text-xs mt-0.5">Marine operations command center · continuous telemetry watchdog & anomaly triage.</p>
+        <p class="text-muted-foreground text-xs mt-0.5">Marine operations command center · live alert and connectivity analysis.</p>
       </div>
       <div class="flex flex-wrap items-center gap-2 self-start sm:self-auto">
         <Button
@@ -847,7 +620,7 @@ onUnmounted(() => {
                       @click="openAgentForAlert(alert)"
                     >
                       <Sparkles class="size-2.5 text-primary shrink-0 group-hover:rotate-12 transition-transform" />
-                      <span class="underline decoration-primary/30 group-hover:decoration-primary underline-offset-2">{{ getAgentInsight(alert).insight }}</span>
+                      <span class="underline decoration-primary/30 group-hover:decoration-primary underline-offset-2">Ask Sentinel for evidence-backed triage</span>
                     </button>
                   </div>
                 </TableCell>
@@ -884,7 +657,7 @@ onUnmounted(() => {
                     @click="openAgentForAlert(alert)"
                   >
                     <Bot class="size-2.5" />
-                    <span>{{ getAgentInsight(alert).status }}</span>
+                    <span>Ask Sentinel</span>
                     <ArrowUpRight class="size-2 opacity-70" />
                   </button>
                 </TableCell>
@@ -980,7 +753,7 @@ onUnmounted(() => {
                         @click="openAgentForAlert(alert)"
                       >
                         <Bot class="size-2.5" />
-                        <span>{{ getAgentInsight(alert).status }}</span>
+                        <span>Ask Sentinel</span>
                         <ArrowUpRight class="size-2 opacity-70" />
                       </button>
                     </div>
@@ -999,9 +772,9 @@ onUnmounted(() => {
                         @click="openAgentForAlert(alert)"
                       >
                         <Sparkles class="size-2.5 text-primary shrink-0 group-hover:rotate-12 transition-transform" />
-                        <span class="underline decoration-primary/30 group-hover:decoration-primary underline-offset-2">{{ getAgentInsight(alert).insight }}</span>
+                        <span class="underline decoration-primary/30 group-hover:decoration-primary underline-offset-2">Ask Sentinel for evidence-backed triage</span>
                       </button>
-                      <span>Confidence: {{ getAgentInsight(alert).confidence }}</span>
+                      <span>Source: live alert data</span>
                     </div>
                   </div>
                 </div>
@@ -1253,10 +1026,10 @@ onUnmounted(() => {
               <h2 class="text-sm font-semibold text-foreground tracking-tight">Sentinel Copilot</h2>
               <span class="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded-full border border-emerald-500/20">
                 <span class="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Autonomous
+                Read-only
               </span>
             </div>
-            <p class="text-[11px] text-muted-foreground font-mono">Telemetry DeepScan · 23 Hulls Monitored</p>
+            <p class="text-[11px] text-muted-foreground font-mono">Live marine data · evidence-backed answers</p>
           </div>
         </div>
         <div class="flex items-center gap-1">
@@ -1314,15 +1087,6 @@ onUnmounted(() => {
 
             <!-- Agent Structured Execution Block -->
             <div v-else class="rounded-xl border border-border/80 bg-background/90 p-3.5 space-y-3 shadow-xs">
-              <!-- Multi-step Reasoning Trace -->
-              <div v-if="msg.thought" class="rounded-md border border-border/50 bg-muted/40 p-2 text-[11px] font-mono space-y-1">
-                <div class="flex items-center gap-1.5 text-muted-foreground font-semibold">
-                  <Sparkles class="size-3 text-primary" />
-                  <span>Investigation Trace</span>
-                </div>
-                <p class="text-muted-foreground/90 pl-3 border-l-2 border-primary/40 leading-relaxed">{{ msg.thought }}</p>
-              </div>
-
               <!-- Tool Executions Trace -->
               <div v-if="msg.tools?.length" class="space-y-1">
                 <div
@@ -1331,19 +1095,40 @@ onUnmounted(() => {
                   class="flex items-center gap-1.5 text-[10px] font-mono bg-muted/30 border border-border/40 rounded px-2 py-0.5 text-muted-foreground"
                 >
                   <span class="text-emerald-500 font-bold">✓</span>
-                  <span class="text-foreground/85 font-semibold">{{ t.name }}</span>
-                  <span class="opacity-60 truncate">({{ t.args }})</span>
+                  <span class="text-foreground/85 font-semibold">{{ toolLabel(t.name) }}</span>
+                  <span class="opacity-60 truncate">{{ t.summary }}</span>
                 </div>
               </div>
 
-              <!-- Diagnostic Findings -->
-              <div class="space-y-1.5">
-                <div v-if="msg.severity" class="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded" :class="msg.severity === 'critical' ? 'bg-destructive/15 text-destructive' : 'bg-warning/15 text-warning'">
+              <!-- Structured Diagnostic Findings -->
+              <div v-if="msg.answer" class="space-y-3">
+                <div class="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded" :class="msg.answer.severity === 'critical' ? 'bg-destructive/15 text-destructive' : msg.answer.severity === 'warning' ? 'bg-warning/15 text-warning' : 'bg-primary/10 text-primary'">
                   <AlertTriangle class="size-2.5" />
-                  <span>{{ msg.severity === 'critical' ? 'Critical Action Required' : 'Operational Advisory' }}</span>
+                  <span>{{ msg.answer.severity === 'critical' ? 'Critical action required' : msg.answer.severity === 'warning' ? 'Operational advisory' : 'Informational' }}</span>
                 </div>
-                <p class="text-xs text-foreground leading-relaxed">{{ msg.content }}</p>
+                <p class="text-xs text-foreground leading-relaxed">{{ msg.answer.summary }}</p>
+                <div v-if="msg.answer.confirmedFacts.length" class="rounded-md border border-border/50 bg-muted/20 p-2.5 space-y-1.5">
+                  <p class="text-[10px] uppercase tracking-wider font-mono font-semibold text-muted-foreground">Confirmed data</p>
+                  <div v-for="fact in msg.answer.confirmedFacts" :key="`${fact.label}-${fact.value}`" class="flex justify-between gap-3 text-[11px]">
+                    <span class="text-muted-foreground">{{ fact.label }}</span>
+                    <span class="text-right font-medium text-foreground">{{ fact.value }}</span>
+                  </div>
+                </div>
+                <div v-if="msg.answer.possibleCauses.length" class="space-y-1">
+                  <p class="text-[10px] uppercase tracking-wider font-mono font-semibold text-muted-foreground">Possible explanations</p>
+                  <ul class="list-disc pl-4 text-[11px] text-muted-foreground space-y-0.5">
+                    <li v-for="cause in msg.answer.possibleCauses" :key="cause">{{ cause }}</li>
+                  </ul>
+                </div>
+                <div v-if="msg.answer.recommendedChecks.length" class="space-y-1">
+                  <p class="text-[10px] uppercase tracking-wider font-mono font-semibold text-muted-foreground">Recommended checks</p>
+                  <ol class="list-decimal pl-4 text-[11px] text-muted-foreground space-y-0.5">
+                    <li v-for="check in msg.answer.recommendedChecks" :key="check">{{ check }}</li>
+                  </ol>
+                </div>
+                <p class="border-l-2 border-warning/50 pl-2 text-[11px] text-muted-foreground">{{ msg.answer.operatorNote }}</p>
               </div>
+              <p v-else class="text-xs text-foreground leading-relaxed">{{ msg.content }}</p>
 
               <!-- Interactive Action Controls (Manipulates Dashboard) -->
               <div v-if="msg.actions?.length" class="pt-1.5 border-t border-border/40 flex flex-wrap gap-1.5">
@@ -1353,7 +1138,7 @@ onUnmounted(() => {
                   variant="outline"
                   size="sm"
                   class="h-7 text-[11px] font-mono px-2.5 py-0 border-primary/30 hover:border-primary/70 hover:bg-primary/10 text-foreground cursor-pointer gap-1.5 transition-colors"
-                  @click="act.handler"
+                  @click="act.handler()"
                 >
                   <ArrowUpRight class="size-3 text-primary shrink-0" />
                   <span>{{ act.label }}</span>
@@ -1365,7 +1150,7 @@ onUnmounted(() => {
           <!-- Agent In-Flight Scanner -->
           <div v-if="isAgentProcessing" class="flex items-center gap-2.5 text-xs text-muted-foreground font-mono italic p-3 rounded-lg border border-border/50 bg-muted/20">
             <RefreshCw class="size-3.5 text-primary animate-spin" />
-            <span>Synthesizing live telemetry across fleet nodes...</span>
+            <span>Querying live marine data...</span>
           </div>
         </OverlayScroll>
       </div>
@@ -1377,7 +1162,7 @@ onUnmounted(() => {
             <Sparkles class="text-primary pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2" />
             <Input
               v-model="agentInput"
-              placeholder="Ask or execute fleet directive (e.g. 'Isolate DG-2')..."
+              placeholder="Ask about current alerts or vessel status..."
               class="h-9 pl-9 pr-8 text-xs border-border/80 bg-background focus-visible:ring-1 focus-visible:ring-primary font-mono"
             />
             <button
@@ -1399,7 +1184,7 @@ onUnmounted(() => {
           </Button>
         </form>
         <div class="flex items-center justify-between mt-2 px-1 text-[10px] text-muted-foreground font-mono">
-          <span>Directives: filter, diagnose, notify, export</span>
+          <span>Read-only: filter, diagnose, summarize</span>
           <span>Esc to close · ⌘J toggle</span>
         </div>
       </div>

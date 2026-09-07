@@ -23,6 +23,10 @@ export default defineNuxtConfig({
     // to the same name" warnings on Textarea / Timeline / Tooltip / Context).
     { path: "~/components", pathPrefix: false, pattern: "**/*.vue" },
   ],
+  runtimeConfig: {
+    openrouterApiKey: '',
+    sentinelModel: 'openai/gpt-4o-mini',
+  },
   vite: {
     plugins: [tailwindcss()],
   },

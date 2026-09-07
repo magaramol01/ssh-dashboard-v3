@@ -10,10 +10,40 @@ function boundedInteger(value: unknown, fallback: number, min: number, max: numb
   return Math.min(max, Math.max(min, candidate))
 }
 
+function boundedText(value: unknown, maxLength: number) {
+  const text = Array.isArray(value) ? value[0] : value
+  return typeof text === 'string' ? text.trim().slice(0, maxLength) : ''
+}
+
+function escapeSearch(value: string) {
+  return value.replace(/[\\%_]/g, '\\$&')
+}
+
+const severityExpression = `CASE
+  WHEN lower(concat_ws(' ', coalesce(a.observanttype, ''), coalesce(a.observantmessage, ''), coalesce(a.machinetype, ''))) ~ '(critical|failure|shutdown|trip|high-high|low-low)'
+  THEN 'critical'
+  ELSE 'warning'
+END`
+
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const requestedPage = boundedInteger(query.page, 1, 1, Number.MAX_SAFE_INTEGER)
   const pageSize = boundedInteger(query.pageSize, DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE)
+  const search = boundedText(query.search, 100)
+  const requestedSeverity = boundedText(query.severity, 20)
+  const severity = requestedSeverity === 'critical' || requestedSeverity === 'warning' ? requestedSeverity : ''
+  const alertValues: Array<string | number> = []
+  const alertWhere = ['a.acknowledgestatus IS NOT TRUE']
+
+  if (search) {
+    alertValues.push(`%${escapeSearch(search)}%`)
+    alertWhere.push(`concat_ws(' ', coalesce(s.name, ''), coalesce(a.observantmessage, ''), coalesce(a.machinetype, ''), coalesce(a.observanttype, '')) ILIKE $${alertValues.length} ESCAPE '\\'`)
+  }
+  if (severity) {
+    alertValues.push(severity)
+    alertWhere.push(`${severityExpression} = $${alertValues.length}`)
+  }
+  const alertFilterSql = alertWhere.join(' AND ')
 
   try {
     const [kpiResult, networkVesselsResult, alertCountResult, voyagesResult] = await Promise.all([
@@ -77,9 +107,10 @@ export default defineEventHandler(async (event) => {
       `),
       dbQuery<{ count: string }>(`
         SELECT count(*)::text AS count
-        FROM shipping_db.std_triggeredoutcomestoday
-        WHERE acknowledgestatus IS NOT TRUE
-      `),
+        FROM shipping_db.std_triggeredoutcomestoday a
+        LEFT JOIN shipping_db.ship s ON s.id = a.vesselid
+        WHERE ${alertFilterSql}
+      `, alertValues),
       dbQuery<{
         vessel_id: number
         vessel_name: string
@@ -146,10 +177,10 @@ export default defineEventHandler(async (event) => {
         a.acknowledgestatus AS acknowledged
       FROM shipping_db.std_triggeredoutcomestoday a
       LEFT JOIN shipping_db.ship s ON s.id = a.vesselid
-      WHERE a.acknowledgestatus IS NOT TRUE
+      WHERE ${alertFilterSql}
       ORDER BY a."timestamp" DESC NULLS LAST, a.id DESC
-      LIMIT $1 OFFSET $2
-    `, [pageSize, offset])
+      LIMIT $${alertValues.length + 1} OFFSET $${alertValues.length + 2}
+    `, [...alertValues, pageSize, offset])
 
     const kpis = kpiResult.rows[0] ?? {
       vessels: 0,
