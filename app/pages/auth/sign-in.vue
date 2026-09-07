@@ -23,7 +23,7 @@ definePageMeta({ layout: false })
 
 const { set: setPersona } = usePersona()
 
-const email = ref('avery@zepp.dev')
+const email = ref('')
 const password = ref('')
 const remember = ref(true)
 
