@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/table'
 import KpiTile from '@/components/KpiTile.vue'
 import { toneBadge, toneDot, toneText } from '@/lib/utils'
+import { useSidebar } from '@/components/ui/sidebar'
 
 type Alert = {
   alert_key: string
@@ -301,6 +302,25 @@ type AgentMessage = {
 const isWorkbenchOpen = ref(false)
 const agentInput = ref('')
 const isAgentProcessing = ref(false)
+
+const { open: isSidebarOpen, setOpen: setSidebarOpen, openMobile, setOpenMobile } = useSidebar()
+
+// Mutually exclusive single-panel rule:
+// Only one panel can be visible at a time. Opening one overwrites (closes) the other.
+watch(isWorkbenchOpen, (open) => {
+  if (open) {
+    if (isSidebarOpen.value) setSidebarOpen(false)
+    if (openMobile?.value) setOpenMobile(false)
+  }
+})
+
+watch([isSidebarOpen, () => openMobile?.value], ([desktopOpen, mobileOpen]) => {
+  if (desktopOpen || mobileOpen) {
+    if (isWorkbenchOpen.value) {
+      isWorkbenchOpen.value = false
+    }
+  }
+})
 
 const quickDirectives = [
   { label: 'Triage Critical', query: 'Triage critical alarms', icon: AlertTriangle },
@@ -586,8 +606,10 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="space-y-5 p-4 md:p-6 pb-12">
-    <!-- Header with interactive Agent Sentinel Launcher -->
+  <div class="flex flex-1 min-h-[calc(100svh-3.5rem)] w-full relative">
+    <!-- Main Dashboard Area -->
+    <div class="flex-1 min-w-0 space-y-5 p-4 md:p-6 pb-12 transition-all duration-300">
+      <!-- Header with interactive Agent Sentinel Launcher -->
     <header class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <div class="flex items-center gap-2.5">
@@ -1194,7 +1216,8 @@ onUnmounted(() => {
           <p v-else class="text-muted-foreground py-10 text-center text-sm">No voyage forecasts available.</p>
         </CardContent>
       </Card>
-    </div>
+    </div> <!-- /Bottom Deck Grid -->
+  </div> <!-- /Main Dashboard Area -->
 
     <!-- Floating Quick Launcher (Bottom Right) -->
     <div v-if="!isWorkbenchOpen" class="fixed bottom-6 right-6 z-30">
@@ -1214,191 +1237,172 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <!-- Slide-over Right Agent Workbench (Drawer & Backdrop) -->
-    <Teleport to="body">
-      <!-- Backdrop Overlay -->
-      <Transition
-        enter-active-class="transition-opacity duration-200 ease-out"
-        enter-from-class="opacity-0"
-        enter-to-class="opacity-100"
-        leave-active-class="transition-opacity duration-150 ease-in"
-        leave-from-class="opacity-100"
-        leave-to-class="opacity-0"
-      >
-        <div
-          v-if="isWorkbenchOpen"
-          class="fixed inset-0 bg-background/60 backdrop-blur-xs z-50 cursor-pointer"
-          @click="isWorkbenchOpen = false"
-        />
-      </Transition>
-
-      <!-- Slide-over Panel -->
-      <div
-        class="fixed top-0 right-0 h-full w-[460px] max-w-[94vw] bg-card border-l border-border shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out"
-        :class="isWorkbenchOpen ? 'translate-x-0' : 'translate-x-full'"
-      >
-        <!-- Workbench Topbar -->
-        <div class="px-4 py-3.5 border-b border-border/80 flex items-center justify-between bg-muted/20 shrink-0">
-          <div class="flex items-center gap-2.5">
-            <div class="size-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-              <Bot class="size-4" />
-            </div>
-            <div>
-              <div class="flex items-center gap-2">
-                <h2 class="text-sm font-semibold text-foreground tracking-tight">Sentinel Copilot</h2>
-                <span class="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded-full border border-emerald-500/20">
-                  <span class="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Autonomous
-                </span>
-              </div>
-              <p class="text-[11px] text-muted-foreground font-mono">Telemetry DeepScan · 23 Hulls Monitored</p>
-            </div>
+    <!-- Sentinel Copilot Integrated Right Sidebar Panel (No Overlay!) -->
+    <aside
+      v-if="isWorkbenchOpen"
+      class="w-full md:w-[420px] xl:w-[460px] shrink-0 border-l border-border bg-card flex flex-col h-[calc(100svh-3.5rem)] sticky top-14 transition-all duration-300 z-20 shadow-xs"
+    >
+      <!-- Workbench Topbar -->
+      <div class="px-4 py-3.5 border-b border-border/80 flex items-center justify-between bg-muted/20 shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="size-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+            <Bot class="size-4" />
           </div>
-          <div class="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              class="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
-              title="Reset session"
-              @click="resetAgentSession"
-            >
-              <RotateCcw class="size-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              class="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
-              title="Close (Esc)"
-              @click="isWorkbenchOpen = false"
-            >
-              <X class="size-4" />
-            </Button>
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-sm font-semibold text-foreground tracking-tight">Sentinel Copilot</h2>
+              <span class="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded-full border border-emerald-500/20">
+                <span class="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Autonomous
+              </span>
+            </div>
+            <p class="text-[11px] text-muted-foreground font-mono">Telemetry DeepScan · 23 Hulls Monitored</p>
           </div>
         </div>
-
-        <!-- Operational Quick Directives Rail -->
-        <div class="px-3.5 py-2.5 border-b border-border/60 bg-muted/10 shrink-0">
-          <div class="text-[10px] uppercase font-mono tracking-wider text-muted-foreground font-semibold mb-1.5 flex items-center justify-between">
-            <span>Fleet Directives</span>
-            <span class="text-[9px] lowercase font-normal opacity-70">1-click investigation</span>
-          </div>
-          <div class="flex flex-wrap gap-1.5">
-            <button
-              v-for="chip in quickDirectives"
-              :key="chip.label"
-              type="button"
-              class="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded-md border border-border/80 bg-background hover:border-primary/50 hover:bg-primary/5 text-foreground transition-all cursor-pointer shadow-2xs active:scale-95"
-              @click="askAgent(chip.query)"
-            >
-              <component :is="chip.icon" class="size-3 text-primary shrink-0" />
-              <span>{{ chip.label }}</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Messages & Execution Stream -->
-        <div class="flex-1 min-h-0 overflow-hidden relative">
-          <OverlayScroll class="h-full p-4 space-y-3.5">
-            <div v-for="msg in agentMessages" :key="msg.id" class="space-y-2">
-              <!-- User Prompt Bubble -->
-              <div v-if="msg.role === 'user'" class="flex justify-end">
-                <div class="rounded-lg bg-primary text-primary-foreground px-3 py-2 text-xs font-medium max-w-[85%] shadow-xs">
-                  {{ msg.content }}
-                </div>
-              </div>
-
-              <!-- Agent Structured Execution Block -->
-              <div v-else class="rounded-xl border border-border/80 bg-background/90 p-3.5 space-y-3 shadow-xs">
-                <!-- Multi-step Reasoning Trace -->
-                <div v-if="msg.thought" class="rounded-md border border-border/50 bg-muted/40 p-2 text-[11px] font-mono space-y-1">
-                  <div class="flex items-center gap-1.5 text-muted-foreground font-semibold">
-                    <Sparkles class="size-3 text-primary" />
-                    <span>Investigation Trace</span>
-                  </div>
-                  <p class="text-muted-foreground/90 pl-3 border-l-2 border-primary/40 leading-relaxed">{{ msg.thought }}</p>
-                </div>
-
-                <!-- Tool Executions Trace -->
-                <div v-if="msg.tools?.length" class="space-y-1">
-                  <div
-                    v-for="(t, idx) in msg.tools"
-                    :key="idx"
-                    class="flex items-center gap-1.5 text-[10px] font-mono bg-muted/30 border border-border/40 rounded px-2 py-0.5 text-muted-foreground"
-                  >
-                    <span class="text-emerald-500 font-bold">✓</span>
-                    <span class="text-foreground/85 font-semibold">{{ t.name }}</span>
-                    <span class="opacity-60 truncate">({{ t.args }})</span>
-                  </div>
-                </div>
-
-                <!-- Diagnostic Findings -->
-                <div class="space-y-1.5">
-                  <div v-if="msg.severity" class="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded" :class="msg.severity === 'critical' ? 'bg-destructive/15 text-destructive' : 'bg-warning/15 text-warning'">
-                    <AlertTriangle class="size-2.5" />
-                    <span>{{ msg.severity === 'critical' ? 'Critical Action Required' : 'Operational Advisory' }}</span>
-                  </div>
-                  <p class="text-xs text-foreground leading-relaxed">{{ msg.content }}</p>
-                </div>
-
-                <!-- Interactive Action Controls (Manipulates Dashboard) -->
-                <div v-if="msg.actions?.length" class="pt-1.5 border-t border-border/40 flex flex-wrap gap-1.5">
-                  <Button
-                    v-for="act in msg.actions"
-                    :key="act.label"
-                    variant="outline"
-                    size="sm"
-                    class="h-7 text-[11px] font-mono px-2.5 py-0 border-primary/30 hover:border-primary/70 hover:bg-primary/10 text-foreground cursor-pointer gap-1.5 transition-colors"
-                    @click="act.handler"
-                  >
-                    <ArrowUpRight class="size-3 text-primary shrink-0" />
-                    <span>{{ act.label }}</span>
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Agent In-Flight Scanner -->
-            <div v-if="isAgentProcessing" class="flex items-center gap-2.5 text-xs text-muted-foreground font-mono italic p-3 rounded-lg border border-border/50 bg-muted/20">
-              <RefreshCw class="size-3.5 text-primary animate-spin" />
-              <span>Synthesizing live telemetry across fleet nodes...</span>
-            </div>
-          </OverlayScroll>
-        </div>
-
-        <!-- Docked Command Footer -->
-        <div class="p-3 border-t border-border/80 bg-muted/20 shrink-0">
-          <form class="flex items-center gap-2" @submit.prevent="askAgent(agentInput)">
-            <div class="relative flex-1">
-              <Sparkles class="text-primary pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2" />
-              <Input
-                v-model="agentInput"
-                placeholder="Ask or execute fleet directive (e.g. 'Isolate DG-2')..."
-                class="h-9 pl-9 pr-8 text-xs border-border/80 bg-background focus-visible:ring-1 focus-visible:ring-primary font-mono"
-              />
-              <button
-                v-if="agentInput"
-                type="button"
-                class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2 text-xs cursor-pointer"
-                @click="agentInput = ''"
-              >
-                ✕
-              </button>
-            </div>
-            <Button
-              type="submit"
-              size="sm"
-              class="h-9 px-3 text-xs gap-1.5 cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground font-medium shrink-0"
-              :disabled="!agentInput.trim()"
-            >
-              <Send class="size-3" />
-            </Button>
-          </form>
-          <div class="flex items-center justify-between mt-2 px-1 text-[10px] text-muted-foreground font-mono">
-            <span>Directives: filter, diagnose, notify, export</span>
-            <span>Esc to close · ⌘J toggle</span>
-          </div>
+        <div class="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            class="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
+            title="Reset session"
+            @click="resetAgentSession"
+          >
+            <RotateCcw class="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
+            title="Close Panel (Esc)"
+            @click="isWorkbenchOpen = false"
+          >
+            <X class="size-4" />
+          </Button>
         </div>
       </div>
-    </Teleport>
+
+      <!-- Operational Quick Directives Rail -->
+      <div class="px-3.5 py-2.5 border-b border-border/60 bg-muted/10 shrink-0">
+        <div class="text-[10px] uppercase font-mono tracking-wider text-muted-foreground font-semibold mb-1.5 flex items-center justify-between">
+          <span>Fleet Directives</span>
+          <span class="text-[9px] lowercase font-normal opacity-70">1-click investigation</span>
+        </div>
+        <div class="flex flex-wrap gap-1.5">
+          <button
+            v-for="chip in quickDirectives"
+            :key="chip.label"
+            type="button"
+            class="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded-md border border-border/80 bg-background hover:border-primary/50 hover:bg-primary/5 text-foreground transition-all cursor-pointer shadow-2xs active:scale-95"
+            @click="askAgent(chip.query)"
+          >
+            <component :is="chip.icon" class="size-3 text-primary shrink-0" />
+            <span>{{ chip.label }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Messages & Execution Stream -->
+      <div class="flex-1 min-h-0 overflow-hidden relative">
+        <OverlayScroll class="h-full p-4 space-y-3.5">
+          <div v-for="msg in agentMessages" :key="msg.id" class="space-y-2">
+            <!-- User Prompt Bubble -->
+            <div v-if="msg.role === 'user'" class="flex justify-end">
+              <div class="rounded-lg bg-primary text-primary-foreground px-3 py-2 text-xs font-medium max-w-[85%] shadow-xs">
+                {{ msg.content }}
+              </div>
+            </div>
+
+            <!-- Agent Structured Execution Block -->
+            <div v-else class="rounded-xl border border-border/80 bg-background/90 p-3.5 space-y-3 shadow-xs">
+              <!-- Multi-step Reasoning Trace -->
+              <div v-if="msg.thought" class="rounded-md border border-border/50 bg-muted/40 p-2 text-[11px] font-mono space-y-1">
+                <div class="flex items-center gap-1.5 text-muted-foreground font-semibold">
+                  <Sparkles class="size-3 text-primary" />
+                  <span>Investigation Trace</span>
+                </div>
+                <p class="text-muted-foreground/90 pl-3 border-l-2 border-primary/40 leading-relaxed">{{ msg.thought }}</p>
+              </div>
+
+              <!-- Tool Executions Trace -->
+              <div v-if="msg.tools?.length" class="space-y-1">
+                <div
+                  v-for="(t, idx) in msg.tools"
+                  :key="idx"
+                  class="flex items-center gap-1.5 text-[10px] font-mono bg-muted/30 border border-border/40 rounded px-2 py-0.5 text-muted-foreground"
+                >
+                  <span class="text-emerald-500 font-bold">✓</span>
+                  <span class="text-foreground/85 font-semibold">{{ t.name }}</span>
+                  <span class="opacity-60 truncate">({{ t.args }})</span>
+                </div>
+              </div>
+
+              <!-- Diagnostic Findings -->
+              <div class="space-y-1.5">
+                <div v-if="msg.severity" class="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded" :class="msg.severity === 'critical' ? 'bg-destructive/15 text-destructive' : 'bg-warning/15 text-warning'">
+                  <AlertTriangle class="size-2.5" />
+                  <span>{{ msg.severity === 'critical' ? 'Critical Action Required' : 'Operational Advisory' }}</span>
+                </div>
+                <p class="text-xs text-foreground leading-relaxed">{{ msg.content }}</p>
+              </div>
+
+              <!-- Interactive Action Controls (Manipulates Dashboard) -->
+              <div v-if="msg.actions?.length" class="pt-1.5 border-t border-border/40 flex flex-wrap gap-1.5">
+                <Button
+                  v-for="act in msg.actions"
+                  :key="act.label"
+                  variant="outline"
+                  size="sm"
+                  class="h-7 text-[11px] font-mono px-2.5 py-0 border-primary/30 hover:border-primary/70 hover:bg-primary/10 text-foreground cursor-pointer gap-1.5 transition-colors"
+                  @click="act.handler"
+                >
+                  <ArrowUpRight class="size-3 text-primary shrink-0" />
+                  <span>{{ act.label }}</span>
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Agent In-Flight Scanner -->
+          <div v-if="isAgentProcessing" class="flex items-center gap-2.5 text-xs text-muted-foreground font-mono italic p-3 rounded-lg border border-border/50 bg-muted/20">
+            <RefreshCw class="size-3.5 text-primary animate-spin" />
+            <span>Synthesizing live telemetry across fleet nodes...</span>
+          </div>
+        </OverlayScroll>
+      </div>
+
+      <!-- Docked Command Footer -->
+      <div class="p-3 border-t border-border/80 bg-muted/20 shrink-0">
+        <form class="flex items-center gap-2" @submit.prevent="askAgent(agentInput)">
+          <div class="relative flex-1">
+            <Sparkles class="text-primary pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2" />
+            <Input
+              v-model="agentInput"
+              placeholder="Ask or execute fleet directive (e.g. 'Isolate DG-2')..."
+              class="h-9 pl-9 pr-8 text-xs border-border/80 bg-background focus-visible:ring-1 focus-visible:ring-primary font-mono"
+            />
+            <button
+              v-if="agentInput"
+              type="button"
+              class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2 text-xs cursor-pointer"
+              @click="agentInput = ''"
+            >
+              ✕
+            </button>
+          </div>
+          <Button
+            type="submit"
+            size="sm"
+            class="h-9 px-3 text-xs gap-1.5 cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground font-medium shrink-0"
+            :disabled="!agentInput.trim()"
+          >
+            <Send class="size-3" />
+          </Button>
+        </form>
+        <div class="flex items-center justify-between mt-2 px-1 text-[10px] text-muted-foreground font-mono">
+          <span>Directives: filter, diagnose, notify, export</span>
+          <span>Esc to close · ⌘J toggle</span>
+        </div>
+      </div>
+    </aside>
   </div>
 </template>
