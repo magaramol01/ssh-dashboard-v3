@@ -3,6 +3,7 @@ import { z } from 'zod'
 import {
   analyzeOperationalAlert,
   getFleetSnapshot,
+  getFleetVoyages,
   getVesselOperationalContext,
   searchOperationalAlerts,
   type AlertSeverity,
@@ -57,5 +58,16 @@ export function createSentinelTools() {
     schema: z.object({}),
   })
 
-  return [searchAlerts, analyzeAlert, vesselContext, fleetConnectivity]
+  const fleetVoyages = tool(async ({ limit }) => {
+    const voyages = await getFleetVoyages(limit ?? 25)
+    return json({ count: voyages.length, voyages })
+  }, {
+    name: 'get_fleet_voyages',
+    description: 'Get active voyages and passages across the fleet, including departure ports, next ports, ETAs, route names, distance travelled/to go, and progress percentage. Use this for fleet passage audits and ETA risk queries.',
+    schema: z.object({
+      limit: z.number().int().min(1).max(50).optional(),
+    }),
+  })
+
+  return [searchAlerts, analyzeAlert, vesselContext, fleetConnectivity, fleetVoyages]
 }

@@ -319,10 +319,63 @@ export async function getVesselOperationalContext(vesselId: number): Promise<Ves
       FROM shipping_db.vsatheartbeat WHERE vesselid = $1
       ORDER BY updatedat DESC NULLS LAST, id DESC LIMIT 1
     `, [vesselId]),
-    dbQuery<{ next_port: string | null; next_port_code: string | null; eta: DbDate; packet_at: DbDate; route_name: string | null; load_status: string | null }>(`
-      SELECT nextportname AS next_port, nextportunlocode AS next_port_code, eta, packetts AS packet_at, route_name, loadstatusname AS load_status
-      FROM shipping_db.voyageforecast WHERE vesselid = $1
-      ORDER BY packetts DESC NULLS LAST, id DESC LIMIT 1
+    dbQuery<{
+      next_port: string | null
+      next_port_code: string | null
+      departure_port: string | null
+      departure_port_code: string | null
+      eta: DbDate
+      packet_at: DbDate
+      route_name: string | null
+      load_status: string | null
+      distance_travelled: number | string | null
+      distance_to_go: number | string | null
+    }>(`
+      WITH latest_noon AS (
+        SELECT
+          NULLIF(TRIM(noonreportdata->>'Start_Port'), '') as scr,
+          NULLIF(TRIM(noonreportdata->>'Next_Port'), '') as next_port,
+          NULLIF(TRIM(noonreportdata->>'ETA_Next_Port'), '') as eta_next_port,
+          NULLIF(REGEXP_REPLACE(noonreportdata->>'Distance_Covered_Since_SOV', '[^0-9.]', '', 'g'), '')::numeric as total_dist_run,
+          NULLIF(REGEXP_REPLACE(noonreportdata->>'Distance_Remaining_To_EOV', '[^0-9.]', '', 'g'), '')::numeric as dist_to_go
+        FROM shipping_db.std_enoonreporttable
+        WHERE vesselid = $1
+        ORDER BY report_date_time_utc DESC NULLS LAST
+        LIMIT 1
+      ),
+      latest_vf AS (
+        SELECT
+          lastport,
+          lastportunlocode,
+          nextportname,
+          nextportunlocode,
+          eta,
+          packetts,
+          route_name,
+          loadstatusname,
+          distancetravelled,
+          distancetogo
+        FROM shipping_db.voyageforecast
+        WHERE vesselid = $1
+        ORDER BY packetts DESC NULLS LAST, id DESC
+        LIMIT 1
+      )
+      SELECT
+        COALESCE(NULLIF(TRIM(vf.nextportname), ''), n.next_port) as next_port,
+        vf.nextportunlocode as next_port_code,
+        COALESCE(NULLIF(TRIM(vf.lastport), ''), n.scr) as departure_port,
+        vf.lastportunlocode as departure_port_code,
+        COALESCE(vf.eta, n.eta_next_port::timestamptz) as eta,
+        vf.packetts as packet_at,
+        vf.route_name,
+        vf.loadstatusname as load_status,
+        COALESCE(vf.distancetravelled, n.total_dist_run) as distance_travelled,
+        COALESCE(vf.distancetogo, n.dist_to_go) as distance_to_go
+      FROM (SELECT 1) _
+      LEFT JOIN latest_vf vf ON TRUE
+      LEFT JOIN latest_noon n ON TRUE
+      WHERE vf.nextportname IS NOT NULL OR n.next_port IS NOT NULL
+      LIMIT 1
     `, [vesselId]),
     searchOperationalAlerts({ page: 1, pageSize: 5, vesselId }),
   ])
@@ -330,17 +383,108 @@ export async function getVesselOperationalContext(vesselId: number): Promise<Ves
   const vessel = vesselResult.rows[0]
   if (!vessel) return null
 
+  const rawVoyage = voyageResult.rows[0]
+  const distRun = rawVoyage?.distance_travelled != null ? Number(rawVoyage.distance_travelled) : null
+  const distToGo = rawVoyage?.distance_to_go != null ? Number(rawVoyage.distance_to_go) : null
+  const progressPercent = distRun != null && distToGo != null && (distRun + distToGo) > 0
+    ? Math.round((distRun * 1000) / (distRun + distToGo)) / 10
+    : null
+
   return {
     vessel,
     connectivity: heartbeatResult.rows[0] ? {
       connected: heartbeatResult.rows[0].connected,
       updated_at: toIso(heartbeatResult.rows[0].updated_at),
     } : null,
-    voyage: voyageResult.rows[0] ? {
-      ...voyageResult.rows[0],
-      eta: toIso(voyageResult.rows[0].eta),
-      packet_at: toIso(voyageResult.rows[0].packet_at),
+    voyage: rawVoyage ? {
+      ...rawVoyage,
+      distance_travelled: distRun,
+      distance_to_go: distToGo,
+      progress_percent: progressPercent,
+      eta: toIso(rawVoyage.eta),
+      packet_at: toIso(rawVoyage.packet_at),
     } : null,
     alerts: alertsResult.alerts.filter((alert) => alert.vessel_id === vesselId),
   }
+}
+
+export async function getFleetVoyages(limit = 30) {
+  const result = await dbQuery<{
+    vessel_id: number
+    vessel_name: string
+    departure_port: string | null
+    departure_port_code: string | null
+    next_port: string | null
+    next_port_code: string | null
+    eta: DbDate
+    route_name: string | null
+    load_status: string | null
+    distance_travelled: number | string | null
+    distance_to_go: number | string | null
+    progress_percent: number | null
+  }>(`
+    WITH latest_noon AS (
+      SELECT DISTINCT ON (vesselid)
+        vesselid,
+        NULLIF(TRIM(noonreportdata->>'Start_Port'), '') as scr,
+        NULLIF(TRIM(noonreportdata->>'Next_Port'), '') as next_port,
+        NULLIF(TRIM(noonreportdata->>'ETA_Next_Port'), '') as eta_next_port,
+        NULLIF(REGEXP_REPLACE(noonreportdata->>'Distance_Covered_Since_SOV', '[^0-9.]', '', 'g'), '')::numeric as total_dist_run,
+        NULLIF(REGEXP_REPLACE(noonreportdata->>'Distance_Remaining_To_EOV', '[^0-9.]', '', 'g'), '')::numeric as dist_to_go
+      FROM shipping_db.std_enoonreporttable
+      WHERE vesselid IS NOT NULL
+      ORDER BY vesselid, report_date_time_utc DESC NULLS LAST
+    ),
+    latest_vf AS (
+      SELECT DISTINCT ON (vesselid)
+        vesselid,
+        lastport,
+        lastportunlocode,
+        nextportname,
+        nextportunlocode,
+        eta,
+        route_name,
+        loadstatusname,
+        distancetravelled,
+        distancetogo
+      FROM shipping_db.voyageforecast
+      WHERE vesselid IS NOT NULL
+      ORDER BY vesselid, packetts DESC NULLS LAST, id DESC
+    )
+    SELECT
+      s.id AS vessel_id,
+      s.name AS vessel_name,
+      COALESCE(NULLIF(TRIM(vf.lastport), ''), n.scr) AS departure_port,
+      vf.lastportunlocode AS departure_port_code,
+      COALESCE(NULLIF(TRIM(vf.nextportname), ''), n.next_port) AS next_port,
+      vf.nextportunlocode AS next_port_code,
+      COALESCE(vf.eta, n.eta_next_port::timestamptz) AS eta,
+      COALESCE(NULLIF(TRIM(vf.route_name), ''), CASE WHEN n.scr IS NOT NULL AND n.next_port IS NOT NULL THEN n.scr || ' to ' || n.next_port END) AS route_name,
+      vf.loadstatusname AS load_status,
+      COALESCE(vf.distancetravelled, n.total_dist_run)::numeric AS distance_travelled,
+      COALESCE(vf.distancetogo, n.dist_to_go)::numeric AS distance_to_go,
+      CASE
+        WHEN COALESCE(vf.distancetravelled, n.total_dist_run)::numeric > 0 AND COALESCE(vf.distancetogo, n.dist_to_go)::numeric IS NOT NULL THEN
+          ROUND(
+            (COALESCE(vf.distancetravelled, n.total_dist_run)::numeric * 100.0) /
+            NULLIF(COALESCE(vf.distancetravelled, n.total_dist_run)::numeric + COALESCE(vf.distancetogo, n.dist_to_go)::numeric, 0)
+          , 1)
+        ELSE NULL
+      END AS progress_percent
+    FROM shipping_db.ship s
+    LEFT JOIN latest_vf vf ON vf.vesselid = s.id
+    LEFT JOIN latest_noon n ON n.vesselid = s.id
+    WHERE s."isDeleted" IS NOT TRUE
+      AND (vf.nextportname IS NOT NULL OR n.next_port IS NOT NULL)
+    ORDER BY eta ASC NULLS LAST, s.name ASC
+    LIMIT $1
+  `, [limit])
+
+  return result.rows.map((row) => ({
+    ...row,
+    eta: toIso(row.eta),
+    distance_travelled: row.distance_travelled != null ? Number(row.distance_travelled) : null,
+    distance_to_go: row.distance_to_go != null ? Number(row.distance_to_go) : null,
+    progress_percent: row.progress_percent != null ? Number(row.progress_percent) : null,
+  }))
 }

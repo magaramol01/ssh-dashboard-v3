@@ -332,10 +332,18 @@ watch([isSidebarOpen, () => openMobile?.value], ([desktopOpen, mobileOpen]) => {
 
 const quickDirectives = [
   { label: 'Triage Critical', query: 'Triage critical alarms across the fleet', icon: AlertTriangle },
+  { label: 'Passage Risks', query: 'Analyze fleet voyage passages, transit progress, and ETA risks', icon: Anchor },
   { label: 'Engine Diagnostics', query: 'Diagnose main engine and generator telemetry alarms', icon: Gauge },
   { label: 'VSAT Connectivity', query: 'Analyze VSAT outages and comms drops', icon: WifiOff },
   { label: 'Shift Handover', query: 'Generate shift handover summary for current active alarms', icon: FileText },
 ]
+
+function openAgentForVoyage(voyage: Voyage) {
+  const origin = voyage.departure_port_code || voyage.departure_port || 'origin'
+  const dest = voyage.next_port_code || voyage.next_port || 'destination'
+  const prompt = `Assess passage progress, transit telemetry, and ETA risk for ${voyage.vessel_name} on route ${origin} → ${dest}.`
+  askAgent(prompt, { vesselId: voyage.vessel_id })
+}
 
 const agentMessages = ref<AgentMessage[]>([
   {
@@ -891,9 +899,21 @@ onUnmounted(() => {
               <CardTitle class="text-base font-semibold">Voyage watch</CardTitle>
               <CardDescription class="text-xs">Destination, ETA & passage status</CardDescription>
             </div>
-            <Badge variant="outline" class="tabular-nums font-mono text-xs">
-              {{ voyages.length }} en route
-            </Badge>
+            <div class="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                class="h-7 text-xs gap-1.5 px-2.5 font-medium hover:bg-primary/10 hover:text-primary hover:border-primary/40 transition-colors"
+                title="Audit fleet passage progress and ETA risks with Sentinel Copilot"
+                @click="askAgent('Analyze voyage ETA delays, passage risks, and destination schedules across the fleet')"
+              >
+                <Bot class="size-3.5 text-primary" />
+                <span>Audit Passages</span>
+              </Button>
+              <Badge variant="outline" class="tabular-nums font-mono text-xs">
+                {{ voyages.length }} en route
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent class="flex flex-col flex-1 min-h-0 space-y-3 pb-3">
             <div v-if="pending" class="space-y-2.5">
@@ -930,6 +950,16 @@ onUnmounted(() => {
                       >
                         {{ voyage.next_port_code }}
                       </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        class="h-6 px-1.5 text-[11px] gap-1 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                        title="Assess passage with Sentinel Copilot"
+                        @click="openAgentForVoyage(voyage)"
+                      >
+                        <Bot class="size-3 text-primary" />
+                        <span class="font-medium">Assess</span>
+                      </Button>
                     </div>
                   </div>
 
