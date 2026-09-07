@@ -6,6 +6,12 @@ function text(value: unknown, fallback = '—') {
   return value === null || value === undefined || value === '' ? fallback : String(value).slice(0, 300)
 }
 
+function timestamp(value: unknown) {
+  if (!value) return '—'
+  const date = new Date(String(value))
+  return Number.isNaN(date.getTime()) ? '—' : `${date.toISOString().slice(0, 16).replace('T', ' ')} UTC`
+}
+
 function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
   const blocks: SentinelBlock[] = []
 
@@ -39,8 +45,24 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
       })
     }
 
+    if (result.name === 'analyze_operational_alert') {
+      const alert = value.alert as Record<string, unknown> | undefined
+      const analysis = value.analysis as Record<string, unknown> | undefined
+      if (alert && analysis) {
+        blocks.push(
+          { type: 'kpi', label: 'Alert value', value: `${text(analysis.currentValue)}${alert.live_value_unit ? ` ${text(alert.live_value_unit)}` : ''}`, tone: alert.severity === 'critical' ? 'destructive' : 'warning' },
+          { type: 'kpi', label: 'Configured threshold', value: analysis.thresholdValue == null ? 'Not available' : `${analysis.thresholdDirection === 'below' ? '<' : analysis.thresholdDirection === 'above' ? '>' : ''}${text(analysis.thresholdValue)}${alert.live_value_unit ? ` ${text(alert.live_value_unit)}` : ''}` },
+          { type: 'kpi', label: 'Related alerts', value: text(analysis.relatedAlertCount, '0'), detail: 'Same vessel, current open-alert snapshot' },
+        )
+      }
+    }
+
     if (result.name === 'search_operational_alerts' || result.name === 'get_vessel_operational_context') {
-      const alerts = Array.isArray(value.alerts) ? value.alerts as Array<Record<string, unknown>> : []
+      const alerts = Array.isArray(value.alerts)
+        ? value.alerts as Array<Record<string, unknown>>
+        : Array.isArray((value.analysis as Record<string, unknown> | undefined)?.relatedAlerts)
+          ? (value.analysis as Record<string, unknown>).relatedAlerts as Array<Record<string, unknown>>
+          : []
       if (alerts.length) {
         blocks.push({
           type: 'table',
@@ -51,7 +73,7 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
             { key: 'system', label: 'System' },
             { key: 'message', label: 'Alert' },
             { key: 'value', label: 'Value' },
-            { key: 'reportedAt', label: 'Reported' },
+            { key: 'activeWindow', label: 'Active today' },
           ],
           rows: alerts.slice(0, 10).map((alert) => ({
             vessel: text(alert.vessel_name),
@@ -59,7 +81,7 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
             system: text(alert.system_name),
             message: text(alert.message),
             value: alert.live_value == null ? null : `${alert.live_value}${alert.live_value_unit ? ` ${alert.live_value_unit}` : ''}`,
-            reportedAt: text(alert.reported_at),
+            activeWindow: `${timestamp(alert.started_at)} → ${timestamp(alert.last_fired_at || alert.reported_at)}${alert.occurrences ? ` · ${alert.occurrences} fires` : ''}`,
           })),
         })
       }

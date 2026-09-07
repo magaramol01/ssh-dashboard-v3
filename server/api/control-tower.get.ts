@@ -106,10 +106,16 @@ export default defineEventHandler(async (event) => {
           s.id ASC
       `),
       dbQuery<{ count: string }>(`
-        SELECT count(*)::text AS count
-        FROM shipping_db.std_triggeredoutcomestoday a
-        LEFT JOIN shipping_db.ship s ON s.id = a.vesselid
-        WHERE ${alertFilterSql}
+        WITH filtered AS (
+          SELECT row_number() OVER (
+            PARTITION BY a.vesselid, coalesce(a.observanttype, 'Operational alert'), coalesce(a.machinetype, '—'), coalesce(a.observantmessage, a.data->>'message', 'Alert triggered'), coalesce(a.livevalueunit, '')
+            ORDER BY a."timestamp" DESC NULLS LAST, a.id DESC
+          ) AS row_num
+          FROM shipping_db.std_triggeredoutcomestoday a
+          LEFT JOIN shipping_db.ship s ON s.id = a.vesselid
+          WHERE ${alertFilterSql}
+        )
+        SELECT count(*)::text AS count FROM filtered WHERE row_num = 1
       `, alertValues),
       dbQuery<{
         vessel_id: number
@@ -161,24 +167,38 @@ export default defineEventHandler(async (event) => {
       live_value: string | null
       live_value_unit: string | null
       reported_at: Date | null
+      started_at: Date | null
+      last_fired_at: Date | null
+      occurrences: number
       acknowledged: boolean | null
     }>(`
-      SELECT
-        a.id::text || '-' || COALESCE(extract(epoch FROM a."timestamp")::text, 'unknown') AS alert_key,
-        a.id,
-        a.vesselid AS vessel_id,
-        COALESCE(s.name, a.companyname) AS vessel_name,
-        COALESCE(a.observanttype, 'Operational alert') AS category,
-        COALESCE(a.machinetype, '—') AS system_name,
-        COALESCE(a.observantmessage, a.data->>'message', 'Alert triggered') AS message,
-        a.livevalue AS live_value,
-        a.livevalueunit AS live_value_unit,
-        a."timestamp" AS reported_at,
-        a.acknowledgestatus AS acknowledged
-      FROM shipping_db.std_triggeredoutcomestoday a
-      LEFT JOIN shipping_db.ship s ON s.id = a.vesselid
-      WHERE ${alertFilterSql}
-      ORDER BY a."timestamp" DESC NULLS LAST, a.id DESC
+      WITH filtered AS (
+        SELECT
+          a.id::text || '-' || COALESCE(extract(epoch FROM a."timestamp")::text, 'unknown') AS alert_key,
+          a.id,
+          a.vesselid AS vessel_id,
+          COALESCE(s.name, a.companyname) AS vessel_name,
+          COALESCE(a.observanttype, 'Operational alert') AS category,
+          COALESCE(a.machinetype, '—') AS system_name,
+          COALESCE(a.observantmessage, a.data->>'message', 'Alert triggered') AS message,
+          a.livevalue AS live_value,
+          a.livevalueunit AS live_value_unit,
+          a."timestamp" AS reported_at,
+          min(a."timestamp") OVER (PARTITION BY a.vesselid, coalesce(a.observanttype, 'Operational alert'), coalesce(a.machinetype, '—'), coalesce(a.observantmessage, a.data->>'message', 'Alert triggered'), coalesce(a.livevalueunit, '')) AS started_at,
+          max(a."timestamp") OVER (PARTITION BY a.vesselid, coalesce(a.observanttype, 'Operational alert'), coalesce(a.machinetype, '—'), coalesce(a.observantmessage, a.data->>'message', 'Alert triggered'), coalesce(a.livevalueunit, '')) AS last_fired_at,
+          count(*) OVER (PARTITION BY a.vesselid, coalesce(a.observanttype, 'Operational alert'), coalesce(a.machinetype, '—'), coalesce(a.observantmessage, a.data->>'message', 'Alert triggered'), coalesce(a.livevalueunit, '')) AS occurrences,
+          a.acknowledgestatus AS acknowledged,
+          row_number() OVER (
+            PARTITION BY a.vesselid, coalesce(a.observanttype, 'Operational alert'), coalesce(a.machinetype, '—'), coalesce(a.observantmessage, a.data->>'message', 'Alert triggered'), coalesce(a.livevalueunit, '')
+            ORDER BY a."timestamp" DESC NULLS LAST, a.id DESC
+          ) AS row_num
+        FROM shipping_db.std_triggeredoutcomestoday a
+        LEFT JOIN shipping_db.ship s ON s.id = a.vesselid
+        WHERE ${alertFilterSql}
+      )
+      SELECT * FROM filtered
+      WHERE row_num = 1
+      ORDER BY last_fired_at DESC NULLS LAST, id DESC
       LIMIT $${alertValues.length + 1} OFFSET $${alertValues.length + 2}
     `, [...alertValues, pageSize, offset])
 

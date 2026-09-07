@@ -34,6 +34,9 @@ type Alert = {
   live_value: string | null
   live_value_unit: string | null
   reported_at: string | null
+  started_at: string | null
+  last_fired_at: string | null
+  occurrences: number
   acknowledged: boolean | null
 }
 
@@ -568,7 +571,7 @@ onUnmounted(() => {
                 <TableHead class="min-w-[120px]">System</TableHead>
                 <TableHead class="min-w-[260px]">Condition & Agent Assessment</TableHead>
                 <TableHead class="min-w-[120px]">Live Telemetry</TableHead>
-                <TableHead class="min-w-[130px]">Reported</TableHead>
+                <TableHead class="min-w-[180px]">Active today</TableHead>
                 <TableHead class="w-[130px] text-right">Agent Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -635,11 +638,11 @@ onUnmounted(() => {
                   <span v-else class="text-muted-foreground text-xs">—</span>
                 </TableCell>
 
-                <!-- Reported Time -->
+                <!-- Alert Window -->
                 <TableCell class="whitespace-nowrap">
-                  <div class="flex flex-col" :title="formatTimestamp(alert.reported_at)">
-                    <span class="text-xs font-medium text-foreground tabular-nums">{{ formatTimeAgo(alert.reported_at) }}</span>
-                    <span class="text-[11px] text-muted-foreground tabular-nums">{{ formatTimestamp(alert.reported_at) }}</span>
+                  <div class="flex flex-col gap-0.5" :title="`Started ${formatTimestamp(alert.started_at)} · Last fired ${formatTimestamp(alert.last_fired_at)}`">
+                    <span class="text-xs font-medium text-foreground tabular-nums">{{ formatTimestamp(alert.started_at) }}</span>
+                    <span class="text-[11px] text-muted-foreground tabular-nums">→ {{ formatTimestamp(alert.last_fired_at) }} · {{ alert.occurrences }} fires</span>
                   </div>
                 </TableCell>
 
@@ -686,8 +689,8 @@ onUnmounted(() => {
               >
                 <!-- Left: Timestamp Column -->
                 <div class="hidden sm:flex flex-col items-end w-24 shrink-0 pt-1 text-right select-none">
-                  <span class="text-xs font-semibold text-foreground tabular-nums">{{ formatTimeAgo(alert.reported_at) }}</span>
-                  <span class="text-[11px] text-muted-foreground tabular-nums">{{ formatTimestamp(alert.reported_at).split(' ').slice(1, 3).join(' ') }}</span>
+                  <span class="text-xs font-semibold text-foreground tabular-nums">{{ formatTimestamp(alert.started_at) }}</span>
+                  <span class="text-[11px] text-muted-foreground tabular-nums">→ {{ formatTimestamp(alert.last_fired_at) }} · {{ alert.occurrences }} fires</span>
                 </div>
 
                 <!-- Center: Continuous Rail & Node -->

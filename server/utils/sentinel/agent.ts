@@ -42,6 +42,10 @@ function summarizeToolResult(name: string, raw: string) {
     if (name === 'get_fleet_connectivity') {
       return `Loaded fleet connectivity: ${String(value.connected ?? 0)} online, ${String(value.offline ?? 0)} offline, ${String(value.unknown ?? 0)} unknown.`
     }
+    if (name === 'analyze_operational_alert') {
+      const analysis = value.analysis as Record<string, unknown> | undefined
+      return `Analyzed the alert threshold and ${String(analysis?.relatedAlertCount ?? 0)} related vessel alerts.`
+    }
     if (value.not_found) return 'Vessel was not found in the active vessel roster.'
     return 'Loaded vessel context and recent open alerts.'
   } catch {
@@ -54,6 +58,7 @@ function referencesFromResult(name: string, raw: string): SentinelReference[] {
     const value = JSON.parse(raw) as Record<string, unknown>
     const references: SentinelReference[] = []
     const alerts = Array.isArray(value.alerts) ? value.alerts as Array<Record<string, unknown>> : []
+    if (value.alert && typeof value.alert === 'object') alerts.unshift(value.alert as Record<string, unknown>)
     for (const alert of alerts.slice(0, 10)) {
       if (alert.id !== undefined) references.push({ kind: 'alert', id: String(alert.id), label: `${alert.vessel_name || 'Unknown vessel'} · ${alert.message || 'Operational alert'}`.slice(0, 200) })
     }

@@ -13,6 +13,9 @@ export type OperationalAlert = {
   live_value: string | null
   live_value_unit: string | null
   reported_at: string | null
+  started_at: string | null
+  last_fired_at: string | null
+  occurrences: number
   acknowledged: boolean | null
   severity: AlertSeverity
 }
@@ -95,10 +98,13 @@ function mapAlert(row: {
   live_value: string | null
   live_value_unit: string | null
   reported_at: DbDate
+  started_at: DbDate
+  last_fired_at: DbDate
+  occurrences: number
   acknowledged: boolean | null
   severity: AlertSeverity
 }): OperationalAlert {
-  return { ...row, reported_at: toIso(row.reported_at) }
+  return { ...row, reported_at: toIso(row.reported_at), started_at: toIso(row.started_at), last_fired_at: toIso(row.last_fired_at) }
 }
 
 export async function searchOperationalAlerts(options: {
@@ -112,10 +118,16 @@ export async function searchOperationalAlerts(options: {
   const requestedPage = Math.max(1, options.page ?? 1)
   const filters = alertFilters(options.search, options.severity, options.vesselId)
   const count = await dbQuery<{ count: string }>(`
-    SELECT count(*)::text AS count
-    FROM shipping_db.std_triggeredoutcomestoday a
-    LEFT JOIN shipping_db.ship s ON s.id = a.vesselid
-    WHERE ${filters.where}
+    WITH filtered AS (
+      SELECT row_number() OVER (
+        PARTITION BY a.vesselid, coalesce(a.observanttype, 'Operational alert'), coalesce(a.machinetype, '—'), coalesce(a.observantmessage, a.data->>'message', 'Alert triggered'), coalesce(a.livevalueunit, '')
+        ORDER BY a."timestamp" DESC NULLS LAST, a.id DESC
+      ) AS row_num
+      FROM shipping_db.std_triggeredoutcomestoday a
+      LEFT JOIN shipping_db.ship s ON s.id = a.vesselid
+      WHERE ${filters.where}
+    )
+    SELECT count(*)::text AS count FROM filtered WHERE row_num = 1
   `, filters.values)
 
   const total = Number(count.rows[0]?.count ?? 0)
@@ -133,8 +145,63 @@ export async function searchOperationalAlerts(options: {
     live_value: string | null
     live_value_unit: string | null
     reported_at: DbDate
+    started_at: DbDate
+    last_fired_at: DbDate
+    occurrences: number
     acknowledged: boolean | null
     severity: AlertSeverity
+  }>(`
+    WITH filtered AS (
+      SELECT
+        a.id::text || '-' || coalesce(extract(epoch FROM a."timestamp")::text, 'unknown') AS alert_key,
+        a.id,
+        a.vesselid AS vessel_id,
+        coalesce(s.name, a.companyname) AS vessel_name,
+        coalesce(a.observanttype, 'Operational alert') AS category,
+        coalesce(a.machinetype, '—') AS system_name,
+        coalesce(a.observantmessage, a.data->>'message', 'Alert triggered') AS message,
+        a.livevalue AS live_value,
+        a.livevalueunit AS live_value_unit,
+        a."timestamp" AS reported_at,
+        min(a."timestamp") OVER (PARTITION BY a.vesselid, coalesce(a.observanttype, 'Operational alert'), coalesce(a.machinetype, '—'), coalesce(a.observantmessage, a.data->>'message', 'Alert triggered'), coalesce(a.livevalueunit, '')) AS started_at,
+        max(a."timestamp") OVER (PARTITION BY a.vesselid, coalesce(a.observanttype, 'Operational alert'), coalesce(a.machinetype, '—'), coalesce(a.observantmessage, a.data->>'message', 'Alert triggered'), coalesce(a.livevalueunit, '')) AS last_fired_at,
+        count(*) OVER (PARTITION BY a.vesselid, coalesce(a.observanttype, 'Operational alert'), coalesce(a.machinetype, '—'), coalesce(a.observantmessage, a.data->>'message', 'Alert triggered'), coalesce(a.livevalueunit, '')) AS occurrences,
+        a.acknowledgestatus AS acknowledged,
+        ${severityExpression} AS severity,
+        row_number() OVER (
+          PARTITION BY a.vesselid, coalesce(a.observanttype, 'Operational alert'), coalesce(a.machinetype, '—'), coalesce(a.observantmessage, a.data->>'message', 'Alert triggered'), coalesce(a.livevalueunit, '')
+          ORDER BY a."timestamp" DESC NULLS LAST, a.id DESC
+        ) AS row_num
+      FROM shipping_db.std_triggeredoutcomestoday a
+      LEFT JOIN shipping_db.ship s ON s.id = a.vesselid
+      WHERE ${filters.where}
+    )
+    SELECT * FROM filtered
+    WHERE row_num = 1
+    ORDER BY last_fired_at DESC NULLS LAST, id DESC
+    LIMIT $${filters.values.length + 1} OFFSET $${filters.values.length + 2}
+  `, [...filters.values, pageSize, offset])
+
+  return { alerts: result.rows.map(mapAlert), page, pageSize, total, totalPages }
+}
+
+export async function analyzeOperationalAlert(alertId: number) {
+  const alertResult = await dbQuery<{
+    alert_key: string
+    id: number
+    vessel_id: number | null
+    vessel_name: string | null
+    category: string | null
+    system_name: string | null
+    message: string | null
+    live_value: string | null
+    live_value_unit: string | null
+    reported_at: DbDate
+    started_at: DbDate
+    last_fired_at: DbDate
+    occurrences: number
+    severity: AlertSeverity
+    acknowledged: boolean | null
   }>(`
     SELECT
       a.id::text || '-' || coalesce(extract(epoch FROM a."timestamp")::text, 'unknown') AS alert_key,
@@ -147,16 +214,55 @@ export async function searchOperationalAlerts(options: {
       a.livevalue AS live_value,
       a.livevalueunit AS live_value_unit,
       a."timestamp" AS reported_at,
-      a.acknowledgestatus AS acknowledged,
-      ${severityExpression} AS severity
+      a."timestamp" AS started_at,
+      a."timestamp" AS last_fired_at,
+      1 AS occurrences,
+      ${severityExpression} AS severity,
+      a.acknowledgestatus AS acknowledged
     FROM shipping_db.std_triggeredoutcomestoday a
     LEFT JOIN shipping_db.ship s ON s.id = a.vesselid
-    WHERE ${filters.where}
-    ORDER BY a."timestamp" DESC NULLS LAST, a.id DESC
-    LIMIT $${filters.values.length + 1} OFFSET $${filters.values.length + 2}
-  `, [...filters.values, pageSize, offset])
+    WHERE a.id = $1
+    LIMIT 1
+  `, [alertId])
 
-  return { alerts: result.rows.map(mapAlert), page, pageSize, total, totalPages }
+  const alert = alertResult.rows[0]
+  if (!alert) return null
+
+  const related = alert.vessel_id
+    ? await searchOperationalAlerts({ vesselId: alert.vessel_id, page: 1, pageSize: 10 })
+    : { alerts: [], total: 0 }
+  const groupedAlert = related.alerts.find((item) => item.system_name === alert.system_name && item.message === alert.message && item.live_value_unit === alert.live_value_unit)
+  const mappedAlert = mapAlert(alert)
+  const currentValue = alert.live_value == null ? null : Number.parseFloat(alert.live_value.replace(/[^0-9.+-]/g, ''))
+  const thresholdMatch = alert.message?.match(/(?:less than|below|under|greater than|above|over|[<>])\s*(-?\d+(?:\.\d+)?)/i)
+  const thresholdValue = thresholdMatch ? Number(thresholdMatch[1]) : null
+  const isLowerLimit = Boolean(alert.message?.match(/less than|below|under|</i))
+  const isUpperLimit = Boolean(alert.message?.match(/greater than|above|over|>/i))
+  const deviation = currentValue !== null && thresholdValue !== null ? currentValue - thresholdValue : null
+
+  return {
+    alert: groupedAlert ? { ...mappedAlert, started_at: groupedAlert.started_at, last_fired_at: groupedAlert.last_fired_at, occurrences: groupedAlert.occurrences } : mappedAlert,
+    analysis: {
+      currentValue: Number.isFinite(currentValue) ? currentValue : null,
+      thresholdValue,
+      thresholdDirection: isLowerLimit ? 'below' : isUpperLimit ? 'above' : null,
+      deviation: Number.isFinite(deviation) ? deviation : null,
+      deviationPercent: deviation !== null && thresholdValue ? Math.abs(deviation / thresholdValue * 100) : null,
+      relatedAlertCount: related.total,
+      relatedAlerts: related.alerts.slice(0, 10).map((item) => ({
+        id: item.id,
+        vessel_name: item.vessel_name,
+        system_name: item.system_name,
+        severity: item.severity,
+        message: item.message,
+        live_value: item.live_value,
+        live_value_unit: item.live_value_unit,
+        started_at: item.started_at,
+        last_fired_at: item.last_fired_at,
+        occurrences: item.occurrences,
+      })),
+    },
+  }
 }
 
 export async function getFleetSnapshot(): Promise<FleetSnapshot> {

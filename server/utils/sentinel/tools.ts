@@ -1,6 +1,7 @@
 import { tool } from '@langchain/core/tools'
 import { z } from 'zod'
 import {
+  analyzeOperationalAlert,
   getFleetSnapshot,
   getVesselOperationalContext,
   searchOperationalAlerts,
@@ -32,6 +33,15 @@ export function createSentinelTools() {
     }),
   })
 
+  const analyzeAlert = tool(async ({ alertId }) => {
+    const result = await analyzeOperationalAlert(alertId)
+    return json(result ?? { not_found: true, alert_id: alertId })
+  }, {
+    name: 'analyze_operational_alert',
+    description: 'Analyze one alert beyond the dashboard row. Use this for diagnose, why, what does this mean, impact, and recommended checks. It calculates threshold deviation and related alerts when the source data supports it.',
+    schema: z.object({ alertId: z.number().int().positive() }),
+  })
+
   const vesselContext = tool(async ({ vesselId }) => {
     const result = await getVesselOperationalContext(vesselId)
     return json(result ?? { not_found: true, vessel_id: vesselId })
@@ -47,5 +57,5 @@ export function createSentinelTools() {
     schema: z.object({}),
   })
 
-  return [searchAlerts, vesselContext, fleetConnectivity]
+  return [searchAlerts, analyzeAlert, vesselContext, fleetConnectivity]
 }
