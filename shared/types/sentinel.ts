@@ -21,18 +21,15 @@ export type SentinelAction =
   | { type: 'filter-alerts'; severity?: 'critical' | 'warning' | 'all'; search?: string; label: string }
   | { type: 'focus-vessel'; vesselId: number; label: string }
 
-export type SentinelAnswer = {
-  summary: string
-  severity: 'critical' | 'warning' | 'info'
-  confirmedFacts: Array<{ label: string; value: string }>
-  possibleCauses: string[]
-  recommendedChecks: string[]
-  operatorNote: string
-}
+export type SentinelBlock =
+  | { type: 'markdown'; text: string }
+  | { type: 'line-chart'; title: string; points: Array<{ label: string; value: number }> }
+  | { type: 'table'; title: string; columns: Array<{ key: string; label: string }>; rows: Array<Record<string, string | number | null>> }
+  | { type: 'kpi'; label: string; value: string; detail?: string; tone?: 'default' | 'success' | 'warning' | 'destructive' }
 
 export type SentinelChatResponse = {
   message: { role: 'agent'; content: string }
-  answer: SentinelAnswer
+  blocks: SentinelBlock[]
   activity: SentinelActivity[]
   references: SentinelReference[]
   actions: SentinelAction[]

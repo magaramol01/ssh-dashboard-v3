@@ -1,6 +1,7 @@
 import { createError, defineEventHandler, readBody } from 'h3'
 import type { SentinelChatRequest } from '../../../shared/types/sentinel'
 import { runSentinelConversation } from '../../utils/sentinel/agent'
+import { formatSentinelResponse } from '../../utils/sentinel/formatter'
 import { sentinelRequestSchema, sentinelResponseSchema } from '../../utils/sentinel/schemas'
 
 export default defineEventHandler(async (event) => {
@@ -11,8 +12,8 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const response = await runSentinelConversation(parsed.data)
-    return sentinelResponseSchema.parse(response)
+    const raw = await runSentinelConversation(parsed.data)
+    return sentinelResponseSchema.parse(formatSentinelResponse(raw))
   } catch (error: unknown) {
     if (error && typeof error === 'object' && 'statusCode' in error) throw error
     console.error('Sentinel request failed', error instanceof Error ? error.message : 'unknown error')

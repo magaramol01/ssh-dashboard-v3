@@ -1,17 +1,25 @@
-import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from '@langchain/core/messages'
+import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { ChatOpenRouter } from '@langchain/openrouter'
-import type {
-  SentinelAction,
-  SentinelActivity,
-  SentinelChatResponse,
-  SentinelReference,
-} from '../../../shared/types/sentinel'
+import { createReactAgent } from '@langchain/langgraph/prebuilt'
+import type { SentinelAction, SentinelActivity, SentinelReference } from '../../../shared/types/sentinel'
 import { getSentinelConfig } from './config'
 import { sentinelSystemPrompt } from './prompts'
 import { createSentinelTools } from './tools'
-import { sentinelAnswerSchema, type ValidSentinelRequest } from './schemas'
+import type { ValidSentinelRequest } from './schemas'
 
-const MAX_TOOL_ROUNDS = 3
+export type SentinelToolResult = {
+  name: string
+  args: Record<string, unknown>
+  raw: string
+}
+
+export type SentinelRawResponse = {
+  text: string
+  toolResults: SentinelToolResult[]
+  activity: SentinelActivity[]
+  references: SentinelReference[]
+  actions: SentinelAction[]
+}
 
 function textContent(content: unknown) {
   if (typeof content === 'string') return content.trim()
@@ -29,13 +37,13 @@ function summarizeToolResult(name: string, raw: string) {
     const value = JSON.parse(raw) as Record<string, unknown>
     if (name === 'search_operational_alerts') {
       const alerts = Array.isArray(value.alerts) ? value.alerts.length : 0
-      return `Returned ${alerts} alert summaries from ${String(value.total ?? 0)} matching open alerts.`
+      return `Loaded ${alerts} alert summaries from ${String(value.total ?? 0)} matching open alerts.`
     }
     if (name === 'get_fleet_connectivity') {
-      return `Returned fleet connectivity: ${String(value.connected ?? 0)} online, ${String(value.offline ?? 0)} offline, ${String(value.unknown ?? 0)} unknown.`
+      return `Loaded fleet connectivity: ${String(value.connected ?? 0)} online, ${String(value.offline ?? 0)} offline, ${String(value.unknown ?? 0)} unknown.`
     }
     if (value.not_found) return 'Vessel was not found in the active vessel roster.'
-    return 'Returned the vessel context and recent open alerts.'
+    return 'Loaded vessel context and recent open alerts.'
   } catch {
     return 'The data source returned an unavailable or invalid result.'
   }
@@ -64,58 +72,12 @@ function referencesFromResult(name: string, raw: string): SentinelReference[] {
   }
 }
 
-function fallbackAnswer(references: SentinelReference[], activity: SentinelActivity[]) {
-  return sentinelAnswerSchema.parse({
-    summary: references.length ? 'Live operational records were found, but Sentinel could not format a complete assessment.' : 'No evidence-backed operational assessment is available for this request.',
-    severity: 'info',
-    confirmedFacts: activity.slice(0, 3).map((item) => ({ label: 'Data source', value: item.summary })),
-    possibleCauses: [],
-    recommendedChecks: ['Review the referenced alert or vessel record before taking action.'],
-    operatorNote: 'The response formatter failed. Verify the source record directly before making an operational decision.',
-  })
-}
-
-function parseAnswer(result: { parsed: unknown; raw: { content: unknown } }, references: SentinelReference[], activity: SentinelActivity[]) {
-  const parsed = sentinelAnswerSchema.safeParse(result.parsed)
-  if (parsed.success) return parsed.data
-
-  const rawText = textContent(result.raw.content)
-  try {
-    const raw = JSON.parse(rawText) as Record<string, unknown>
-    const strings = (value: unknown) => Array.isArray(value)
-      ? value.slice(0, 3).map((item) => String(item).slice(0, 300))
-      : []
-    const facts = (value: unknown) => Array.isArray(value)
-      ? value.slice(0, 3).map((item) => typeof item === 'string'
-        ? { label: 'Confirmed data', value: item.slice(0, 300) }
-        : item && typeof item === 'object' && 'value' in item
-          ? { label: 'label' in item ? String(item.label).slice(0, 80) : 'Confirmed data', value: String(item.value).slice(0, 300) }
-          : { label: 'Confirmed data', value: String(item).slice(0, 300) })
-      : []
-    const normalized = {
-      summary: String(raw.summary ?? raw.answer ?? raw.description ?? 'No formatted assessment available.').slice(0, 1_000),
-      severity: raw.severity === 'critical' || raw.severity === 'warning' ? raw.severity : 'info',
-      confirmedFacts: facts(raw.confirmedFacts ?? raw.confirmed_facts),
-      possibleCauses: strings(raw.possibleCauses ?? raw.possible_causes),
-      recommendedChecks: strings(raw.recommendedChecks ?? raw.recommended_checks),
-      operatorNote: String(raw.operatorNote ?? raw.operator_note ?? 'Verify the source record before taking action.').slice(0, 500),
-    }
-    const recovered = sentinelAnswerSchema.safeParse(normalized)
-    if (recovered.success) return recovered.data
-  } catch {
-    // Use the safe fallback below when the provider returned incomplete JSON.
-  }
-  return fallbackAnswer(references, activity)
-}
-
 function actionsFor(request: ValidSentinelRequest, references: SentinelReference[]): SentinelAction[] {
   const latest = [...request.messages].reverse().find((message) => message.role === 'user')?.content.toLowerCase() || ''
   const actions: SentinelAction[] = []
   if (latest.includes('critical')) actions.push({ type: 'filter-alerts', severity: 'critical', label: 'Show critical alerts' })
   else if (latest.includes('warning')) actions.push({ type: 'filter-alerts', severity: 'warning', label: 'Show warnings' })
-  if (request.context?.vesselId) {
-    actions.push({ type: 'focus-vessel', vesselId: request.context.vesselId, label: 'Focus this vessel' })
-  }
+  if (request.context?.vesselId) actions.push({ type: 'focus-vessel', vesselId: request.context.vesselId, label: 'Focus this vessel' })
   const vessel = references.find((reference) => reference.kind === 'vessel')
   if (!request.context?.vesselId && vessel && /vessel|ship|offline|vsat|connectivity/i.test(latest)) {
     actions.push({ type: 'focus-vessel', vesselId: Number(vessel.id), label: `Focus ${vessel.label}` })
@@ -123,71 +85,52 @@ function actionsFor(request: ValidSentinelRequest, references: SentinelReference
   return actions.slice(0, 3)
 }
 
-export async function runSentinelConversation(request: ValidSentinelRequest): Promise<SentinelChatResponse> {
+export async function runSentinelConversation(request: ValidSentinelRequest): Promise<SentinelRawResponse> {
   const config = getSentinelConfig()
   const tools = createSentinelTools()
-  const toolMap = new Map(tools.map((item) => [item.name, item]))
   const model = new ChatOpenRouter({
     apiKey: config.apiKey,
     model: config.model,
     temperature: 0.1,
     maxTokens: 700,
-  }).bindTools(tools)
+    siteName: 'ShipTrack Sentinel',
+  })
+  const graph = createReactAgent({
+    llm: model,
+    tools,
+    prompt: new SystemMessage(sentinelSystemPrompt),
+    version: 'v2',
+  })
 
-  const messages = [new SystemMessage(sentinelSystemPrompt), ...request.messages.map((message) => (
-    message.role === 'user' ? new HumanMessage(message.content) : new AIMessage(message.content)
-  ))]
-  if (request.context) {
-    messages.push(new HumanMessage(`Use these operator-selected IDs to narrow the investigation: ${JSON.stringify(request.context)}`))
-  }
+  const messages = request.messages.map((message) => message.role === 'user'
+    ? new HumanMessage(message.content)
+    : new AIMessage(message.content))
+  if (request.context) messages.push(new HumanMessage(`Use these operator-selected IDs to narrow the investigation: ${JSON.stringify(request.context)}`))
 
+  const result = await graph.invoke({ messages }, { recursionLimit: 8 })
+  const rawMessages = Array.isArray(result.messages) ? result.messages as Array<Record<string, any>> : []
+  const calls = new Map<string, { name: string; args: Record<string, unknown> }>()
+  const toolResults: SentinelToolResult[] = []
   const activity: SentinelActivity[] = []
   const references: SentinelReference[] = []
-  let response = await model.invoke(messages)
 
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-    const calls = Array.isArray(response.tool_calls) ? response.tool_calls.slice(0, 4) : []
-    if (!calls.length) break
-    messages.push(response)
-
-    for (const call of calls) {
-      const selected = toolMap.get(call.name)
-      if (!selected) {
-        messages.push(new ToolMessage({ content: 'Unknown tool. Continue without using it.', tool_call_id: call.id || `${call.name}-${round}` }))
-        continue
-      }
-      try {
-        const raw = String(await selected.invoke(call.args || {}))
-        activity.push({ name: call.name, args: safeArgs(call.args), summary: summarizeToolResult(call.name, raw) })
+  for (const message of rawMessages) {
+    for (const call of Array.isArray(message.tool_calls) ? message.tool_calls : []) {
+      calls.set(String(call.id || `${call.name}-${calls.size}`), { name: String(call.name), args: safeArgs(call.args) })
+    }
+    if (message.tool_call_id) {
+      const call = calls.get(String(message.tool_call_id))
+      if (call) {
+        const raw = textContent(message.content)
+        toolResults.push({ name: call.name, args: call.args, raw })
+        activity.push({ name: call.name, args: call.args, summary: summarizeToolResult(call.name, raw) })
         references.push(...referencesFromResult(call.name, raw))
-        messages.push(new ToolMessage({ content: raw.slice(0, 20_000), tool_call_id: call.id || `${call.name}-${round}` }))
-      } catch {
-        activity.push({ name: call.name, args: safeArgs(call.args), summary: 'Data source unavailable.' })
-        messages.push(new ToolMessage({ content: 'Data source unavailable. State that limitation clearly.', tool_call_id: call.id || `${call.name}-${round}` }))
       }
     }
-    response = await model.invoke(messages)
   }
 
-  messages.push(response)
-  const finalModel = new ChatOpenRouter({
-    apiKey: config.apiKey,
-    model: config.model,
-    temperature: 0,
-    maxTokens: 1_200,
-  }).withStructuredOutput(sentinelAnswerSchema, { method: 'jsonMode', includeRaw: true })
-  const finalResult = await finalModel.invoke([
-    ...messages,
-    new HumanMessage(`Return JSON only using exactly this shape and camelCase keys. Keep it concise: no more than 3 facts, 3 possible causes, and 3 recommended checks. Do not repeat the raw tool output.
-{"summary":"short evidence-backed answer","severity":"critical|warning|info","confirmedFacts":[{"label":"field","value":"value"}],"possibleCauses":["hypothesis"],"recommendedChecks":["operator check"],"operatorNote":"verification or limitation"}`),
-  ])
-  const answer = parseAnswer(finalResult, references, activity)
+  const finalMessage = [...rawMessages].reverse().find((message) => message.type === 'ai' && !message.tool_calls?.length)
+  const text = textContent(finalMessage?.content) || 'I could not produce an evidence-backed answer from the available marine data.'
   const uniqueReferences = [...new Map(references.map((reference) => [`${reference.kind}:${reference.id}`, reference])).values()].slice(0, 20)
-  return {
-    message: { role: 'agent', content: answer.summary },
-    answer,
-    activity,
-    references: uniqueReferences,
-    actions: actionsFor(request, uniqueReferences),
-  }
+  return { text, toolResults, activity, references: uniqueReferences, actions: actionsFor(request, uniqueReferences) }
 }

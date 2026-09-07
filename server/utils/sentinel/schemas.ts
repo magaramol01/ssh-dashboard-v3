@@ -16,45 +16,71 @@ export const sentinelRequestSchema = z.object({
   }
 })
 
-export const sentinelAnswerSchema = z.object({
-  summary: z.string().trim().min(1).max(1_000),
-  severity: z.enum(['critical', 'warning', 'info']),
-  confirmedFacts: z.array(z.object({
-    label: z.string().trim().min(1).max(80),
-    value: z.string().trim().min(1).max(300),
-  })).max(8),
-  possibleCauses: z.array(z.string().trim().min(1).max(300)).max(6),
-  recommendedChecks: z.array(z.string().trim().min(1).max(300)).max(6),
-  operatorNote: z.string().trim().min(1).max(500),
+const markdownBlockSchema = z.object({
+  type: z.literal('markdown'),
+  text: z.string().min(1).max(8_000),
 }).strict()
 
+const lineChartBlockSchema = z.object({
+  type: z.literal('line-chart'),
+  title: z.string().min(1).max(120),
+  points: z.array(z.object({
+    label: z.string().min(1).max(80),
+    value: z.number().finite(),
+  }).strict()).min(1).max(100),
+}).strict()
+
+const tableBlockSchema = z.object({
+  type: z.literal('table'),
+  title: z.string().min(1).max(120),
+  columns: z.array(z.object({
+    key: z.string().regex(/^[a-z][a-zA-Z0-9_]*$/),
+    label: z.string().min(1).max(80),
+  }).strict()).min(1).max(12),
+  rows: z.array(z.record(z.string(), z.union([z.string(), z.number(), z.null()]))).max(100),
+}).strict()
+
+const kpiBlockSchema = z.object({
+  type: z.literal('kpi'),
+  label: z.string().min(1).max(80),
+  value: z.string().min(1).max(100),
+  detail: z.string().max(200).optional(),
+  tone: z.enum(['default', 'success', 'warning', 'destructive']).optional(),
+}).strict()
+
+export const sentinelBlockSchema = z.discriminatedUnion('type', [
+  markdownBlockSchema,
+  lineChartBlockSchema,
+  tableBlockSchema,
+  kpiBlockSchema,
+])
+
 export const sentinelResponseSchema = z.object({
-  message: z.object({ role: z.literal('agent'), content: z.string().min(1).max(8_000) }),
-  answer: sentinelAnswerSchema,
+  message: z.object({ role: z.literal('agent'), content: z.string().min(1).max(8_000) }).strict(),
+  blocks: z.array(sentinelBlockSchema).min(1).max(12),
   activity: z.array(z.object({
     name: z.string().min(1).max(80),
     args: z.record(z.string(), z.unknown()),
     summary: z.string().min(1).max(500),
-  })).max(12),
+  }).strict()).max(12),
   references: z.array(z.object({
     kind: z.enum(['alert', 'vessel', 'telemetry']),
     id: z.string().min(1).max(100),
     label: z.string().min(1).max(200),
-  })).max(20),
+  }).strict()).max(20),
   actions: z.array(z.discriminatedUnion('type', [
     z.object({
       type: z.literal('filter-alerts'),
       severity: z.enum(['critical', 'warning', 'all']).optional(),
       search: z.string().max(100).optional(),
       label: z.string().min(1).max(100),
-    }),
+    }).strict(),
     z.object({
       type: z.literal('focus-vessel'),
       vesselId: z.number().int().positive(),
       label: z.string().min(1).max(100),
-    }),
+    }).strict(),
   ])).max(5),
-})
+}).strict()
 
 export type ValidSentinelRequest = z.infer<typeof sentinelRequestSchema>
-export type ValidSentinelAnswer = z.infer<typeof sentinelAnswerSchema>

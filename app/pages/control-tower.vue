@@ -7,7 +7,7 @@ import {
   Send, CornerDownLeft, ChevronDown, ChevronUp, Bot, X, RotateCcw, ArrowUpRight, Zap, FileText
 } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
-import type { SentinelAction, SentinelAnswer, SentinelChatResponse } from '#shared/types/sentinel'
+import type { SentinelAction, SentinelBlock, SentinelChatResponse } from '#shared/types/sentinel'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -244,7 +244,7 @@ type AgentMessage = {
   id: string
   role: 'user' | 'agent'
   content: string
-  answer?: SentinelAnswer
+  blocks?: SentinelBlock[]
   tools?: AgentToolCall[]
   actions?: AgentAction[]
 }
@@ -310,7 +310,7 @@ async function askAgent(promptText: string, context?: { alertId?: number; vessel
       id: `agent-${Date.now()}`,
       role: 'agent',
       content: response.message.content,
-      answer: response.answer,
+      blocks: response.blocks,
       tools: response.activity.map(({ name, args, summary }) => ({ name, args: JSON.stringify(args), summary })),
       actions: response.actions.map((action) => ({ label: action.label, handler: () => applyAgentAction(action) })),
     })
@@ -1100,33 +1100,9 @@ onUnmounted(() => {
                 </div>
               </div>
 
-              <!-- Structured Diagnostic Findings -->
-              <div v-if="msg.answer" class="space-y-3">
-                <div class="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded" :class="msg.answer.severity === 'critical' ? 'bg-destructive/15 text-destructive' : msg.answer.severity === 'warning' ? 'bg-warning/15 text-warning' : 'bg-primary/10 text-primary'">
-                  <AlertTriangle class="size-2.5" />
-                  <span>{{ msg.answer.severity === 'critical' ? 'Critical action required' : msg.answer.severity === 'warning' ? 'Operational advisory' : 'Informational' }}</span>
-                </div>
-                <p class="text-xs text-foreground leading-relaxed">{{ msg.answer.summary }}</p>
-                <div v-if="msg.answer.confirmedFacts.length" class="rounded-md border border-border/50 bg-muted/20 p-2.5 space-y-1.5">
-                  <p class="text-[10px] uppercase tracking-wider font-mono font-semibold text-muted-foreground">Confirmed data</p>
-                  <div v-for="fact in msg.answer.confirmedFacts" :key="`${fact.label}-${fact.value}`" class="flex justify-between gap-3 text-[11px]">
-                    <span class="text-muted-foreground">{{ fact.label }}</span>
-                    <span class="text-right font-medium text-foreground">{{ fact.value }}</span>
-                  </div>
-                </div>
-                <div v-if="msg.answer.possibleCauses.length" class="space-y-1">
-                  <p class="text-[10px] uppercase tracking-wider font-mono font-semibold text-muted-foreground">Possible explanations</p>
-                  <ul class="list-disc pl-4 text-[11px] text-muted-foreground space-y-0.5">
-                    <li v-for="cause in msg.answer.possibleCauses" :key="cause">{{ cause }}</li>
-                  </ul>
-                </div>
-                <div v-if="msg.answer.recommendedChecks.length" class="space-y-1">
-                  <p class="text-[10px] uppercase tracking-wider font-mono font-semibold text-muted-foreground">Recommended checks</p>
-                  <ol class="list-decimal pl-4 text-[11px] text-muted-foreground space-y-0.5">
-                    <li v-for="check in msg.answer.recommendedChecks" :key="check">{{ check }}</li>
-                  </ol>
-                </div>
-                <p class="border-l-2 border-warning/50 pl-2 text-[11px] text-muted-foreground">{{ msg.answer.operatorNote }}</p>
+              <!-- Renderer-only response blocks -->
+              <div v-if="msg.blocks?.length" class="space-y-3">
+                <SentinelBlockRenderer v-for="(block, idx) in msg.blocks" :key="`${msg.id}-block-${idx}`" :block="block" />
               </div>
               <p v-else class="text-xs text-foreground leading-relaxed">{{ msg.content }}</p>
 

@@ -19,14 +19,7 @@ test('rejects oversized and client-controlled Sentinel input', () => {
 test('accepts only safe UI actions in an agent response', () => {
   const result = sentinelResponseSchema.safeParse({
     message: { role: 'agent', content: 'There are no current alerts.' },
-    answer: {
-      summary: 'There are no current alerts.',
-      severity: 'info',
-      confirmedFacts: [],
-      possibleCauses: [],
-      recommendedChecks: [],
-      operatorNote: 'No action is required from the available data.',
-    },
+    blocks: [{ type: 'markdown', text: 'There are no current alerts.' }],
     activity: [],
     references: [],
     actions: [{ type: 'filter-alerts', severity: 'critical', label: 'Show critical alerts' }],
@@ -35,14 +28,7 @@ test('accepts only safe UI actions in an agent response', () => {
 
   assert.equal(sentinelResponseSchema.safeParse({
     message: { role: 'agent', content: 'Done' },
-    answer: {
-      summary: 'Done',
-      severity: 'info',
-      confirmedFacts: [],
-      possibleCauses: [],
-      recommendedChecks: [],
-      operatorNote: 'Verify any operational action locally.',
-    },
+    blocks: [{ type: 'markdown', text: 'Done' }],
     activity: [],
     references: [],
     actions: [{ type: 'dispatch-advisory', label: 'Dispatch' }],
