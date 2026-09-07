@@ -4,7 +4,8 @@ import {
   Anchor, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, CircleAlert, CircleCheck,
   RadioTower, RefreshCw, Ship, Wifi, WifiOff,
   Activity, LayoutList, Search, ShieldAlert, Gauge, Clock,
-  Send, Bot, X, RotateCcw, ArrowUpRight, FileText, CheckCircle2
+  Send, Bot, X, RotateCcw, ArrowUpRight, FileText, CheckCircle2,
+  Maximize2, Minimize2
 } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import type { SentinelAction, SentinelBlock, SentinelChatResponse } from '#shared/types/sentinel'
@@ -308,6 +309,7 @@ type AgentMessage = {
 }
 
 const isWorkbenchOpen = ref(false)
+const isCopilotFullscreen = ref(false)
 const agentInput = ref('')
 const isAgentProcessing = ref(false)
 
@@ -319,6 +321,8 @@ watch(isWorkbenchOpen, (open) => {
   if (open) {
     if (isSidebarOpen.value) setSidebarOpen(false)
     if (openMobile?.value) setOpenMobile(false)
+  } else {
+    isCopilotFullscreen.value = false
   }
 })
 
@@ -422,8 +426,14 @@ function resetAgentSession() {
 }
 
 function handleKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && isWorkbenchOpen.value) {
-    isWorkbenchOpen.value = false
+  if (e.key === 'Escape') {
+    if (isCopilotFullscreen.value) {
+      isCopilotFullscreen.value = false
+      return
+    }
+    if (isWorkbenchOpen.value) {
+      isWorkbenchOpen.value = false
+    }
   }
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
     e.preventDefault()
@@ -447,7 +457,12 @@ onUnmounted(() => {
 <template>
   <div class="flex flex-1 min-h-[calc(100svh-3.5rem)] w-full relative">
     <!-- Main Dashboard Area -->
-    <div class="flex-1 min-w-0 space-y-5 p-4 md:p-6 pb-12 transition-all duration-300">
+    <div
+      :class="[
+        'flex-1 min-w-0 space-y-5 p-4 md:p-6 pb-12 transition-[margin] duration-350 ease-[cubic-bezier(0.16,1,0.3,1)]',
+        isWorkbenchOpen && !isCopilotFullscreen ? 'lg:mr-[440px] xl:mr-[480px]' : ''
+      ]"
+    >
       <!-- Clean Maritime Topbar -->
       <header class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -1037,166 +1052,288 @@ onUnmounted(() => {
       </div> <!-- /Bottom Deck Grid -->
     </div> <!-- /Main Dashboard Area -->
 
-    <!-- Operations Copilot (Sentinel) Docked Sidebar Panel -->
-    <aside
-      v-if="isWorkbenchOpen"
-      class="w-full md:w-[420px] xl:w-[460px] shrink-0 border-l border-border bg-card flex flex-col h-[calc(100svh-3.5rem)] sticky top-14 transition-all duration-300 z-20 shadow-xs"
+    <!-- Mobile Drawer Backdrop -->
+    <Transition
+      enter-active-class="transition-opacity duration-300 ease-out"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition-opacity duration-200 ease-in"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
     >
-      <!-- Workbench Topbar -->
-      <div class="px-4 py-3 border-b border-border/80 flex items-center justify-between bg-muted/20 shrink-0">
-        <div class="flex items-center gap-2.5">
-          <div class="size-7 rounded-md bg-primary/10 flex items-center justify-center text-primary shrink-0">
-            <Bot class="size-4" />
-          </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <h2 class="text-sm font-semibold text-foreground tracking-tight">Operations Copilot</h2>
-              <span class="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.2 rounded border border-border/60">
-                Read-only
-              </span>
+      <div
+        v-if="isWorkbenchOpen && !isCopilotFullscreen"
+        class="fixed inset-0 bg-background/60 backdrop-blur-xs z-25 lg:hidden"
+        @click="isWorkbenchOpen = false"
+      />
+    </Transition>
+
+    <!-- Operations Copilot (Sentinel) Docked Sidebar Panel or Fullscreen Cockpit -->
+    <Transition name="copilot-slide">
+      <aside
+        v-if="isWorkbenchOpen"
+        :class="[
+          'copilot-panel bg-card flex flex-col shadow-2xl z-30',
+          isCopilotFullscreen
+            ? 'copilot-fullscreen fixed inset-0 z-50 h-screen w-screen'
+            : 'copilot-docked fixed right-0 top-14 bottom-0 z-30 w-full sm:w-[440px] xl:w-[480px] border-l border-border'
+        ]"
+      >
+        <!-- Workbench Topbar -->
+        <div
+          :class="[
+            'py-3 border-b border-border/80 flex items-center justify-between bg-muted/20 shrink-0 transition-[padding] duration-350 ease-[cubic-bezier(0.16,1,0.3,1)]',
+            isCopilotFullscreen ? 'px-6 md:px-12' : 'px-4'
+          ]"
+        >
+          <div class="flex items-center gap-2.5">
+            <div class="size-7 rounded-md bg-primary/10 flex items-center justify-center text-primary shrink-0">
+              <Bot class="size-4" />
             </div>
-            <p class="text-[11px] text-muted-foreground">Automated fleet diagnostics & operational triage</p>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-sm font-semibold text-foreground tracking-tight">Operations Copilot</h2>
+                <span class="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.2 rounded border border-border/60">
+                  Read-only
+                </span>
+                <Transition
+                  enter-active-class="transition-all duration-300 ease-out"
+                  enter-from-class="opacity-0 scale-90 translate-y-1"
+                  enter-to-class="opacity-100 scale-100 translate-y-0"
+                  leave-active-class="transition-all duration-200 ease-in"
+                  leave-from-class="opacity-100 scale-100 translate-y-0"
+                  leave-to-class="opacity-0 scale-90 translate-y-1"
+                >
+                  <span
+                    v-if="isCopilotFullscreen"
+                    class="text-[10px] font-mono text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/30 hidden sm:inline-flex items-center gap-1.5"
+                  >
+                    <span class="size-1.5 rounded-full bg-primary animate-pulse" /> Full Screen Cockpit
+                  </span>
+                </Transition>
+              </div>
+              <p class="text-[11px] text-muted-foreground">Automated fleet diagnostics & operational triage</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              class="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
+              title="Reset session"
+              @click="resetAgentSession"
+            >
+              <RotateCcw class="size-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="size-7 text-muted-foreground hover:text-foreground hover:bg-primary/10 hover:text-primary cursor-pointer transition-all active:scale-95 relative overflow-hidden"
+              :title="isCopilotFullscreen ? 'Exit full screen (Esc)' : 'Expand to full screen'"
+              @click="isCopilotFullscreen = !isCopilotFullscreen"
+            >
+              <Transition name="icon-flip" mode="out-in">
+                <Minimize2 v-if="isCopilotFullscreen" key="min" class="size-3.5 text-primary" />
+                <Maximize2 v-else key="max" class="size-3.5" />
+              </Transition>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
+              title="Close Panel (Esc)"
+              @click="isWorkbenchOpen = false"
+            >
+              <X class="size-4" />
+            </Button>
           </div>
         </div>
-        <div class="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            class="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
-            title="Reset session"
-            @click="resetAgentSession"
-          >
-            <RotateCcw class="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
-            title="Close Panel (Esc)"
-            @click="isWorkbenchOpen = false"
-          >
-            <X class="size-4" />
-          </Button>
-        </div>
-      </div>
 
       <!-- Operational Directives -->
-      <div class="px-3.5 py-2 border-b border-border/60 bg-muted/10 shrink-0">
-        <div class="text-[10px] uppercase font-mono tracking-wider text-muted-foreground font-semibold mb-1.5">
-          Quick Directives
-        </div>
-        <div class="flex flex-wrap gap-1.5">
-          <button
-            v-for="chip in quickDirectives"
-            :key="chip.label"
-            type="button"
-            class="inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded border border-border/80 bg-background hover:border-primary/50 hover:bg-primary/5 text-foreground transition-all cursor-pointer"
-            @click="askAgent(chip.query)"
-          >
-            <component :is="chip.icon" class="size-3 text-primary shrink-0" />
-            <span>{{ chip.label }}</span>
-          </button>
+      <div
+        :class="[
+          'py-2 border-b border-border/60 bg-muted/10 shrink-0',
+          isCopilotFullscreen ? 'px-6 md:px-12' : 'px-3.5'
+        ]"
+      >
+        <div :class="isCopilotFullscreen ? 'max-w-5xl mx-auto w-full' : ''">
+          <div class="text-[10px] uppercase font-mono tracking-wider text-muted-foreground font-semibold mb-1.5">
+            Quick Directives
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              v-for="chip in quickDirectives"
+              :key="chip.label"
+              type="button"
+              class="inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded border border-border/80 bg-background hover:border-primary/50 hover:bg-primary/5 text-foreground transition-all cursor-pointer"
+              @click="askAgent(chip.query)"
+            >
+              <component :is="chip.icon" class="size-3 text-primary shrink-0" />
+              <span>{{ chip.label }}</span>
+            </button>
+          </div>
         </div>
       </div>
 
       <!-- Messages & Telemetry Stream -->
       <div class="flex-1 min-h-0 overflow-hidden relative">
-        <OverlayScroll class="h-full p-4 space-y-3.5">
-          <div v-for="msg in agentMessages" :key="msg.id" class="space-y-2">
-            <!-- User Prompt Bubble -->
-            <div v-if="msg.role === 'user'" class="flex justify-end">
-              <div class="rounded-lg bg-primary text-primary-foreground px-3 py-2 text-xs font-medium max-w-[85%] shadow-xs">
-                {{ msg.content }}
-              </div>
-            </div>
-
-            <!-- Copilot Structured Response -->
-            <div v-else class="rounded-lg border border-border/80 bg-background/90 p-3 space-y-2.5 shadow-xs">
-              <!-- Tool Executions Diagnostic Summary -->
-              <div v-if="msg.tools?.length" class="pb-1">
-                <details class="group text-[11px] font-mono">
-                  <summary class="inline-flex items-center gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground select-none py-1 px-2 rounded-md bg-muted/40 hover:bg-muted/70 border border-border/50 transition-colors">
-                    <span class="text-emerald-500 font-bold">✓</span>
-                    <span class="font-medium text-[10px]">{{ msg.tools.length }} diagnostic {{ msg.tools.length === 1 ? 'source' : 'sources' }} verified</span>
-                    <ChevronDown class="size-3 text-muted-foreground transition-transform group-open:rotate-180 ml-0.5" />
-                  </summary>
-                  <div class="mt-1.5 space-y-1 pl-2.5 border-l-2 border-border/70 pt-0.5">
-                    <div
-                      v-for="(t, idx) in msg.tools"
-                      :key="idx"
-                      class="flex items-start gap-1.5 text-[10px] text-muted-foreground"
-                    >
-                      <span class="text-foreground font-semibold shrink-0">{{ toolLabel(t.name) }}:</span>
-                      <span class="opacity-80 leading-tight">{{ t.summary }}</span>
-                    </div>
-                  </div>
-                </details>
-              </div>
-
-              <!-- Blocks Renderer -->
-              <div v-if="msg.blocks?.length" class="space-y-2.5">
-                <SentinelBlockRenderer v-for="(block, idx) in msg.blocks" :key="`${msg.id}-block-${idx}`" :block="block" />
-              </div>
-              <p v-else class="text-xs text-foreground leading-relaxed">{{ msg.content }}</p>
-
-              <!-- Interactive Actions (Filters / Highlights) -->
-              <div v-if="msg.actions?.length" class="pt-1.5 border-t border-border/40 flex flex-wrap gap-1.5">
-                <Button
-                  v-for="act in msg.actions"
-                  :key="act.label"
-                  variant="outline"
-                  size="sm"
-                  class="h-6 text-[11px] font-mono px-2 py-0 border-primary/40 hover:bg-primary/10 text-foreground cursor-pointer gap-1 transition-colors"
-                  @click="act.handler()"
+        <OverlayScroll class="h-full space-y-3.5" :class="isCopilotFullscreen ? 'p-6 md:p-8' : 'p-4'">
+          <div :class="isCopilotFullscreen ? 'max-w-5xl mx-auto w-full space-y-4' : 'space-y-3.5'">
+            <div v-for="msg in agentMessages" :key="msg.id" class="space-y-2">
+              <!-- User Prompt Bubble -->
+              <div v-if="msg.role === 'user'" class="flex justify-end">
+                <div
+                  :class="[
+                    'rounded-lg bg-primary text-primary-foreground px-3 py-2 text-xs font-medium shadow-xs',
+                    isCopilotFullscreen ? 'max-w-[70%]' : 'max-w-[85%]'
+                  ]"
                 >
-                  <ArrowUpRight class="size-2.5 text-primary shrink-0" />
-                  <span>{{ act.label }}</span>
-                </Button>
+                  {{ msg.content }}
+                </div>
+              </div>
+
+              <!-- Copilot Structured Response -->
+              <div v-else class="rounded-lg border border-border/80 bg-background/90 p-3 space-y-2.5 shadow-xs">
+                <!-- Tool Executions Diagnostic Summary -->
+                <div v-if="msg.tools?.length" class="pb-1">
+                  <details class="group text-[11px] font-mono">
+                    <summary class="inline-flex items-center gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground select-none py-1 px-2 rounded-md bg-muted/40 hover:bg-muted/70 border border-border/50 transition-colors">
+                      <span class="text-emerald-500 font-bold">✓</span>
+                      <span class="font-medium text-[10px]">{{ msg.tools.length }} diagnostic {{ msg.tools.length === 1 ? 'source' : 'sources' }} verified</span>
+                      <ChevronDown class="size-3 text-muted-foreground transition-transform group-open:rotate-180 ml-0.5" />
+                    </summary>
+                    <div class="mt-1.5 space-y-1 pl-2.5 border-l-2 border-border/70 pt-0.5">
+                      <div
+                        v-for="(t, idx) in msg.tools"
+                        :key="idx"
+                        class="flex items-start gap-1.5 text-[10px] text-muted-foreground"
+                      >
+                        <span class="text-foreground font-semibold shrink-0">{{ toolLabel(t.name) }}:</span>
+                        <span class="opacity-80 leading-tight">{{ t.summary }}</span>
+                      </div>
+                    </div>
+                  </details>
+                </div>
+
+                <!-- Blocks Renderer -->
+                <div v-if="msg.blocks?.length" class="space-y-2.5">
+                  <SentinelBlockRenderer v-for="(block, idx) in msg.blocks" :key="`${msg.id}-block-${idx}`" :block="block" />
+                </div>
+                <p v-else class="text-xs text-foreground leading-relaxed">{{ msg.content }}</p>
+
+                <!-- Interactive Actions (Filters / Highlights) -->
+                <div v-if="msg.actions?.length" class="pt-1.5 border-t border-border/40 flex flex-wrap gap-1.5">
+                  <Button
+                    v-for="act in msg.actions"
+                    :key="act.label"
+                    variant="outline"
+                    size="sm"
+                    class="h-6 text-[11px] font-mono px-2 py-0 border-primary/40 hover:bg-primary/10 text-foreground cursor-pointer gap-1 transition-colors"
+                    @click="act.handler()"
+                  >
+                    <ArrowUpRight class="size-2.5 text-primary shrink-0" />
+                    <span>{{ act.label }}</span>
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- In-Flight Processing Indicator -->
-          <div v-if="isAgentProcessing" class="flex items-center gap-2 text-xs text-muted-foreground font-mono p-2.5 rounded border border-border/50 bg-muted/20">
-            <RefreshCw class="size-3 text-primary animate-spin" />
-            <span>Analyzing fleet telemetry...</span>
+            <!-- In-Flight Processing Indicator -->
+            <div v-if="isAgentProcessing" class="flex items-center gap-2 text-xs text-muted-foreground font-mono p-2.5 rounded border border-border/50 bg-muted/20">
+              <RefreshCw class="size-3 text-primary animate-spin" />
+              <span>Analyzing fleet telemetry...</span>
+            </div>
           </div>
         </OverlayScroll>
       </div>
 
       <!-- Command Footer -->
-      <div class="p-3 border-t border-border/80 bg-muted/20 shrink-0">
-        <form class="flex items-center gap-2" @submit.prevent="askAgent(agentInput)">
-          <div class="relative flex-1">
-            <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
-            <Input
-              v-model="agentInput"
-              placeholder="Ask about alerts or vessel status..."
-              class="h-8 pl-8 pr-7 text-xs border-border/80 bg-background font-mono"
-            />
-            <button
-              v-if="agentInput"
-              type="button"
-              class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2 text-xs cursor-pointer"
-              @click="agentInput = ''"
+      <div
+        :class="[
+          'border-t border-border/80 bg-muted/20 shrink-0',
+          isCopilotFullscreen ? 'px-6 md:px-12 py-3.5' : 'p-3'
+        ]"
+      >
+        <div :class="isCopilotFullscreen ? 'max-w-5xl mx-auto w-full' : ''">
+          <form class="flex items-center gap-2" @submit.prevent="askAgent(agentInput)">
+            <div class="relative flex-1">
+              <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
+              <Input
+                v-model="agentInput"
+                placeholder="Ask about alerts or vessel status..."
+                class="h-8 pl-8 pr-7 text-xs border-border/80 bg-background font-mono"
+              />
+              <button
+                v-if="agentInput"
+                type="button"
+                class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2 text-xs cursor-pointer"
+                @click="agentInput = ''"
+              >
+                ✕
+              </button>
+            </div>
+            <Button
+              type="submit"
+              size="sm"
+              class="h-8 px-2.5 text-xs cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground font-medium shrink-0"
+              :disabled="!agentInput.trim()"
             >
-              ✕
-            </button>
+              <Send class="size-3" />
+            </Button>
+          </form>
+          <div class="flex items-center justify-between mt-1.5 px-0.5 text-[10px] text-muted-foreground font-mono">
+            <span>Read-only triage & summaries</span>
+            <span>Esc to {{ isCopilotFullscreen ? 'exit full screen' : 'close' }} · ⌘J toggle</span>
           </div>
-          <Button
-            type="submit"
-            size="sm"
-            class="h-8 px-2.5 text-xs cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground font-medium shrink-0"
-            :disabled="!agentInput.trim()"
-          >
-            <Send class="size-3" />
-          </Button>
-        </form>
-        <div class="flex items-center justify-between mt-1.5 px-0.5 text-[10px] text-muted-foreground font-mono">
-          <span>Read-only triage & summaries</span>
-          <span>Esc to close · ⌘J toggle</span>
         </div>
       </div>
     </aside>
+    </Transition>
   </div>
 </template>
+
+<style scoped>
+.copilot-panel {
+  transition:
+    top 350ms cubic-bezier(0.16, 1, 0.3, 1),
+    width 350ms cubic-bezier(0.16, 1, 0.3, 1),
+    max-width 350ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 300ms ease;
+  will-change: width, top;
+}
+
+.copilot-slide-enter-active {
+  transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1), opacity 250ms ease;
+}
+
+.copilot-slide-leave-active {
+  transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1), opacity 200ms ease;
+}
+
+.copilot-slide-enter-from,
+.copilot-slide-leave-to {
+  transform: translateX(100%);
+  opacity: 0.85;
+}
+
+.copilot-slide-enter-to,
+.copilot-slide-leave-from {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.icon-flip-enter-active,
+.icon-flip-leave-active {
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), opacity 150ms ease;
+}
+
+.icon-flip-enter-from {
+  transform: scale(0.6) rotate(-45deg);
+  opacity: 0;
+}
+
+.icon-flip-leave-to {
+  transform: scale(0.6) rotate(45deg);
+  opacity: 0;
+}
+</style>
