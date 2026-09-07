@@ -33,3 +33,4 @@ Thumbs.db
 
 # AI working docs (internal, not shipped)
 ai_docs/
+.pi/
