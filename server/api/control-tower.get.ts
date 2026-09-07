@@ -60,15 +60,17 @@ export default defineEventHandler(async (event) => {
           FROM shipping_db.vsatheartbeat
           WHERE vesselid IS NOT NULL
           ORDER BY vesselid, updatedat DESC NULLS LAST, id DESC
-        ), latest_voyage AS (
+        ), latest_enroute AS (
           SELECT DISTINCT ON (vesselid) vesselid
-          FROM shipping_db.voyageforecast
-          WHERE vesselid IS NOT NULL
-          ORDER BY vesselid, packetts DESC NULLS LAST, id DESC
+          FROM (
+            SELECT vesselid FROM shipping_db.voyageforecast WHERE vesselid IS NOT NULL AND nextportname IS NOT NULL
+            UNION
+            SELECT vesselid FROM shipping_db.std_enoonreporttable WHERE vesselid IS NOT NULL AND noonreportdata->>'Next_Port' IS NOT NULL
+          ) u
         )
         SELECT
           (SELECT count(*) FROM shipping_db.ship WHERE "isDeleted" IS NOT TRUE)::int AS vessels,
-          (SELECT count(*) FROM latest_voyage)::int AS active_voyages,
+          (SELECT count(*) FROM latest_enroute e JOIN shipping_db.ship s ON s.id = e.vesselid WHERE s."isDeleted" IS NOT TRUE)::int AS active_voyages,
           count(*) FILTER (WHERE h.isconnected IS TRUE)::int AS connected,
           count(*) FILTER (WHERE h.isconnected IS FALSE)::int AS offline,
           count(*) FILTER (WHERE h.vesselid IS NULL OR h.isconnected IS NULL)::int AS unknown
@@ -105,49 +107,87 @@ export default defineEventHandler(async (event) => {
           s.name ASC NULLS LAST,
           s.id ASC
       `),
-      dbQuery<{ count: string }>(`
+      dbQuery<{ count: string; critical_count: string }>(`
         WITH filtered AS (
-          SELECT row_number() OVER (
-            PARTITION BY a.vesselid, coalesce(a.observanttype, 'Operational alert'), coalesce(a.machinetype, '—'), coalesce(a.observantmessage, a.data->>'message', 'Alert triggered'), coalesce(a.livevalueunit, '')
-            ORDER BY a."timestamp" DESC NULLS LAST, a.id DESC
-          ) AS row_num
+          SELECT
+            ${severityExpression} AS sev,
+            row_number() OVER (
+              PARTITION BY a.vesselid, coalesce(a.observanttype, 'Operational alert'), coalesce(a.machinetype, '—'), coalesce(a.observantmessage, a.data->>'message', 'Alert triggered'), coalesce(a.livevalueunit, '')
+              ORDER BY a."timestamp" DESC NULLS LAST, a.id DESC
+            ) AS row_num
           FROM shipping_db.std_triggeredoutcomestoday a
           LEFT JOIN shipping_db.ship s ON s.id = a.vesselid
           WHERE ${alertFilterSql}
         )
-        SELECT count(*)::text AS count FROM filtered WHERE row_num = 1
+        SELECT
+          count(*)::text AS count,
+          count(*) FILTER (WHERE sev = 'critical')::text AS critical_count
+        FROM filtered WHERE row_num = 1
       `, alertValues),
       dbQuery<{
         vessel_id: number
         vessel_name: string
+        departure_port: string | null
+        departure_port_code: string | null
+        departure_at: Date | null
         next_port: string | null
         next_port_code: string | null
         eta: Date | null
         packet_at: Date | null
         route_name: string | null
         load_status: string | null
+        distance_travelled: number | string | null
+        distance_to_go: number | string | null
+        total_distance: number | string | null
+        progress_value: number | string | null
       }>(`
-        WITH latest_voyage AS (
+        WITH latest_noon AS (
           SELECT DISTINCT ON (vesselid)
-            vesselid, nextportname, nextportunlocode, eta, packetts, route_name, loadstatusname
+            vesselid,
+            NULLIF(TRIM(noonreportdata->>'Start_Port'), '') AS scr,
+            NULLIF(TRIM(noonreportdata->>'Next_Port'), '') AS next_port,
+            NULLIF(TRIM(noonreportdata->>'ETA_Next_Port'), '') AS eta_next_port,
+            NULLIF(REGEXP_REPLACE(noonreportdata->>'Distance_Covered_Since_SOV', '[^0-9.]', '', 'g'), '')::numeric AS total_dist_run,
+            NULLIF(REGEXP_REPLACE(noonreportdata->>'Distance_Remaining_To_EOV', '[^0-9.]', '', 'g'), '')::numeric AS dist_to_go,
+            NULLIF(TRIM(noonreportdata->>'Voyage_Number'), '') AS voyage,
+            report_date_time_utc
+          FROM shipping_db.std_enoonreporttable
+          WHERE vesselid IS NOT NULL
+          ORDER BY vesselid, report_date_time_utc DESC NULLS LAST
+        ), latest_voyage AS (
+          SELECT DISTINCT ON (vesselid)
+            vesselid, lastport, lastportunlocode, lastporttime, nextportname, nextportunlocode,
+            eta, packetts, route_name, loadstatusname, distancetravelled, distancetogo, totaldistance
           FROM shipping_db.voyageforecast
           WHERE vesselid IS NOT NULL
           ORDER BY vesselid, packetts DESC NULLS LAST, id DESC
         )
         SELECT
-          v.vesselid AS vessel_id,
+          s.id AS vessel_id,
           s.name AS vessel_name,
-          v.nextportname AS next_port,
+          COALESCE(NULLIF(TRIM(v.lastport), ''), n.scr) AS departure_port,
+          v.lastportunlocode AS departure_port_code,
+          v.lastporttime AS departure_at,
+          COALESCE(NULLIF(TRIM(v.nextportname), ''), n.next_port) AS next_port,
           v.nextportunlocode AS next_port_code,
-          v.eta,
+          COALESCE(v.eta, n.eta_next_port::timestamptz) AS eta,
           v.packetts AS packet_at,
-          v.route_name,
-          v.loadstatusname AS load_status
-        FROM latest_voyage v
-        JOIN shipping_db.ship s ON s.id = v.vesselid
+          COALESCE(NULLIF(TRIM(v.route_name), ''), n.voyage) AS route_name,
+          v.loadstatusname AS load_status,
+          COALESCE(v.distancetravelled, n.total_dist_run) AS distance_travelled,
+          COALESCE(v.distancetogo, n.dist_to_go) AS distance_to_go,
+          v.totaldistance AS total_distance,
+          CASE
+            WHEN (COALESCE(v.distancetravelled, n.total_dist_run) + COALESCE(v.distancetogo, n.dist_to_go)) > 0
+            THEN ROUND((COALESCE(v.distancetravelled, n.total_dist_run) * 100.0) / (COALESCE(v.distancetravelled, n.total_dist_run) + COALESCE(v.distancetogo, n.dist_to_go)), 2)
+            ELSE NULL
+          END AS progress_value
+        FROM shipping_db.ship s
+        LEFT JOIN latest_voyage v ON v.vesselid = s.id
+        LEFT JOIN latest_noon n ON n.vesselid = s.id
         WHERE s."isDeleted" IS NOT TRUE
-        ORDER BY v.eta ASC NULLS LAST, s.name ASC
-        LIMIT 12
+          AND (v.vesselid IS NOT NULL OR n.vesselid IS NOT NULL)
+        ORDER BY progress_value DESC NULLS LAST, v.eta ASC NULLS LAST, s.name ASC
       `),
     ])
 
@@ -219,6 +259,7 @@ export default defineEventHandler(async (event) => {
         offline: Number(kpis.offline),
         unknown: Number(kpis.unknown),
         openAlerts: totalAlerts,
+        criticalAlerts: Number(alertCountResult.rows[0]?.critical_count ?? 0),
       },
       alerts: alertsResult.rows,
       voyages: voyagesResult.rows,
