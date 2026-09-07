@@ -118,7 +118,6 @@ function goToAlertPage(page: number) {
 const network = computed(() => [
   { label: 'Connected', value: kpis.value.connected, tone: 'success' as const, icon: Wifi },
   { label: 'Offline', value: kpis.value.offline, tone: 'destructive' as const, icon: WifiOff },
-  { label: 'Unknown', value: kpis.value.unknown, tone: 'muted' as const, icon: CircleAlert },
 ])
 const networkMax = computed(() => Math.max(1, ...network.value.map((item) => item.value)))
 
@@ -206,15 +205,12 @@ const filteredAlerts = computed(() => {
 })
 
 function connectionRank(vessel: NetworkVessel) {
-  if (vessel.connected === false) return 0
-  if (vessel.connected === null) return 1
-  return 2
+  return vessel.connected === true ? 1 : 0
 }
 
 function vesselStatus(vessel: NetworkVessel) {
   if (vessel.connected === true) return { label: 'Online', tone: 'success' as const, icon: Wifi }
-  if (vessel.connected === false) return { label: 'Offline', tone: 'destructive' as const, icon: WifiOff }
-  return { label: 'Unknown', tone: 'muted' as const, icon: CircleAlert }
+  return { label: 'Offline', tone: 'destructive' as const, icon: WifiOff }
 }
 </script>
 
