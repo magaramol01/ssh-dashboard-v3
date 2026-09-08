@@ -106,12 +106,6 @@ const selectedVessel = computed(() => {
   return vesselOptions.value.find((v) => v.id === selectedVesselId.value) || vesselOptions.value[0]
 })
 
-// Client-side cache of known vessel CIIs to guarantee cross-selection stability
-const knownVesselCii = useState<Record<string, { attainedCii: number; rating: string; deadweight?: number }>>(
-  'emissions_known_vessel_cii',
-  () => ({})
-)
-
 // Unified single API call to Nuxt server for selected vessel data
 const {
   data: ciiData,
@@ -122,48 +116,16 @@ const {
     vesselId: parseInt(selectedVesselId.value, 10) || 1,
     vesselName: selectedVessel.value?.name,
     fleetVessels: JSON.stringify(
-      vesselOptions.value.map((v) => {
-        const known = knownVesselCii.value[v.id]
-        return {
-          vesselId: parseInt(v.id, 10),
-          vesselName: v.name,
-          deadweight: known?.deadweight || v.dwt,
-          attainedCii: known?.attainedCii,
-          rating: known?.rating,
-        }
-      })
+      vesselOptions.value.map((v) => ({
+        vesselId: parseInt(v.id, 10),
+        vesselName: v.name,
+      }))
     ),
     year: parseInt(selectedYear.value, 10) || currentYear,
     voyageNumber: selectedVoyage.value !== 'all' ? selectedVoyage.value : undefined,
     voyageType: selectedVoyageType.value,
   })),
 })
-
-// Synchronize returned peer benchmarks and active vessel metrics into client-side cache
-watch(
-  () => ciiData.value,
-  (data) => {
-    if (data?.benchmark?.peers) {
-      for (const p of data.benchmark.peers) {
-        if (typeof p.attainedCii === 'number' && p.attainedCii > 0) {
-          knownVesselCii.value[String(p.vesselId)] = {
-            attainedCii: p.attainedCii,
-            rating: p.rating,
-            deadweight: p.deadweight,
-          }
-        }
-      }
-    }
-    if (data?.vessel?.vesselId && data?.summary?.attainedCii) {
-      knownVesselCii.value[String(data.vessel.vesselId)] = {
-        attainedCii: data.summary.attainedCii,
-        rating: data.summary.attainedRating,
-        deadweight: data.vessel.deadweight,
-      }
-    }
-  },
-  { immediate: true }
-)
 
 // Rating badge colors and classes
 function getRatingTone(rating?: string) {

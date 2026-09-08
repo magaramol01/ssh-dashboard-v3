@@ -99,6 +99,7 @@ export interface CachedPeerVessel {
 
 // Module-level persistent cache storing official and calculated vessel CII values
 export const fleetVesselCiiCache = new Map<string, CachedPeerVessel>()
+const fleetMultiFetchCooldown = new Map<number, number>()
 
 export function processCiiRecords(params: {
   vesselId: number
@@ -495,8 +496,11 @@ export default defineEventHandler(async (event): Promise<EmissionsCiiResponse> =
 
   // Pre-fetch fleet-wide CII telemetry if fleetPeers is provided and cache is incomplete
   if (fleetPeers && fleetPeers.length > 0) {
+    const lastAttempt = fleetMultiFetchCooldown.get(year) || 0
+    const now = Date.now()
     const uncachedPeers = fleetPeers.filter((p) => !fleetVesselCiiCache.has(`${year}_${p.vesselId}`))
-    if (uncachedPeers.length > 0) {
+    if (uncachedPeers.length > 0 && now - lastAttempt > 60_000) {
+      fleetMultiFetchCooldown.set(year, now)
       const idList = fleetPeers.map((p) => p.vesselId).join(',')
       try {
         const multiRes = await backendFetch<any[]>(
