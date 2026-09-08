@@ -18,6 +18,10 @@ import {
   type CiiImprovementPlan,
   type CobelfretTelemetry,
 } from '../../utils/marine/cii-improvement'
+import {
+  extractPerformanceWidgetsData,
+  type PerformanceWidgetsPayload,
+} from '../../utils/marine/performance-widgets'
 
 export interface AvailableVoyage {
   voyageNumber: string
@@ -80,6 +84,7 @@ export interface EmissionsCiiResponse {
   }>
   availableVoyages: AvailableVoyage[]
   improvementPlan: CiiImprovementPlan
+  performanceWidgets: PerformanceWidgetsPayload
 }
 
 const DEFAULT_BOUNDARIES: CIIBoundaries = {
@@ -121,8 +126,10 @@ export function processCiiRecords(params: {
     rating?: string
   }>
   cobelfretTelemetry?: CobelfretTelemetry
+  cobelfretRaw?: any
+  dbSlip?: number
 }): EmissionsCiiResponse {
-  const { vesselId, vesselName = `Vessel ${vesselId}`, year, records, availableVoyages = [], fleetPeers, cobelfretTelemetry } = params
+  const { vesselId, vesselName = `Vessel ${vesselId}`, year, records, availableVoyages = [], fleetPeers, cobelfretTelemetry, cobelfretRaw, dbSlip } = params
 
   const first = records[0] || {}
   const deadweight = parseFloat(first.deadweight) || 54000
@@ -433,6 +440,13 @@ export function processCiiRecords(params: {
       activeScenarioIndex: 1,
       cobelfretTelemetry,
     }),
+    performanceWidgets: extractPerformanceWidgetsData({
+      cobelfretRaw,
+      dbSlip,
+      totalCo2Mt: totalMassOfCo2Mt,
+      totalFuelMt: fuelBreakdown.reduce((acc, f) => acc + f.totalMt, 0),
+      attainedCii,
+    }),
   }
 }
 
@@ -664,6 +678,9 @@ export default defineEventHandler(async (event): Promise<EmissionsCiiResponse> =
 
   // Fetch operational profile & technical telemetry from Cobelfret widget API or local DB fallback
   let cobelfretTelemetry: CobelfretTelemetry | undefined
+  let cobelfretRaw: any = undefined
+  let dbSlip: number | undefined = undefined
+
   try {
     const encodedVessel = encodeURIComponent(vesselName)
     const cobelfretRes = await backendFetch<any>(
@@ -671,6 +688,7 @@ export default defineEventHandler(async (event): Promise<EmissionsCiiResponse> =
       { event }
     )
     if (cobelfretRes.success && cobelfretRes.data) {
+      cobelfretRaw = cobelfretRes.data
       const w4 = cobelfretRes.data.widget_4?.configuration?.body?.data?.barChartData
       const w5 = cobelfretRes.data.widget_5?.configuration?.body?.data?.SFOCdata?.sfoc?.data
       const w6 = cobelfretRes.data.widget_6?.configuration?.body?.data?.propulsionPerformance?.timeLossGain?.data
@@ -693,26 +711,29 @@ export default defineEventHandler(async (event): Promise<EmissionsCiiResponse> =
   }
 
   // Database fallback: query noon report averages from shipping_db.std_enoonreporttable
-  if (!cobelfretTelemetry) {
-    try {
-      const { dbQuery } = await import('../../utils/db')
-      const noonRes = await dbQuery<{ avg_slip: string; avg_speed: string }>(
-        `SELECT
-          AVG(NULLIF(noonreportdata->>'Engine_Slip', '')::numeric) as avg_slip,
-          AVG(NULLIF(noonreportdata->>'Avg_Speed', '')::numeric) as avg_speed
-         FROM shipping_db.std_enoonreporttable
-         WHERE vesselid = $1 AND EXTRACT(YEAR FROM datetime) = $2`,
-        [vesselId, year]
-      )
-      if (noonRes.rows.length && noonRes.rows[0].avg_slip) {
-        const slip = parseFloat(noonRes.rows[0].avg_slip)
-        cobelfretTelemetry = {
-          propulsionTimeLossPct: isNaN(slip) ? undefined : -Math.abs(slip),
+  try {
+    const { dbQuery } = await import('../../utils/db')
+    const noonRes = await dbQuery<{ avg_slip: string; avg_speed: string }>(
+      `SELECT
+        AVG(NULLIF(noonreportdata->>'Engine_Slip', '')::numeric) as avg_slip,
+        AVG(NULLIF(noonreportdata->>'Avg_Speed', '')::numeric) as avg_speed
+       FROM shipping_db.std_enoonreporttable
+       WHERE vesselid = $1 AND EXTRACT(YEAR FROM datetime) = $2`,
+      [vesselId, year]
+    )
+    if (noonRes.rows.length && noonRes.rows[0].avg_slip) {
+      const slip = parseFloat(noonRes.rows[0].avg_slip)
+      if (!isNaN(slip)) {
+        dbSlip = slip
+        if (!cobelfretTelemetry) {
+          cobelfretTelemetry = {
+            propulsionTimeLossPct: -Math.abs(slip),
+          }
         }
       }
-    } catch {
-      // Gracefully continue with deterministic defaults
     }
+  } catch {
+    // Gracefully continue with deterministic defaults
   }
 
   return processCiiRecords({
@@ -723,5 +744,7 @@ export default defineEventHandler(async (event): Promise<EmissionsCiiResponse> =
     availableVoyages,
     fleetPeers,
     cobelfretTelemetry,
+    cobelfretRaw,
+    dbSlip,
   })
 })
