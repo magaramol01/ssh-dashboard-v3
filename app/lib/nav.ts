@@ -36,8 +36,8 @@ export const NAV: NavSection[] = [
     ],
   },
   {
-    label: "Inbound",
-    items: [{ label: "Containers", to: "/containers", icon: "Ship", requires: "dispatcher" }],
+    label: "Emissions",
+    items: [{ label: "CII Tracking", to: "/emissions", icon: "Gauge", requires: "dispatcher" }],
   },
   {
     label: "Inventory",
