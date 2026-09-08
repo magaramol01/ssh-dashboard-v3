@@ -1,6 +1,7 @@
 import { createError, defineEventHandler, getQuery } from 'h3'
 import { dbQuery } from '../utils/db'
 import { analyzeThreshold } from '../../shared/types/marine'
+import { tenantStorage } from '../utils/tenant-context'
 
 const DEFAULT_PAGE_SIZE = 10
 const MAX_PAGE_SIZE = 50
@@ -27,6 +28,10 @@ const severityExpression = `CASE
 END`
 
 export default defineEventHandler(async (event) => {
+  const tenant = event.context.tenant
+  if (tenant) {
+    tenantStorage.enterWith(tenant)
+  }
   const query = getQuery(event)
   const requestedPage = boundedInteger(query.page, 1, 1, Number.MAX_SAFE_INTEGER)
   const pageSize = boundedInteger(query.pageSize, DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE)

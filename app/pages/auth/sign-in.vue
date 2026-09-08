@@ -22,6 +22,11 @@ useHead({ title: 'Sign in · Zepp' })
 definePageMeta({ layout: false })
 
 const { set: setPersona } = usePersona()
+const { tenant } = useTenant()
+
+function targetDashboard() {
+  return tenant.value ? `/${tenant.value}/dashboard` : '/asiaticlloyd/dashboard'
+}
 
 const email = ref('')
 const password = ref('')
@@ -29,23 +34,23 @@ const remember = ref(true)
 
 async function handleSubmit() {
   toast.success('Signed in as Avery Quinn')
-  await navigateTo('/dashboard')
+  await navigateTo(targetDashboard())
 }
 async function continueWithSso(provider: 'Google' | 'Microsoft') {
   toast.info(`Continuing with ${provider} (mock)`)
-  await navigateTo('/dashboard')
+  await navigateTo(targetDashboard())
 }
 async function continueAs(persona: Persona, label: string) {
   setPersona(persona)
   toast.success(`Continuing as ${label}`)
-  await navigateTo('/dashboard')
+  await navigateTo(targetDashboard())
 }
 async function fakeForgot() {
   toast.info('Password reset link sent (mock)')
 }
 async function fakeSignUp() {
   toast.info('Sign-up is mocked — landing you on the dashboard')
-  await navigateTo('/dashboard')
+  await navigateTo(targetDashboard())
 }
 
 const personas: Array<{ key: Persona; label: string; tagline: string }> = [

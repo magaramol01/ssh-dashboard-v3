@@ -57,10 +57,10 @@ const showDetails = ref(false)
 const hasStack = computed(() => Boolean(props.error.stack))
 
 function backToDashboard() {
-  // clearError() unmounts this error.vue and restores the matched route
-  // tree. The redirect option also handles the case where the error
-  // happened on a route we can't recover (e.g. a missing layout file).
-  clearError({ redirect: '/dashboard' })
+  const route = useRoute()
+  const seg = route?.path ? route.path.split('/').filter(Boolean)[0] : ''
+  const target = seg && !['_nuxt', 'api', 'auth'].includes(seg) ? `/${seg}/dashboard` : '/'
+  clearError({ redirect: target })
 }
 </script>
 

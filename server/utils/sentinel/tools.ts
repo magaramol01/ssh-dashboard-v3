@@ -16,14 +16,14 @@ function json(value: unknown) {
   return JSON.stringify(value)
 }
 
-export function createSentinelTools() {
+export function createSentinelTools(tenant?: string) {
   const searchAlerts = tool(async ({ search, severity, page }) => {
     const result = await searchOperationalAlerts({
       search,
       severity: severity === 'all' ? undefined : severity as AlertSeverity | undefined,
       page,
       pageSize: 10,
-    })
+    }, tenant)
     return json(result)
   }, {
     name: 'search_operational_alerts',
@@ -36,7 +36,7 @@ export function createSentinelTools() {
   })
 
   const analyzeAlert = tool(async ({ alertId }) => {
-    const result = await analyzeOperationalAlert(alertId)
+    const result = await analyzeOperationalAlert(alertId, tenant)
     return json(result ?? { not_found: true, alert_id: alertId })
   }, {
     name: 'analyze_operational_alert',
@@ -45,7 +45,7 @@ export function createSentinelTools() {
   })
 
   const vesselContext = tool(async ({ vesselId }) => {
-    const result = await getVesselOperationalContext(vesselId)
+    const result = await getVesselOperationalContext(vesselId, tenant)
     return json(result ?? { not_found: true, vessel_id: vesselId })
   }, {
     name: 'get_vessel_operational_context',
@@ -53,14 +53,14 @@ export function createSentinelTools() {
     schema: z.object({ vesselId: z.number().int().positive() }),
   })
 
-  const fleetConnectivity = tool(async () => json(await getFleetSnapshot()), {
+  const fleetConnectivity = tool(async () => json(await getFleetSnapshot(tenant)), {
     name: 'get_fleet_connectivity',
     description: 'Get the current fleet vessel count and latest VSAT online/offline/unknown status. Use this for network and fleet availability questions.',
     schema: z.object({}),
   })
 
   const fleetVoyages = tool(async ({ limit }) => {
-    const voyages = await getFleetVoyages(limit ?? 25)
+    const voyages = await getFleetVoyages(limit ?? 25, tenant)
     return json({ count: voyages.length, voyages })
   }, {
     name: 'get_fleet_voyages',
@@ -71,7 +71,7 @@ export function createSentinelTools() {
   })
 
   const fleetAlarmTrends = tool(async ({ vesselId, days }) => {
-    const trends = await getFleetAlarmTrends({ vesselId, days })
+    const trends = await getFleetAlarmTrends({ vesselId, days }, tenant)
     return json(trends)
   }, {
     name: 'get_fleet_alarm_trends',

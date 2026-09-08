@@ -3,6 +3,7 @@ import type { SentinelChatRequest } from '../../../shared/types/sentinel'
 import { runSentinelConversation } from '../../utils/sentinel/agent'
 import { formatSentinelResponse } from '../../utils/sentinel/formatter'
 import { sentinelRequestSchema, sentinelResponseSchema } from '../../utils/sentinel/schemas'
+import { tenantStorage } from '../../utils/tenant-context'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<SentinelChatRequest>(event)
@@ -11,8 +12,13 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid Sentinel request' })
   }
 
+  const tenant = event.context.tenant
+  if (tenant) {
+    tenantStorage.enterWith(tenant)
+  }
+
   try {
-    const raw = await runSentinelConversation(parsed.data)
+    const raw = await runSentinelConversation(parsed.data, tenant)
     return sentinelResponseSchema.parse(formatSentinelResponse(raw))
   } catch (error: unknown) {
     if (error && typeof error === 'object' && 'statusCode' in error) throw error

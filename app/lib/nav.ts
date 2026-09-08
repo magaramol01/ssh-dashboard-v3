@@ -84,23 +84,33 @@ export const NAV: NavSection[] = [
   },
 ];
 
-/** Walks NAV + returns the matching item for a given path (or null). */
-export function findNavItem(path: string): NavItem | null {
+/** Walks NAV + returns the matching item for a given path (or null). Supports tenant prefix. */
+export function findNavItem(path: string, tenant?: string): NavItem | null {
+  let normalized = path
+  if (tenant && normalized.startsWith(`/${tenant}`)) {
+    normalized = normalized.slice(tenant.length + 1) || '/'
+  }
   for (const section of NAV) {
     for (const item of section.items) {
-      if (item.to === path) return item;
+      if (item.to === normalized || item.to === path) return item;
     }
   }
   return null;
 }
 
-/** Filters NAV to only items the given persona can see. */
-export function navForPersona(persona: Persona): NavSection[] {
+/** Filters NAV to only items the given persona can see, optionally prefixing routes with the tenant. */
+export function navForPersona(persona: Persona, tenant?: string): NavSection[] {
   return NAV.map((section) => ({
     label: section.label,
-    items: section.items.filter((item) => {
-      if (!item.requires) return true;
-      return PERSONA_RANK[persona] >= PERSONA_RANK[item.requires];
-    }),
+    items: section.items
+      .filter((item) => {
+        if (!item.requires) return true;
+        return PERSONA_RANK[persona] >= PERSONA_RANK[item.requires];
+      })
+      .map((item) => ({
+        ...item,
+        to: item.to && tenant ? `/${tenant}${item.to}` : item.to,
+      })),
   })).filter((section) => section.items.length > 0);
 }
+

@@ -114,7 +114,7 @@ export async function searchOperationalAlerts(options: {
   vesselId?: number
   page?: number
   pageSize?: number
-} = {}) {
+} = {}, tenant?: string) {
   const pageSize = Math.min(10, Math.max(1, options.pageSize ?? 10))
   const requestedPage = Math.max(1, options.page ?? 1)
   const filters = alertFilters(options.search, options.severity, options.vesselId)
@@ -129,7 +129,7 @@ export async function searchOperationalAlerts(options: {
       WHERE ${filters.where}
     )
     SELECT count(*)::text AS count FROM filtered WHERE row_num = 1
-  `, filters.values)
+  `, filters.values, tenant)
 
   const total = Number(count.rows[0]?.count ?? 0)
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -181,12 +181,12 @@ export async function searchOperationalAlerts(options: {
     WHERE row_num = 1
     ORDER BY last_fired_at DESC NULLS LAST, id DESC
     LIMIT $${filters.values.length + 1} OFFSET $${filters.values.length + 2}
-  `, [...filters.values, pageSize, offset])
+  `, [...filters.values, pageSize, offset], tenant)
 
   return { alerts: result.rows.map(mapAlert), page, pageSize, total, totalPages }
 }
 
-export async function analyzeOperationalAlert(alertId: number) {
+export async function analyzeOperationalAlert(alertId: number, tenant?: string) {
   const alertResult = await dbQuery<{
     alert_key: string
     id: number
@@ -224,13 +224,13 @@ export async function analyzeOperationalAlert(alertId: number) {
     LEFT JOIN shipping_db.ship s ON s.id = a.vesselid
     WHERE a.id = $1
     LIMIT 1
-  `, [alertId])
+  `, [alertId], tenant)
 
   const alert = alertResult.rows[0]
   if (!alert) return null
 
   const related = alert.vessel_id
-    ? await searchOperationalAlerts({ vesselId: alert.vessel_id, page: 1, pageSize: 10 })
+    ? await searchOperationalAlerts({ vesselId: alert.vessel_id, page: 1, pageSize: 10 }, tenant)
     : { alerts: [], total: 0 }
   const groupedAlert = related.alerts.find((item) => item.system_name === alert.system_name && item.message === alert.message && item.live_value_unit === alert.live_value_unit)
   const mappedAlert = mapAlert(alert)
@@ -257,7 +257,7 @@ export async function analyzeOperationalAlert(alertId: number) {
   }
 }
 
-export async function getFleetSnapshot(): Promise<FleetSnapshot> {
+export async function getFleetSnapshot(tenant?: string): Promise<FleetSnapshot> {
   const [kpis, vessels] = await Promise.all([
     dbQuery<{ vessels: number; connected: number; offline: number; unknown: number }>(`
       WITH latest_heartbeat AS (
@@ -274,7 +274,7 @@ export async function getFleetSnapshot(): Promise<FleetSnapshot> {
       FROM shipping_db.ship s
       LEFT JOIN latest_heartbeat h ON h.vesselid = s.id
       WHERE s."isDeleted" IS NOT TRUE
-    `),
+    `, [], tenant),
     dbQuery<{ vessel_id: number; vessel_name: string | null; connected: boolean | null; updated_at: DbDate }>(`
       SELECT s.id AS vessel_id, s.name AS vessel_name, h.isconnected AS connected, h.updatedat AS updated_at
       FROM shipping_db.ship s
@@ -288,7 +288,7 @@ export async function getFleetSnapshot(): Promise<FleetSnapshot> {
       WHERE s."isDeleted" IS NOT TRUE
       ORDER BY CASE WHEN h.isconnected IS FALSE THEN 0 WHEN h.isconnected IS NULL THEN 1 ELSE 2 END, s.name ASC NULLS LAST, s.id ASC
       LIMIT 50
-    `),
+    `, [], tenant),
   ])
 
   const row = kpis.rows[0] ?? { vessels: 0, connected: 0, offline: 0, unknown: 0 }
@@ -301,16 +301,16 @@ export async function getFleetSnapshot(): Promise<FleetSnapshot> {
   }
 }
 
-export async function getVesselOperationalContext(vesselId: number): Promise<VesselOperationalContext | null> {
+export async function getVesselOperationalContext(vesselId: number, tenant?: string): Promise<VesselOperationalContext | null> {
   const [vesselResult, heartbeatResult, voyageResult, alertsResult] = await Promise.all([
     dbQuery<{ id: number; name: string | null }>(`
       SELECT id, name FROM shipping_db.ship WHERE id = $1 AND "isDeleted" IS NOT TRUE LIMIT 1
-    `, [vesselId]),
+    `, [vesselId], tenant),
     dbQuery<{ connected: boolean | null; updated_at: DbDate }>(`
       SELECT isconnected AS connected, updatedat AS updated_at
       FROM shipping_db.vsatheartbeat WHERE vesselid = $1
       ORDER BY updatedat DESC NULLS LAST, id DESC LIMIT 1
-    `, [vesselId]),
+    `, [vesselId], tenant),
     dbQuery<{
       next_port: string | null
       next_port_code: string | null
@@ -368,8 +368,8 @@ export async function getVesselOperationalContext(vesselId: number): Promise<Ves
       LEFT JOIN latest_noon n ON TRUE
       WHERE vf.nextportname IS NOT NULL OR n.next_port IS NOT NULL
       LIMIT 1
-    `, [vesselId]),
-    searchOperationalAlerts({ page: 1, pageSize: 5, vesselId }),
+    `, [vesselId], tenant),
+    searchOperationalAlerts({ page: 1, pageSize: 5, vesselId }, tenant),
   ])
 
   const vessel = vesselResult.rows[0]
@@ -400,7 +400,7 @@ export async function getVesselOperationalContext(vesselId: number): Promise<Ves
   }
 }
 
-export async function getFleetVoyages(limit = 30) {
+export async function getFleetVoyages(limit = 30, tenant?: string) {
   const result = await dbQuery<{
     vessel_id: number
     vessel_name: string
@@ -430,37 +430,37 @@ export async function getFleetVoyages(limit = 30) {
     latest_vf AS (
       SELECT DISTINCT ON (vesselid)
         vesselid,
-        lastport,
-        lastportunlocode,
         nextportname,
-        nextportunlocode,
+        nextportcode,
+        departureportname,
+        departureportcode,
         eta,
-        route_name,
+        packetts,
+        routename as route_name,
         loadstatusname,
         distancetravelled,
         distancetogo
-      FROM shipping_db.voyageforecast
+      FROM shipping_db.voyageforecast_telemetry
       WHERE vesselid IS NOT NULL
-      ORDER BY vesselid, packetts DESC NULLS LAST, id DESC
+      ORDER BY vesselid, packetts DESC NULLS LAST
     )
     SELECT
       s.id AS vessel_id,
       s.name AS vessel_name,
-      COALESCE(NULLIF(TRIM(vf.lastport), ''), n.scr) AS departure_port,
-      vf.lastportunlocode AS departure_port_code,
-      COALESCE(NULLIF(TRIM(vf.nextportname), ''), n.next_port) AS next_port,
-      vf.nextportunlocode AS next_port_code,
-      COALESCE(vf.eta, n.eta_next_port::timestamptz) AS eta,
-      COALESCE(NULLIF(TRIM(vf.route_name), ''), CASE WHEN n.scr IS NOT NULL AND n.next_port IS NOT NULL THEN n.scr || ' to ' || n.next_port END) AS route_name,
-      vf.loadstatusname AS load_status,
-      COALESCE(vf.distancetravelled, n.total_dist_run)::numeric AS distance_travelled,
-      COALESCE(vf.distancetogo, n.dist_to_go)::numeric AS distance_to_go,
+      COALESCE(vf.departureportname, n.scr) as departure_port,
+      vf.departureportcode as departure_port_code,
+      COALESCE(vf.nextportname, n.next_port) as next_port,
+      vf.nextportcode as next_port_code,
+      COALESCE(vf.eta, n.eta_next_port::timestamptz) as eta,
+      vf.route_name,
+      vf.loadstatusname as load_status,
+      COALESCE(vf.distancetravelled, n.total_dist_run) as distance_travelled,
+      COALESCE(vf.distancetogo, n.dist_to_go) as distance_to_go,
       CASE
-        WHEN COALESCE(vf.distancetravelled, n.total_dist_run)::numeric > 0 AND COALESCE(vf.distancetogo, n.dist_to_go)::numeric IS NOT NULL THEN
-          ROUND(
-            (COALESCE(vf.distancetravelled, n.total_dist_run)::numeric * 100.0) /
-            NULLIF(COALESCE(vf.distancetravelled, n.total_dist_run)::numeric + COALESCE(vf.distancetogo, n.dist_to_go)::numeric, 0)
-          , 1)
+        WHEN COALESCE(vf.distancetravelled, n.total_dist_run) IS NOT NULL
+          AND COALESCE(vf.distancetogo, n.dist_to_go) IS NOT NULL
+          AND (COALESCE(vf.distancetravelled, n.total_dist_run) + COALESCE(vf.distancetogo, n.dist_to_go)) > 0
+        THEN ROUND((COALESCE(vf.distancetravelled, n.total_dist_run)::numeric / (COALESCE(vf.distancetravelled, n.total_dist_run) + COALESCE(vf.distancetogo, n.dist_to_go))::numeric) * 100, 1)
         ELSE NULL
       END AS progress_percent
     FROM shipping_db.ship s
@@ -470,7 +470,7 @@ export async function getFleetVoyages(limit = 30) {
       AND (vf.nextportname IS NOT NULL OR n.next_port IS NOT NULL)
     ORDER BY eta ASC NULLS LAST, s.name ASC
     LIMIT $1
-  `, [limit])
+  `, [limit], tenant)
 
   return result.rows.map((row) => ({
     ...row,
@@ -481,7 +481,7 @@ export async function getFleetVoyages(limit = 30) {
   }))
 }
 
-export async function getFleetAlarmTrends(options: { vesselId?: number; days?: number } = {}) {
+export async function getFleetAlarmTrends(options: { vesselId?: number; days?: number } = {}, tenant?: string) {
   const days = Math.min(7, Math.max(1, options.days ?? 1))
   const intervalStr = `${days * 24} hours`
   const vesselFilter = options.vesselId ? `AND vesselid = ${Number(options.vesselId)}` : ''
@@ -496,7 +496,7 @@ export async function getFleetAlarmTrends(options: { vesselId?: number; days?: n
         ${vesselFilter}
       GROUP BY 1
       ORDER BY min("timestamp") ASC
-    `),
+    `, [], tenant),
     dbQuery<{ vessel_name: string; count: number }>(`
       SELECT
         coalesce(s.name, a.companyname, 'Vessel ' || a.vesselid) AS vessel_name,
@@ -507,7 +507,7 @@ export async function getFleetAlarmTrends(options: { vesselId?: number; days?: n
       GROUP BY 1
       ORDER BY 2 DESC
       LIMIT 10
-    `),
+    `, [], tenant),
     dbQuery<{ system_name: string; count: number }>(`
       SELECT
         coalesce(machinetype, 'OTHER') AS system_name,
@@ -517,7 +517,7 @@ export async function getFleetAlarmTrends(options: { vesselId?: number; days?: n
         ${vesselFilter}
       GROUP BY 1
       ORDER BY 2 DESC
-    `),
+    `, [], tenant),
   ])
 
   return {

@@ -19,17 +19,32 @@ import {
 import { findNavItem } from '~/lib/nav'
 
 const route = useRoute()
+const { tenant } = useTenant()
 
 const crumbs = computed(() => {
   const segments = route.path.split('/').filter(Boolean)
   if (!segments.length) return []
+
+  const activeTenant = tenant.value
+  let activeSegments = segments
+  let baseAcc = ''
+
+  if (activeTenant && segments[0] === activeTenant) {
+    baseAcc = `/${activeTenant}`
+    activeSegments = segments.slice(1)
+  }
+
+  if (!activeSegments.length) {
+    return [{ label: titleize(activeTenant || 'Home') }]
+  }
+
   const out: { label: string; to?: string }[] = []
-  let acc = ''
-  for (let i = 0; i < segments.length; i++) {
-    acc += '/' + segments[i]
-    const match = findNavItem(acc)
-    const label = match?.label ?? titleize(segments[i]!)
-    const isLast = i === segments.length - 1
+  let acc = baseAcc
+  for (let i = 0; i < activeSegments.length; i++) {
+    acc += '/' + activeSegments[i]
+    const match = findNavItem(acc, activeTenant)
+    const label = match?.label ?? titleize(activeSegments[i]!)
+    const isLast = i === activeSegments.length - 1
     out.push({ label, to: isLast ? undefined : acc })
   }
   return out

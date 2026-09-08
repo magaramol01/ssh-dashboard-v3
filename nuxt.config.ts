@@ -48,4 +48,41 @@ export default defineNuxtConfig({
       ],
     },
   },
+  hooks: {
+    'pages:extend'(pages) {
+      // Keep sign-in route accessible at /auth/sign-in as well as /:tenant/auth/sign-in
+      const signInPage = pages.find((p) => p.path === '/auth/sign-in' || p.file?.includes('sign-in.vue'))
+      if (signInPage) {
+        pages.push({
+          ...signInPage,
+          name: 'auth-sign-in-unprefixed',
+          path: '/auth/sign-in',
+        })
+      }
+
+      function prefixRoutes(routeList: typeof pages, prefix = '/:tenant') {
+        for (const page of routeList) {
+          if (page.path === '/' || page.name === 'auth-sign-in-unprefixed') {
+            continue
+          }
+          if (!page.path.startsWith(prefix)) {
+            page.path = `${prefix}${page.path}`
+          }
+          if (page.children && page.children.length > 0) {
+            prefixRoutes(page.children, prefix)
+          }
+        }
+      }
+
+      prefixRoutes(pages)
+
+      // Add tenant root redirect: /:tenant -> /:tenant/dashboard
+      pages.push({
+        name: 'tenant-root-redirect',
+        path: '/:tenant',
+        redirect: (to: any) => `/${to.params.tenant}/dashboard`,
+      })
+    },
+  },
 });
+

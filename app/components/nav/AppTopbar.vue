@@ -25,9 +25,10 @@ import type { CommandPaletteGroup, CommandPaletteItem } from '~/components/block
 
 const { current: persona, set: setPersona } = usePersona()
 const { theme, setTheme } = useTheme()
+const { tenant, tenantPath } = useTenant()
 
 function handleSignOut() {
-  return navigateTo('/auth/sign-in')
+  return navigateTo(tenantPath('/auth/sign-in'))
 }
 
 const cycleTheme = () => {
@@ -41,7 +42,7 @@ const exceptionCount = computed(() => SHIPMENTS.filter(isException).length)
 
 // Cmd-K palette groups: persona-filtered nav tree → CommandPalette shape.
 const paletteGroups = computed<CommandPaletteGroup[]>(() =>
-  navForPersona(persona.value).map((section) => ({
+  navForPersona(persona.value, tenant.value).map((section) => ({
     heading: section.label,
     items: section.items
       .filter((i) => i.to)
@@ -67,7 +68,7 @@ const paletteGroups = computed<CommandPaletteGroup[]>(() =>
     <!-- Exceptions bell with count badge. Routes to the filtered ledger. -->
     <div class="relative">
       <Button variant="ghost" size="icon" class="size-9" as-child>
-        <NuxtLink to="/shipments?status=exception" aria-label="Open exceptions">
+        <NuxtLink :to="tenantPath('/shipments?status=exception')" aria-label="Open exceptions">
           <Bell class="size-4" />
         </NuxtLink>
       </Button>
@@ -130,7 +131,7 @@ const paletteGroups = computed<CommandPaletteGroup[]>(() =>
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem as-child>
-          <NuxtLink to="/settings" class="flex items-center gap-2 cursor-pointer">
+          <NuxtLink :to="tenantPath('/settings')" class="flex items-center gap-2 cursor-pointer">
             <Settings class="size-3.5" />Settings
           </NuxtLink>
         </DropdownMenuItem>

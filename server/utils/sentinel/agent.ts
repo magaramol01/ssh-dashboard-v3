@@ -6,6 +6,7 @@ import { getSentinelConfig } from './config'
 import { sentinelSystemPrompt } from './prompts'
 import { createSentinelTools } from './tools'
 import type { ValidSentinelRequest } from './schemas'
+import { getCurrentTenant } from '../tenant-context'
 
 export type SentinelToolResult = {
   name: string
@@ -96,9 +97,10 @@ function actionsFor(request: ValidSentinelRequest, references: SentinelReference
   return actions.slice(0, 3)
 }
 
-export async function runSentinelConversation(request: ValidSentinelRequest): Promise<SentinelRawResponse> {
+export async function runSentinelConversation(request: ValidSentinelRequest, tenant?: string): Promise<SentinelRawResponse> {
+  const activeTenant = tenant || getCurrentTenant()
   const config = getSentinelConfig()
-  const tools = createSentinelTools()
+  const tools = createSentinelTools(activeTenant)
   const model = new ChatOpenRouter({
     apiKey: config.apiKey,
     model: config.model,

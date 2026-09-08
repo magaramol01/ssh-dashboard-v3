@@ -28,9 +28,10 @@ import { LIVE_TRIPS } from '~/mocks/live'
 import { SHIPMENTS, isException } from '~/mocks/shipments'
 
 const { current: persona } = usePersona()
+const { tenant, tenantPath } = useTenant()
 const route = useRoute()
 
-const sections = computed(() => navForPersona(persona.value))
+const sections = computed(() => navForPersona(persona.value, tenant.value))
 
 // Active row = the longest nav `to` that the current path equals or sits under,
 // so detail routes (/shipments/MOV-L4101) light the parent ("Movements") while a
@@ -56,10 +57,13 @@ function iconFor(name?: string) {
 
 // Live count badges on nav rows — deterministic from the mock ledger, so
 // server + client render identically (no hydration drift).
-const NAV_BADGE: Record<string, number> = {
-  '/live': LIVE_TRIPS.length,
-  '/control-tower': SHIPMENTS.filter(isException).length,
-}
+const NAV_BADGE = computed<Record<string, number>>(() => {
+  const prefix = tenant.value ? `/${tenant.value}` : ''
+  return {
+    [`${prefix}/live`]: LIVE_TRIPS.length,
+    [`${prefix}/control-tower`]: SHIPMENTS.filter(isException).length,
+  }
+})
 
 
 </script>
@@ -70,7 +74,7 @@ const NAV_BADGE: Record<string, number> = {
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton size="lg" as-child tooltip="Smart Ship Hub" class="group-data-[collapsible=icon]:!justify-center">
-            <NuxtLink to="/dashboard">
+            <NuxtLink :to="tenantPath('/dashboard')">
               <span
                 class="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-xl shadow-sm group-data-[collapsible=icon]:size-6"
               >
@@ -78,7 +82,9 @@ const NAV_BADGE: Record<string, number> = {
               </span>
               <div class="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
                 <span class="font-display truncate font-semibold tracking-tight">Smart Ship Hub</span>
-                <span class="text-muted-foreground truncate text-xs tracking-wide">Marine operations</span>
+                <span class="text-muted-foreground truncate text-xs tracking-wide">
+                  {{ tenant ? `Tenant: ${tenant}` : 'Marine operations' }}
+                </span>
               </div>
             </NuxtLink>
           </SidebarMenuButton>

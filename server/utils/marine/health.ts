@@ -62,14 +62,14 @@ export type VesselHealthResponse = VesselHealth & {
   }
 }
 
-export async function getVesselHealth(vesselId: number): Promise<VesselHealthResponse | null> {
+export async function getVesselHealth(vesselId: number, tenant?: string): Promise<VesselHealthResponse | null> {
   const [vesselResult, mappingResult, latestResult] = await Promise.all([
     dbQuery<{ id: number; name: string | null; imo: string | null }>(`
       SELECT id, name, imo::text AS imo
       FROM shipping_db.ship
       WHERE id = $1 AND "isDeleted" IS NOT TRUE
       LIMIT 1
-    `, [vesselId]),
+    `, [vesselId], tenant),
     dbQuery<MappingRow>(`
       SELECT DISTINCT ON (pm.standardparameter)
         pm.standardparameter,
@@ -81,12 +81,12 @@ export async function getVesselHealth(vesselId: number): Promise<VesselHealthRes
         AND pm.status = 'Active'
         AND pm.standardparameter = ANY($2::text[])
       ORDER BY pm.standardparameter, pm.updatedat DESC NULLS LAST, pm.id DESC
-    `, [vesselId, [...HEALTH_SPECS.map((spec) => spec.packetKey), 'AIVDO_Speed']]),
+    `, [vesselId, [...HEALTH_SPECS.map((spec) => spec.packetKey), 'AIVDO_Speed']], tenant),
     dbQuery<{ latest_packet: Date | string | null }>(`
       SELECT max(packettime) AS latest_packet
       FROM shipping_db.highfrequencydata
       WHERE vesselid = $1
-    `, [vesselId]),
+    `, [vesselId], tenant),
   ])
 
   const vessel = vesselResult.rows[0]
@@ -153,7 +153,7 @@ export async function getVesselHealth(vesselId: number): Promise<VesselHealthRes
     FROM measurements
     GROUP BY component
     ORDER BY component
-  `, [vesselId, profileStart.toISOString(), latestDate.toISOString(), ...packetKeys, mapping.get('AIVDO_Speed')?.standardparameter ?? ''])
+  `, [vesselId, profileStart.toISOString(), latestDate.toISOString(), ...packetKeys, mapping.get('AIVDO_Speed')?.standardparameter ?? ''], tenant)
 
   const statsById = new Map(stats.rows.map((row) => [row.component, row]))
   const inputs: HealthComponentInput[] = HEALTH_SPECS.map((spec) => {

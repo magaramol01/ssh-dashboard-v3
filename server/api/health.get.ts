@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const health = await getVesselHealth(vesselId)
+    const health = await getVesselHealth(vesselId, event.context.tenant)
     if (!health) throw createError({ statusCode: 404, statusMessage: 'Vessel not found' })
     return health
   } catch (error) {
