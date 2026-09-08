@@ -1023,66 +1023,6 @@ const fuelDonutOption = computed(() => ({
         </div>
       </div>
 
-      <!-- Agentic Proactive Decarbonization Banner -->
-      <div
-        v-if="ciiData?.summary"
-        :class="[
-          'rounded-xl border p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5 transition-all duration-300',
-          ciiData.summary.attainedRating === 'E' || ciiData.summary.attainedRating === 'D'
-            ? 'border-amber-500/40 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent'
-            : 'border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent'
-        ]"
-      >
-        <div class="flex items-start sm:items-center gap-3 min-w-0">
-          <div
-            :class="[
-              'size-9 rounded-lg flex items-center justify-center shrink-0 border',
-              ciiData.summary.attainedRating === 'E' || ciiData.summary.attainedRating === 'D'
-                ? 'bg-amber-500/15 border-amber-500/30 text-amber-500'
-                : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-500'
-            ]"
-          >
-            <Sparkles class="size-4.5 animate-pulse" />
-          </div>
-          <div class="min-w-0">
-            <div class="flex items-center gap-2 flex-wrap">
-              <span class="text-xs font-bold tracking-tight text-foreground">
-                Sentinel Marine Copilot · Proactive Decarbonization Triage
-              </span>
-              <Badge
-                variant="outline"
-                :class="[
-                  'text-[9px] font-mono px-1.5 py-0 uppercase',
-                  ciiData.summary.attainedRating === 'E' || ciiData.summary.attainedRating === 'D'
-                    ? 'border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-500/10'
-                    : 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10'
-                ]"
-              >
-                {{ ciiData.summary.attainedRating === 'E' || ciiData.summary.attainedRating === 'D' ? 'Advisory Active' : 'Compliant Run-Rate' }}
-              </Badge>
-            </div>
-            <p class="text-xs text-muted-foreground mt-0.5 leading-normal">
-              {{ ciiData.summary.attainedRating === 'E' || ciiData.summary.attainedRating === 'D'
-                ? `${ciiData.vessel.vesselName} is ${ciiData.summary.marginPercent > 0 ? '+' + ciiData.summary.marginPercent + '%' : ''} over regulatory threshold (Grade ${ciiData.summary.attainedRating}). Copilot projects a 10% speed reduction achieves Grade C compliance with ~${Math.round(ciiData.summary.totalCo2Mt * 0.27)} MT CO₂ saved.`
-                : `${ciiData.vessel.vesselName} is operating in superior Grade ${ciiData.summary.attainedRating} (${Math.abs(ciiData.summary.marginPercent)}% better than IMO target). EU ETS exposure estimated at €${ciiData.summary.euEtsCostEur.toLocaleString()}.`
-              }}
-            </p>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
-          <Button
-            size="sm"
-            variant="outline"
-            class="h-8 text-xs gap-1.5 border-primary/40 hover:bg-primary/10 text-primary cursor-pointer font-medium"
-            @click="askCopilotPrompt(`Provide a comprehensive decarbonization audit and speed reduction advisory for ${ciiData?.vessel.vesselName}. Explain how to reach Grade C and reduce EU ETS exposure.`)"
-          >
-            <Sparkles class="size-3.5" />
-            <span>Ask Copilot to Triage</span>
-          </Button>
-        </div>
-      </div>
-
     <!-- Loading Skeleton State -->
     <div v-if="isLoading && !ciiData" class="space-y-6">
       <Skeleton class="h-16 w-full rounded-xl" />
@@ -1612,6 +1552,66 @@ const fuelDonutOption = computed(() => ({
           </div>
         </CardContent>
       </Card>
+
+      <!-- Sentinel Decarbonization Triage Advisory -->
+      <div
+        v-if="ciiData?.summary"
+        :class="[
+          'rounded-xl border p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5 transition-colors',
+          ciiData.summary.attainedRating === 'E' || ciiData.summary.attainedRating === 'D'
+            ? 'border-amber-500/30 bg-amber-500/5'
+            : 'border-border/80 bg-card/60'
+        ]"
+      >
+        <div class="flex items-start sm:items-center gap-3 min-w-0">
+          <div
+            :class="[
+              'size-8 rounded-lg flex items-center justify-center shrink-0 border',
+              ciiData.summary.attainedRating === 'E' || ciiData.summary.attainedRating === 'D'
+                ? 'bg-amber-500/10 border-amber-500/25 text-amber-500'
+                : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-500'
+            ]"
+          >
+            <Sparkles class="size-4" />
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-xs font-semibold tracking-tight text-foreground">
+                Sentinel Marine Copilot · Decarbonization Advisory
+              </span>
+              <Badge
+                variant="outline"
+                :class="[
+                  'text-[9px] font-mono px-1.5 py-0 uppercase',
+                  ciiData.summary.attainedRating === 'E' || ciiData.summary.attainedRating === 'D'
+                    ? 'border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10'
+                    : 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10'
+                ]"
+              >
+                {{ ciiData.summary.attainedRating === 'E' || ciiData.summary.attainedRating === 'D' ? 'Advisory Active' : 'Compliant Run-Rate' }}
+              </Badge>
+            </div>
+            <p class="text-xs text-muted-foreground mt-0.5 leading-normal">
+              {{ ciiData.summary.attainedRating === 'E' || ciiData.summary.attainedRating === 'D'
+                ? `${ciiData.vessel.vesselName} is ${ciiData.summary.marginPercent > 0 ? '+' + ciiData.summary.marginPercent + '%' : ''} over regulatory threshold (Grade ${ciiData.summary.attainedRating}). Copilot projects a 10% speed reduction achieves Grade C compliance with ~${Math.round(ciiData.summary.totalCo2Mt * 0.27)} MT CO₂ saved.`
+                : `${ciiData.vessel.vesselName} is operating in superior Grade ${ciiData.summary.attainedRating} (${Math.abs(ciiData.summary.marginPercent)}% better than IMO target). EU ETS exposure estimated at €${ciiData.summary.euEtsCostEur.toLocaleString()}.`
+              }}
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+          <Button
+            size="sm"
+            variant="outline"
+            class="h-7 text-xs gap-1.5 border-border hover:bg-muted/60 text-foreground cursor-pointer font-medium"
+            @click="askCopilotPrompt(`Provide a comprehensive decarbonization audit and speed reduction advisory for ${ciiData?.vessel.vesselName}. Explain how to reach Grade C and reduce EU ETS exposure.`)"
+          >
+            <Sparkles class="size-3.5 text-primary" />
+            <span>Ask Copilot to Triage</span>
+          </Button>
+        </div>
+      </div>
 
       <!-- CII Improvement Plan & Root-Cause Diagnosis Section -->
       <CiiImprovementPlanCard
