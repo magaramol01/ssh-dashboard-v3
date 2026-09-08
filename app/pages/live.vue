@@ -8,7 +8,7 @@
  */
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import {
-  Target, X, Bot, Send, RotateCcw, ArrowUpRight,
+  Target, X, Sparkles, Send, RotateCcw, ArrowUpRight,
   CloudRain, Compass, AlertTriangle, RefreshCw, ChevronDown, Maximize2, Minimize2,
   Gauge, Clock, Search, Anchor, CheckCircle2, Wind, Waves, Navigation
 } from 'lucide-vue-next'
@@ -515,7 +515,7 @@ const selected = computed(() => {
             title="Toggle Fleet Operations Copilot (⌘J)"
             @click="isCopilotOpen = !isCopilotOpen"
           >
-            <Bot class="size-3.5 text-primary" />
+            <Sparkles class="size-3.5 text-primary" />
             <span>Copilot</span>
             <kbd class="hidden sm:inline-block text-[10px] text-muted-foreground border border-border px-1 py-0.2 rounded bg-muted/60">⌘J</kbd>
           </Button>
@@ -768,7 +768,7 @@ const selected = computed(() => {
                 class="w-full h-8 text-xs gap-1.5 font-medium border-primary/40 hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
                 @click="askCopilotForVessel(selected)"
               >
-                <Bot class="size-3.5 text-primary" />
+                <Sparkles class="size-3.5 text-primary" />
                 <span>Audit {{ selected.name }} with Copilot</span>
               </Button>
             </div>
@@ -810,7 +810,7 @@ const selected = computed(() => {
         <div class="flex items-center justify-between border-b border-border/80 px-4 py-3 bg-muted/20 shrink-0">
           <div class="flex items-center gap-2 min-w-0">
             <div class="size-7 rounded-md bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
-              <Bot class="size-4 text-primary" />
+              <Sparkles class="size-4 text-primary" />
             </div>
             <div class="min-w-0">
               <div class="flex items-center gap-2">

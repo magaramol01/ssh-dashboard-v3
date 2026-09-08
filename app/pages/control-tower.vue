@@ -4,7 +4,7 @@ import {
   Anchor, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, CircleAlert, CircleCheck,
   RadioTower, RefreshCw, Ship, Wifi, WifiOff,
   Activity, LayoutList, Search, ShieldAlert, Gauge, Clock,
-  Send, Bot, X, RotateCcw, ArrowUpRight, FileText, CheckCircle2,
+  Send, Sparkles, X, RotateCcw, ArrowUpRight, FileText, CheckCircle2,
   Maximize2, Minimize2
 } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
@@ -512,7 +512,7 @@ onUnmounted(() => {
             title="Toggle Operations Copilot (⌘J)"
             @click="isWorkbenchOpen = !isWorkbenchOpen"
           >
-            <Bot class="size-3.5 text-primary" />
+            <Sparkles class="size-3.5 text-primary" />
             <span>Copilot</span>
             <kbd class="hidden sm:inline-block text-[10px] text-muted-foreground border border-border px-1 py-0.2 rounded bg-muted/60">⌘J</kbd>
           </Button>
@@ -760,7 +760,7 @@ onUnmounted(() => {
                       title="Analyze with Copilot"
                       @click="openAgentForAlert(alert)"
                     >
-                      <Bot class="size-3 text-primary" />
+                      <Sparkles class="size-3 text-primary" />
                       <span>Diagnose</span>
                     </Button>
                   </TableCell>
@@ -820,10 +820,10 @@ onUnmounted(() => {
                       <Button
                         variant="outline"
                         size="sm"
-                        class="h-6 text-[11px] font-mono gap-1 px-2 cursor-pointer"
+                        class="h-6 text-[11px] font-medium gap-1 px-2 cursor-pointer"
                         @click="openAgentForAlert(alert)"
                       >
-                        <Bot class="size-2.5 text-primary" />
+                        <Sparkles class="size-2.5 text-primary" />
                         <span>Diagnose</span>
                       </Button>
                     </div>
@@ -958,7 +958,7 @@ onUnmounted(() => {
                 title="Audit fleet passage progress and ETA risks with Sentinel Copilot"
                 @click="askAgent('Analyze voyage ETA delays, passage risks, and destination schedules across the fleet')"
               >
-                <Bot class="size-3.5 text-primary" />
+                <Sparkles class="size-3.5 text-primary" />
                 <span>Audit Passages</span>
               </Button>
               <Badge variant="outline" class="tabular-nums font-mono text-xs">
@@ -1008,7 +1008,7 @@ onUnmounted(() => {
                         title="Assess passage with Sentinel Copilot"
                         @click="openAgentForVoyage(voyage)"
                       >
-                        <Bot class="size-3 text-primary" />
+                        <Sparkles class="size-3 text-primary" />
                         <span class="font-medium">Assess</span>
                       </Button>
                     </div>
@@ -1124,7 +1124,7 @@ onUnmounted(() => {
         >
           <div class="flex items-center gap-2.5">
             <div class="size-7 rounded-md bg-primary/10 flex items-center justify-center text-primary shrink-0">
-              <Bot class="size-4" />
+              <Sparkles class="size-4" />
             </div>
             <div>
               <div class="flex items-center gap-2">
