@@ -79,6 +79,9 @@ test('processCiiRecords produces valid EmissionsCiiResponse structure from telem
   assert.ok(res.fuelBreakdown.length >= 1)
   assert.equal(res.availableVoyages.length, 1)
   assert.equal(res.monthlyTrend.length, 12)
+  assert.ok(res.improvementPlan)
+  assert.equal(res.improvementPlan.drivers.length, 4)
+  assert.ok(res.improvementPlan.actionItems.length >= 2)
 })
 
 test('peer benchmarking preserves attained CII and maintains stable fleet average when switching vessels', () => {
