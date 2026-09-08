@@ -28,6 +28,7 @@ import {
   Table2,
 } from 'lucide-vue-next'
 import SentinelCopilotPanel from '@/components/sentinel/SentinelCopilotPanel.vue'
+import CiiImprovementPlanCard from '@/components/emissions/CiiImprovementPlanCard.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
@@ -72,6 +73,18 @@ const benchmarkViewMode = ref<'chart' | 'matrix'>('chart')
 const isCopilotOpen = ref<boolean>(false)
 const isCopilotFullscreen = ref<boolean>(false)
 const copilotPanelRef = ref<any>(null)
+const isAuditing = ref<boolean>(false)
+
+async function handleReAudit() {
+  isAuditing.value = true
+  try {
+    await refreshCiiData()
+  } finally {
+    setTimeout(() => {
+      isAuditing.value = false
+    }, 600)
+  }
+}
 
 function askCopilotPrompt(prompt: string) {
   isCopilotOpen.value = true
@@ -1299,10 +1312,20 @@ const fuelDonutOption = computed(() => ({
         </CardContent>
       </Card>
 
-      <!-- Main Section: Fuel Breakdown & What-If Speed Reduction Advisor -->
-      <div class="grid gap-6 lg:grid-cols-12">
-        <!-- Fuel Mix & Operational Consumption Card (7 cols) -->
-        <Card class="lg:col-span-7 shadow-xs flex flex-col">
+      <!-- CII Improvement Plan & Root-Cause Diagnosis Section -->
+      <CiiImprovementPlanCard
+        v-if="ciiData?.improvementPlan"
+        :improvement-plan="ciiData.improvementPlan"
+        :speed-scenarios="ciiData.speedReductionAdvisory"
+        :active-scenario-index="activeScenarioIndex"
+        :vessel-name="ciiData.vessel.vesselName"
+        :is-auditing="isAuditing"
+        @update:active-scenario-index="activeScenarioIndex = $event"
+        @re-audit="handleReAudit"
+      />
+
+      <!-- Fuel Mix & Operational Consumption Card -->
+      <Card class="shadow-xs flex flex-col">
           <CardHeader class="pb-3 border-b border-border/40">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
@@ -1474,95 +1497,6 @@ const fuelDonutOption = computed(() => ({
             </div>
           </CardContent>
         </Card>
-
-        <!-- What-If Speed Reduction Advisor (5 cols) -->
-        <Card class="lg:col-span-5 shadow-xs flex flex-col bg-card">
-          <CardHeader class="pb-3">
-            <div class="flex items-center justify-between">
-              <div>
-                <CardTitle class="text-base font-semibold flex items-center gap-2">
-                  <Sliders class="size-4 text-primary" />
-                  Speed Reduction Advisory
-                </CardTitle>
-                <CardDescription class="text-xs">
-                  Simulate speed reductions to achieve higher IMO rating bands
-                </CardDescription>
-              </div>
-              <Badge variant="outline" class="text-[10px] text-primary border-primary/40">
-                Eco-Steaming
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent class="space-y-4 flex-1 flex flex-col justify-between">
-            <!-- Scenario Selector Pills -->
-            <div class="space-y-1.5">
-              <span class="text-[11px] font-medium text-muted-foreground">Select Speed Trim:</span>
-              <div class="grid grid-cols-5 gap-1.5">
-                <button
-                  v-for="(scenario, idx) in ciiData.speedReductionAdvisory"
-                  :key="scenario.reductionPercent"
-                  type="button"
-                  :class="[
-                    'flex flex-col items-center py-2 px-1 rounded-md border text-center transition-all cursor-pointer text-xs',
-                    activeScenarioIndex === idx
-                      ? 'bg-primary/10 border-primary font-semibold text-primary shadow-xs'
-                      : 'border-border/70 hover:bg-muted/50 text-muted-foreground'
-                  ]"
-                  @click="activeScenarioIndex = idx"
-                >
-                  <span class="text-xs font-bold">-{{ scenario.reductionPercent }}%</span>
-                  <span class="text-[9px] opacity-75">kts</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- Projected Outcomes Hero -->
-            <div class="rounded-xl border bg-muted/20 p-4 space-y-3">
-              <div class="flex items-center justify-between border-b pb-2.5">
-                <div>
-                  <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Projected Grade</span>
-                  <div class="flex items-center gap-2 mt-0.5">
-                    <span class="text-2xl font-black tabular-nums text-foreground">
-                      Rating {{ activeScenario.projectedRating }}
-                    </span>
-                    <Badge :class="getRatingTone(activeScenario.projectedRating).badge" class="text-[10px] px-1.5 py-0">
-                      {{ getRatingTone(activeScenario.projectedRating).label }}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div class="text-right">
-                  <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Projected CII</span>
-                  <div class="text-2xl font-bold tabular-nums text-foreground mt-0.5">
-                    {{ activeScenario.projectedCii.toFixed(2) }}
-                  </div>
-                </div>
-              </div>
-
-              <!-- Savings Estimates -->
-              <div class="grid grid-cols-2 gap-3 pt-1">
-                <div class="space-y-0.5">
-                  <span class="text-[10px] text-muted-foreground">CO₂ Avoided</span>
-                  <div class="text-base font-bold text-emerald-500 tabular-nums flex items-center gap-1">
-                    <ArrowDownRight class="size-3.5" />
-                    {{ formatNumber(activeScenario.co2SavingsMt, 1) }} MT
-                  </div>
-                </div>
-                <div class="space-y-0.5">
-                  <span class="text-[10px] text-muted-foreground">Power Reduction Factor</span>
-                  <div class="text-base font-bold text-foreground tabular-nums">
-                    {{ (activeScenario.multiplier * 100).toFixed(1) }}% load
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <p class="text-[11px] text-muted-foreground leading-relaxed">
-              Trimming charter speed by <strong>{{ activeScenario.reductionPercent }}%</strong> leverages cubic resistance law to reduce propulsion demand, avoiding <strong>{{ formatNumber(activeScenario.co2SavingsMt, 1) }} MT of CO₂</strong>.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
 
       <!-- Chronological Monthly Trend Chart -->
       <Card class="shadow-xs">
