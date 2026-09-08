@@ -336,6 +336,7 @@ watch([isSidebarOpen, () => openMobile?.value], ([desktopOpen, mobileOpen]) => {
 
 const quickDirectives = [
   { label: 'Triage Critical', query: 'Triage critical alarms across the fleet', icon: AlertTriangle },
+  { label: 'Alarm Trends', query: 'Give me the trend graph of fleet with respective alarms', icon: Activity },
   { label: 'Passage Risks', query: 'Analyze fleet voyage passages, transit progress, and ETA risks', icon: Anchor },
   { label: 'Engine Diagnostics', query: 'Diagnose main engine and generator telemetry alarms', icon: Gauge },
   { label: 'VSAT Connectivity', query: 'Analyze VSAT outages and comms drops', icon: WifiOff },

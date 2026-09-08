@@ -46,6 +46,12 @@ function summarizeToolResult(name: string, raw: string) {
       const analysis = value.analysis as Record<string, unknown> | undefined
       return `Analyzed the alert threshold and ${String(analysis?.relatedAlertCount ?? 0)} related vessel alerts.`
     }
+    if (name === 'get_fleet_alarm_trends') {
+      return `Loaded fleet alarm trends (${String(value.total_alarms ?? 0)} alarms recorded across 24 hours).`
+    }
+    if (name === 'get_fleet_voyages') {
+      return `Loaded ${String(value.count ?? 0)} active fleet voyages and passage forecasts.`
+    }
     if (value.not_found) return 'Vessel was not found in the active vessel roster.'
     return 'Loaded vessel context and recent open alerts.'
   } catch {

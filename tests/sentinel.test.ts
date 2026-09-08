@@ -34,3 +34,18 @@ test('accepts only safe UI actions in an agent response', () => {
     actions: [{ type: 'dispatch-advisory', label: 'Dispatch' }],
   }).success, false)
 })
+
+test('accepts line-chart and bar-chart blocks in Sentinel response', () => {
+  const result = sentinelResponseSchema.safeParse({
+    message: { role: 'agent', content: 'Fleet alarm analysis with interactive charts' },
+    blocks: [
+      { type: 'markdown', text: 'Fleet alarm analysis with interactive charts' },
+      { type: 'line-chart', title: 'Hourly Alarm Trend', points: [{ label: '10:00', value: 30 }] },
+      { type: 'bar-chart', title: 'Alarms by Vessel', points: [{ label: 'ALS Juno', value: 318 }] },
+    ],
+    activity: [],
+    references: [],
+    actions: [],
+  })
+  assert.equal(result.success, true)
+})

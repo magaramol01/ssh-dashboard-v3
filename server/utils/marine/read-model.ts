@@ -488,3 +488,50 @@ export async function getFleetVoyages(limit = 30) {
     progress_percent: row.progress_percent != null ? Number(row.progress_percent) : null,
   }))
 }
+
+export async function getFleetAlarmTrends(options: { vesselId?: number; days?: number } = {}) {
+  const days = Math.min(7, Math.max(1, options.days ?? 1))
+  const intervalStr = `${days * 24} hours`
+  const vesselFilter = options.vesselId ? `AND vesselid = ${Number(options.vesselId)}` : ''
+
+  const [hourlyResult, vesselResult, systemResult] = await Promise.all([
+    dbQuery<{ hour_bin: string; count: number }>(`
+      SELECT
+        to_char(date_trunc('hour', "timestamp"), 'HH24:MI') AS hour_bin,
+        count(*)::int AS count
+      FROM shipping_db.std_triggeredoutcomestoday
+      WHERE "timestamp" >= NOW() - interval '${intervalStr}'
+        ${vesselFilter}
+      GROUP BY 1
+      ORDER BY min("timestamp") ASC
+    `),
+    dbQuery<{ vessel_name: string; count: number }>(`
+      SELECT
+        coalesce(s.name, a.companyname, 'Vessel ' || a.vesselid) AS vessel_name,
+        count(*)::int AS count
+      FROM shipping_db.std_triggeredoutcomestoday a
+      LEFT JOIN shipping_db.ship s ON s.id = a.vesselid
+      WHERE a."timestamp" >= NOW() - interval '${intervalStr}'
+      GROUP BY 1
+      ORDER BY 2 DESC
+      LIMIT 10
+    `),
+    dbQuery<{ system_name: string; count: number }>(`
+      SELECT
+        coalesce(machinetype, 'OTHER') AS system_name,
+        count(*)::int AS count
+      FROM shipping_db.std_triggeredoutcomestoday
+      WHERE "timestamp" >= NOW() - interval '${intervalStr}'
+        ${vesselFilter}
+      GROUP BY 1
+      ORDER BY 2 DESC
+    `),
+  ])
+
+  return {
+    total_alarms: hourlyResult.rows.reduce((sum, r) => sum + Number(r.count), 0),
+    hourly_trend: hourlyResult.rows.map((r) => ({ label: r.hour_bin, value: Number(r.count) })),
+    by_vessel: vesselResult.rows.map((r) => ({ label: r.vessel_name, value: Number(r.count) })),
+    by_system: systemResult.rows.map((r) => ({ label: r.system_name, value: Number(r.count) })),
+  }
+}

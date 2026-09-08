@@ -30,6 +30,15 @@ const lineChartBlockSchema = z.object({
   }).strict()).min(1).max(100),
 }).strict()
 
+const barChartBlockSchema = z.object({
+  type: z.literal('bar-chart'),
+  title: z.string().min(1).max(120),
+  points: z.array(z.object({
+    label: z.string().min(1).max(80),
+    value: z.number().finite(),
+  }).strict()).min(1).max(100),
+}).strict()
+
 const tableBlockSchema = z.object({
   type: z.literal('table'),
   title: z.string().min(1).max(120),
@@ -51,13 +60,14 @@ const kpiBlockSchema = z.object({
 export const sentinelBlockSchema = z.discriminatedUnion('type', [
   markdownBlockSchema,
   lineChartBlockSchema,
+  barChartBlockSchema,
   tableBlockSchema,
   kpiBlockSchema,
 ])
 
 export const sentinelResponseSchema = z.object({
   message: z.object({ role: z.literal('agent'), content: z.string().min(1).max(8_000) }).strict(),
-  blocks: z.array(sentinelBlockSchema).min(1).max(12),
+  blocks: z.array(sentinelBlockSchema).min(1).max(16),
   activity: z.array(z.object({
     name: z.string().min(1).max(80),
     args: z.record(z.string(), z.unknown()),

@@ -90,13 +90,61 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
       }
     }
 
+    if (result.name === 'get_fleet_alarm_trends') {
+      if (value.total_alarms !== undefined) {
+        blocks.push({
+          type: 'kpi',
+          label: 'Total Alarms Recorded',
+          value: text(value.total_alarms, '0'),
+          detail: 'Fleet-wide telemetry alarms',
+          tone: Number(value.total_alarms) > 0 ? 'warning' : 'success',
+        })
+      }
+
+      const hourlyPoints = Array.isArray(value.hourly_trend) ? (value.hourly_trend as Array<{ label?: unknown; value?: unknown }>)
+        .filter((p): p is { label: string; value: number } => Boolean(p && typeof p.label === 'string' && typeof p.value === 'number' && Number.isFinite(p.value)))
+        .slice(0, 50)
+        : []
+      if (hourlyPoints.length) {
+        blocks.push({
+          type: 'line-chart',
+          title: 'Fleet Alarm Frequency (Hourly Trend)',
+          points: hourlyPoints,
+        })
+      }
+
+      const vesselPoints = Array.isArray(value.by_vessel) ? (value.by_vessel as Array<{ label?: unknown; value?: unknown }>)
+        .filter((p): p is { label: string; value: number } => Boolean(p && typeof p.label === 'string' && typeof p.value === 'number' && Number.isFinite(p.value)))
+        .slice(0, 10)
+        : []
+      if (vesselPoints.length) {
+        blocks.push({
+          type: 'bar-chart',
+          title: 'Alarm Distribution by Vessel',
+          points: vesselPoints,
+        })
+      }
+
+      const systemPoints = Array.isArray(value.by_system) ? (value.by_system as Array<{ label?: unknown; value?: unknown }>)
+        .filter((p): p is { label: string; value: number } => Boolean(p && typeof p.label === 'string' && typeof p.value === 'number' && Number.isFinite(p.value)))
+        .slice(0, 10)
+        : []
+      if (systemPoints.length) {
+        blocks.push({
+          type: 'bar-chart',
+          title: 'Alarm Volume by Subsystem',
+          points: systemPoints,
+        })
+      }
+    }
+
     const points = Array.isArray(value.points) ? value.points
       .filter((point): point is { label: string; value: number } => Boolean(point && typeof point === 'object' && typeof point.label === 'string' && typeof point.value === 'number' && Number.isFinite(point.value)))
       .slice(0, 100) : []
     if (points.length) blocks.push({ type: 'line-chart', title: text(value.title, 'Telemetry trend'), points })
   }
 
-  return blocks.slice(0, 11)
+  return blocks.slice(0, 15)
 }
 
 export function formatSentinelResponse(raw: SentinelRawResponse): SentinelChatResponse {

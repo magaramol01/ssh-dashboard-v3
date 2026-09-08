@@ -24,6 +24,7 @@ export type SentinelAction =
 export type SentinelBlock =
   | { type: 'markdown'; text: string }
   | { type: 'line-chart'; title: string; points: Array<{ label: string; value: number }> }
+  | { type: 'bar-chart'; title: string; points: Array<{ label: string; value: number }> }
   | { type: 'table'; title: string; columns: Array<{ key: string; label: string }>; rows: Array<Record<string, string | number | null>> }
   | { type: 'kpi'; label: string; value: string; detail?: string; tone?: 'default' | 'success' | 'warning' | 'destructive' }
 

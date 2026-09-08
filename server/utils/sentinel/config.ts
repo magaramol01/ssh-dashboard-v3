@@ -1,7 +1,12 @@
 import { createError } from 'h3'
 
 export function getSentinelConfig() {
-  const config = useRuntimeConfig()
+  let config: Record<string, any> = {}
+  try {
+    if (typeof useRuntimeConfig === 'function') {
+      config = useRuntimeConfig()
+    }
+  } catch {}
   const apiKey = String(config.openrouterApiKey || process.env.OPENROUTER_API_KEY || process.env.NUXT_OPENROUTER_API_KEY || '')
   if (!apiKey) {
     throw createError({ statusCode: 503, statusMessage: 'Sentinel provider is not configured' })
