@@ -52,9 +52,9 @@ export function extractPerformanceWidgetsData(params: {
   // 1. Weather Impact (widget_4)
   const w4Data = cobelfretRaw?.widget_4?.configuration?.body?.data?.barChartData
   const w4Tooltip = w4Data?.tooltipData
-  const badWeatherPct = Number(w4Data?.currentValue ?? (attainedCii > 5.5 ? 28.5 : 14.2).toFixed(1))
-  const averageBadWeatherDays = parseFloat(w4Tooltip?.averageBadWeather) || Number((badWeatherPct * 0.35).toFixed(1))
-  const shipsAffectedPct = parseFloat(w4Tooltip?.percentageShips) || (badWeatherPct > 20 ? 60 : 25)
+  const badWeatherPct = Number(parseFloat(String(w4Data?.currentValue ?? (attainedCii > 5.5 ? 28.5 : 14.2))).toFixed(1))
+  const averageBadWeatherDays = Number((parseFloat(w4Tooltip?.averageBadWeather) || (badWeatherPct * 0.35)).toFixed(1))
+  const shipsAffectedPct = Number((parseFloat(w4Tooltip?.percentageShips) || (badWeatherPct > 20 ? 60 : 25)).toFixed(1))
   // Speed loss estimation: ~0.04 kts per 1% of adverse weather exposure
   const speedLossKnots = Number((badWeatherPct * 0.038).toFixed(1))
   // Weather-induced excess CO2: ~2.5% of total CO2 per 10% adverse weather
@@ -64,7 +64,7 @@ export function extractPerformanceWidgetsData(params: {
 
   // 2. Propulsion & Hull Fouling (widget_6)
   const w6Data = cobelfretRaw?.widget_6?.configuration?.body?.data?.propulsionPerformance?.timeLossGain?.data
-  const timeLossPct = Number(w6Data?.currentValue ?? (attainedCii > 6.0 ? -5.8 : -2.4).toFixed(1))
+  const timeLossPct = Number(parseFloat(String(w6Data?.currentValue ?? (attainedCii > 6.0 ? -5.8 : -2.4))).toFixed(1))
   const engineSlipPct = Number(dbSlip.toFixed(1))
   // Drag penalty derived from time loss and engine slip
   const dragPenaltyPct = Number((Math.abs(timeLossPct) * 2.2 + Math.max(0, engineSlipPct - 5) * 1.4).toFixed(1))
@@ -80,9 +80,9 @@ export function extractPerformanceWidgetsData(params: {
 
   // 3. Engine SFOC & Health (widget_5)
   const w5Data = cobelfretRaw?.widget_5?.configuration?.body?.data?.SFOCdata?.sfoc?.data
-  const currentSfoc = Number(w5Data?.currentValue ?? 174.3.toFixed(1))
-  const expectedSfoc = Number(w5Data?.acceptedValue ?? 168.0.toFixed(1))
-  const fleetAvgSfoc = Number(w5Data?.trendValue ?? 176.0.toFixed(1))
+  const currentSfoc = Number(parseFloat(String(w5Data?.currentValue ?? 174.3)).toFixed(1))
+  const expectedSfoc = Number(parseFloat(String(w5Data?.acceptedValue ?? 168.0)).toFixed(1))
+  const fleetAvgSfoc = Number(parseFloat(String(w5Data?.trendValue ?? 176.0)).toFixed(1))
   const sfocDelta = Number((currentSfoc - expectedSfoc).toFixed(1))
   const status: EngineSfocData['status'] = sfocDelta > 8 ? 'elevated' : sfocDelta > 3 ? 'normal' : 'optimal'
 

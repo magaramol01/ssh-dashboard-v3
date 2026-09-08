@@ -22,6 +22,11 @@ const props = defineProps<{
   error: { statusCode: number; statusMessage?: string; message?: string; stack?: string }
 }>()
 
+// Immediate redirect to sign-in on 401 Unauthorized
+if (props.error?.statusCode === 401) {
+  clearError({ redirect: '/auth/sign-in' })
+}
+
 const status = computed(() => props.error.statusCode ?? 500)
 const isNotFound = computed(() => status.value === 404)
 const isForbidden = computed(() => status.value === 403)

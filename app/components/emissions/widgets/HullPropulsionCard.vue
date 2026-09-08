@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   Sparkles,
-  ArrowUpRight,
   TrendingDown,
 } from 'lucide-vue-next'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -37,10 +36,10 @@ function getStatusBadge(status: HullPropulsionData['cleaningStatus']) {
         <div>
           <CardTitle class="text-base font-semibold flex items-center gap-2">
             <Anchor class="size-4 text-primary" />
-            Hull Fouling & Propulsion Monitor
+            Hull Fouling & Propulsion
           </CardTitle>
           <CardDescription class="text-xs">
-            Speed-power deterioration vs sea trial and propeller slip tracking
+            Speed loss vs trial & propeller slip
           </CardDescription>
         </div>
         <Badge
@@ -61,67 +60,97 @@ function getStatusBadge(status: HullPropulsionData['cleaningStatus']) {
       <!-- Top Metrics Grid -->
       <div class="grid grid-cols-2 gap-3">
         <!-- Sea Trial Time Loss -->
-        <div class="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-1">
+        <div class="p-3 rounded-xl border border-border/60 bg-muted/20 flex flex-col justify-between gap-1">
           <div class="flex items-center justify-between text-[11px] text-muted-foreground">
             <span>Sea Trial Variance</span>
             <Activity class="size-3.5 text-primary" />
           </div>
-          <div
-            class="text-2xl font-bold tabular-nums"
-            :class="propulsion.timeLossPct < 0 ? 'text-amber-500' : 'text-emerald-500'"
-          >
-            {{ propulsion.timeLossPct > 0 ? '+' : '' }}{{ propulsion.timeLossPct }}%
+          <div class="flex items-baseline justify-between">
+            <span
+              class="text-2xl font-bold tabular-nums"
+              :class="propulsion.timeLossPct < 0 ? 'text-amber-500' : 'text-emerald-500'"
+            >
+              {{ propulsion.timeLossPct > 0 ? '+' : '' }}{{ Number(propulsion.timeLossPct).toFixed(1) }}%
+            </span>
+            <span class="text-[10px] font-mono text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">
+              vs Baseline
+            </span>
           </div>
-          <p class="text-[10px] text-muted-foreground">
-            % Time Loss/Gain vs Baseline
-          </p>
         </div>
 
         <!-- Propeller Apparent Slip -->
-        <div class="p-3 rounded-xl border border-border/60 bg-muted/20 space-y-1">
+        <div class="p-3 rounded-xl border border-border/60 bg-muted/20 flex flex-col justify-between gap-1">
           <div class="flex items-center justify-between text-[11px] text-muted-foreground">
-            <span>Engine Propeller Slip</span>
+            <span>Engine Slip</span>
             <TrendingDown class="size-3.5 text-primary" />
           </div>
-          <div class="text-2xl font-bold tabular-nums text-foreground">
-            {{ propulsion.engineSlipPct }}%
+          <div class="flex items-baseline justify-between">
+            <span class="text-2xl font-bold tabular-nums text-foreground">
+              {{ Number(propulsion.engineSlipPct).toFixed(1) }}%
+            </span>
+            <span class="text-[10px] font-mono text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">
+              Apparent
+            </span>
           </div>
-          <p class="text-[10px] text-muted-foreground">
-            Mean apparent slip from noon logs
-          </p>
         </div>
       </div>
 
-      <!-- Hydrodynamic Drag Penalty Bar -->
-      <div class="space-y-1.5 p-3 rounded-xl border border-border/50 bg-muted/10 text-xs">
-        <div class="flex items-center justify-between text-[11px]">
-          <span class="font-medium text-foreground">Added Hydrodynamic Drag</span>
-          <span class="font-mono font-bold" :class="propulsion.dragPenaltyPct > 10 ? 'text-amber-500' : 'text-foreground'">
-            +{{ propulsion.dragPenaltyPct }}% Power Penalty
-          </span>
+      <!-- Visual Hull Drag Severity Meter -->
+      <div class="p-3 rounded-xl border border-border/50 bg-muted/10 space-y-2">
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-[11px] font-medium text-foreground">Hydrodynamic Drag Penalty</span>
+          <span class="font-mono text-[11px] font-bold text-amber-500">+{{ Number(propulsion.dragPenaltyPct).toFixed(1) }}% Power</span>
         </div>
-        <div class="h-2 w-full rounded-full bg-muted overflow-hidden">
+        <!-- 3-Segment Hull Status Spectrum -->
+        <div class="grid grid-cols-3 gap-1.5 text-[10px] text-center font-mono">
           <div
-            class="h-full rounded-full transition-all duration-500"
-            :class="propulsion.dragPenaltyPct >= 15 ? 'bg-rose-500' : propulsion.dragPenaltyPct >= 10 ? 'bg-amber-500' : 'bg-primary'"
-            :style="{ width: `${Math.min(100, propulsion.dragPenaltyPct * 4)}%` }"
-          />
-        </div>
-        <div class="flex items-center justify-between text-[10px] text-muted-foreground pt-0.5">
-          <span>Clean Hull (0%)</span>
-          <span class="text-emerald-500 font-semibold flex items-center gap-1">
-            <Sparkles class="size-3" /> ~{{ propulsion.powerRecoveryPotentialPct }}% recovery upon cleaning
-          </span>
-          <span>Heavy Fouling (25%+)</span>
+            :class="[
+              'py-1.5 px-2 rounded-md border flex flex-col items-center gap-0.5 transition-all',
+              propulsion.dragPenaltyPct < 7
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-500 font-bold'
+                : 'bg-muted/30 border-border/40 text-muted-foreground opacity-60'
+            ]"
+          >
+            <span>Clean Hull</span>
+            <span class="text-[9px]">&lt;7%</span>
+          </div>
+          <div
+            :class="[
+              'py-1.5 px-2 rounded-md border flex flex-col items-center gap-0.5 transition-all',
+              propulsion.dragPenaltyPct >= 7 && propulsion.dragPenaltyPct < 15
+                ? 'bg-amber-500/15 border-amber-500/40 text-amber-500 font-bold'
+                : 'bg-muted/30 border-border/40 text-muted-foreground opacity-60'
+            ]"
+          >
+            <span>Moderate</span>
+            <span class="text-[9px]">7–15%</span>
+          </div>
+          <div
+            :class="[
+              'py-1.5 px-2 rounded-md border flex flex-col items-center gap-0.5 transition-all',
+              propulsion.dragPenaltyPct >= 15
+                ? 'bg-rose-500/15 border-rose-500/40 text-rose-500 font-bold'
+                : 'bg-muted/30 border-border/40 text-muted-foreground opacity-60'
+            ]"
+          >
+            <span>Heavy Fouling</span>
+            <span class="text-[9px]">&gt;15%</span>
+          </div>
         </div>
       </div>
 
       <!-- Action Advisory Callout -->
       <div class="p-2.5 rounded-lg border border-border/40 bg-muted/15 flex items-center justify-between text-xs">
-        <span class="text-muted-foreground text-[11px]">Diver Hull Inspection Recommendation:</span>
-        <span class="font-medium text-xs text-foreground font-mono">
-          {{ propulsion.cleaningStatus === 'critical' ? 'Immediate Work Order' : propulsion.cleaningStatus === 'recommended' ? 'Next Port Call' : 'Routine Schedule' }}
+        <span class="text-muted-foreground text-[11px] flex items-center gap-1.5">
+          <Sparkles class="size-3.5 text-emerald-500" /> ~{{ Number(propulsion.powerRecoveryPotentialPct).toFixed(1) }}% Cleaning Recovery
         </span>
+        <Badge
+          variant="secondary"
+          :class="propulsion.cleaningStatus === 'critical' ? 'bg-rose-500/15 text-rose-500' : 'bg-amber-500/15 text-amber-500'"
+          class="text-[10px] font-mono px-2 py-0.5 font-semibold"
+        >
+          {{ propulsion.cleaningStatus === 'critical' ? 'Immediate Polish' : 'Polish at Next Port' }}
+        </Badge>
       </div>
     </CardContent>
   </Card>

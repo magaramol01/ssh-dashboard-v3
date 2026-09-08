@@ -30,10 +30,7 @@ import {
 } from 'lucide-vue-next'
 import SentinelCopilotPanel from '@/components/sentinel/SentinelCopilotPanel.vue'
 import CiiImprovementPlanCard from '@/components/emissions/CiiImprovementPlanCard.vue'
-import WeatherImpactCard from '@/components/emissions/widgets/WeatherImpactCard.vue'
-import HullPropulsionCard from '@/components/emissions/widgets/HullPropulsionCard.vue'
-import EngineSfocCard from '@/components/emissions/widgets/EngineSfocCard.vue'
-import OperationalProfileCard from '@/components/emissions/widgets/OperationalProfileCard.vue'
+import TechnicalTelemetryCard from '@/components/emissions/TechnicalTelemetryCard.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
@@ -54,10 +51,40 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Progress } from '@/components/ui/progress'
-import AreaChart from '@/components/ui/charts/area-chart/AreaChart.vue'
 import BarChart from '@/components/ui/charts/bar-chart/BarChart.vue'
 import PieChart from '@/components/ui/charts/pie-chart/PieChart.vue'
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { LineChart } from 'echarts/charts'
+import {
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  MarkLineComponent,
+  MarkAreaComponent,
+  MarkPointComponent,
+} from 'echarts/components'
+import VChart from 'vue-echarts'
+import {
+  chartTextColor,
+  chartAxisColor,
+  chartSplitLineColor,
+  chartTooltipBg,
+  chartTooltipBorder,
+  chartTooltipText,
+} from '@/components/ui/charts/useChartTheme'
 import type { EmissionsCiiResponse } from '~~/server/api/emissions/cii.get'
+
+use([
+  CanvasRenderer,
+  LineChart,
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  MarkLineComponent,
+  MarkAreaComponent,
+  MarkPointComponent,
+])
 
 definePageMeta({
   middleware: 'require-dispatcher',
@@ -200,6 +227,7 @@ const {
   pending: isLoading,
   refresh: refreshCiiData,
 } = await useFetch<EmissionsCiiResponse>('/api/emissions/cii', {
+  key: computed(() => `cii-${selectedVesselId.value}-${selectedYear.value}-${selectedVoyage.value}-${selectedVoyageType.value}`),
   query: computed(() => ({
     vesselId: parseInt(selectedVesselId.value, 10) || 1,
     vesselName: selectedVessel.value?.name,
@@ -213,6 +241,7 @@ const {
     voyageNumber: selectedVoyage.value !== 'all' ? selectedVoyage.value : undefined,
     voyageType: selectedVoyageType.value,
   })),
+  watch: [selectedVesselId, selectedYear, selectedVoyage, selectedVoyageType],
 })
 
 // Rating badge colors and classes
@@ -494,15 +523,282 @@ function exportCsv() {
   document.body.removeChild(link)
 }
 
-// Chart dataset prepared for AreaChart
-const chartData = computed(() => {
-  if (!ciiData.value?.monthlyTrend) return []
-  const required = ciiData.value.summary.requiredCii
-  return ciiData.value.monthlyTrend.map((m) => ({
-    month: m.month,
-    'Attained CII': m.attainedCii ?? required,
-    'Required Limit': required,
-  }))
+// Monthly Rolling CII EChart Options with Rating Zones & Regulatory Cap
+const monthlyCiiChartOption = computed(() => {
+  if (!ciiData.value?.monthlyTrend || !ciiData.value?.summary?.boundaries) {
+    return {}
+  }
+
+  const b = ciiData.value.summary.boundaries
+  const required = Number(ciiData.value.summary.requiredCii || b.requiredCII || 5.25)
+  const trend = ciiData.value.monthlyTrend || []
+
+  // Ensure all boundary values are valid numbers with safe IMO fallback defaults
+  const superior = Number(b.superior_boundary || 3.42)
+  const lower = Number(b.lower_boundary || 4.65)
+  const upper = Number(b.upper_boundary || 5.92)
+  const inferior = Number(b.inferior_boundary || 7.35)
+
+  // Find max value across attained values and inferior boundary for clean y-axis framing
+  const validVals = trend
+    .map((m) => m.attainedCii)
+    .filter((v): v is number => v !== null && v !== undefined && v > 0)
+  const maxAttained = validVals.length ? Math.max(...validVals) : inferior
+  const yAxisMax = Number((Math.max(inferior * 1.25, maxAttained * 1.15)).toFixed(1))
+
+  const categories = trend.map((m) => m.month)
+  const seriesData = trend.map((m) => {
+    const val = m.attainedCii !== null && m.attainedCii !== undefined ? Number(m.attainedCii.toFixed(2)) : null
+    const color = (m.rating && ratingGradeColors[m.rating]) || '#0284c7'
+    return {
+      value: val,
+      month: m.month,
+      rating: m.rating,
+      co2Mt: m.co2Mt,
+      distanceNm: m.distanceNm,
+      itemStyle: {
+        color,
+        borderColor: '#ffffff',
+        borderWidth: 2,
+        shadowColor: 'rgba(0, 0, 0, 0.25)',
+        shadowBlur: 3,
+      },
+    }
+  })
+
+  return {
+    grid: {
+      left: 44,
+      right: 32,
+      top: 28,
+      bottom: 26,
+    },
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: chartTooltipBg.value,
+      borderColor: chartTooltipBorder.value,
+      textStyle: {
+        color: chartTooltipText.value,
+        fontSize: 11,
+      },
+      formatter: (params: any) => {
+        const item = Array.isArray(params) ? params[0] : params
+        if (!item || item.value === null || item.value === undefined) return ''
+        const data = item.data || {}
+        const val = Number(item.value).toFixed(2)
+        const rating = data.rating || 'N/A'
+        const badgeBg = ratingGradeColors[rating] || '#0ea5e9'
+        const diff = Number((item.value - required).toFixed(2))
+        const diffPct = Number((((item.value - required) / required) * 100).toFixed(1))
+        const isBetter = diff <= 0
+
+        return `
+          <div style="font-weight:600;margin-bottom:6px;border-bottom:1px solid rgba(148,163,184,0.2);padding-bottom:4px;">
+            ${data.month || item.name} Performance
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:3px;">
+            <span style="opacity:0.8">Attained CII:</span>
+            <span><b>${val}</b> gCO₂/(MT·NM)</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:3px;">
+            <span style="opacity:0.8">IMO Rating:</span>
+            <span style="display:inline-block;padding:1px 6px;border-radius:4px;background:${badgeBg};color:#fff;font-weight:bold;font-size:10px;">
+              Grade ${rating}
+            </span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:3px;">
+            <span style="opacity:0.8">Regulatory Cap:</span>
+            <span><b>${required.toFixed(2)}</b></span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px;">
+            <span style="opacity:0.8">Compliance Delta:</span>
+            <span style="color:${isBetter ? '#10b981' : '#ef4444'};font-weight:600">
+              ${isBetter ? `${diff} (${Math.abs(diffPct)}% compliant)` : `+${diff} (+${diffPct}% over)`}
+            </span>
+          </div>
+          ${data.co2Mt !== undefined ? `
+            <div style="font-size:10px;opacity:0.85;border-top:1px solid rgba(148,163,184,0.2);padding-top:4px;display:flex;justify-content:space-between;gap:12px;">
+              <span>CO₂: <b>${data.co2Mt.toLocaleString()} MT</b></span>
+              <span>Dist: <b>${(data.distanceNm || 0).toLocaleString()} NM</b></span>
+            </div>
+          ` : ''}
+        `
+      },
+    },
+    xAxis: {
+      type: 'category',
+      data: categories,
+      axisLabel: {
+        color: chartTextColor.value,
+        fontSize: 11,
+      },
+      axisLine: {
+        lineStyle: { color: chartAxisColor.value },
+      },
+      axisTick: { show: false },
+      splitLine: { show: false },
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      max: yAxisMax,
+      name: 'gCO₂/(MT·NM)',
+      nameTextStyle: {
+        fontSize: 10,
+        color: chartTextColor.value,
+        padding: [0, 0, 0, 8],
+      },
+      axisLabel: {
+        color: chartTextColor.value,
+        fontSize: 10,
+      },
+      axisLine: { show: false },
+      splitLine: {
+        lineStyle: {
+          color: chartSplitLineColor.value,
+          type: 'dashed',
+          opacity: 0.5,
+        },
+      },
+    },
+    series: [
+      {
+        name: 'Attained CII',
+        type: 'line',
+        smooth: 0.25,
+        data: seriesData,
+        connectNulls: true,
+        symbol: 'circle',
+        symbolSize: 9,
+        lineStyle: {
+          width: 3,
+          color: '#0284c7',
+        },
+        label: {
+          show: true,
+          position: 'top',
+          formatter: (p: any) => (p.data?.value !== null && p.data?.rating ? `Grade ${p.data.rating}` : ''),
+          fontSize: 10,
+          fontWeight: 700,
+          color: chartTextColor.value,
+          distance: 6,
+        },
+        markArea: {
+          silent: true,
+          data: [
+            // Grade A (Superior)
+            [
+              {
+                yAxis: 0,
+                itemStyle: { color: 'rgba(37, 99, 235, 0.07)' },
+                label: {
+                  show: true,
+                  position: 'insideRight',
+                  formatter: 'Grade A (Superior)',
+                  color: '#2563eb',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  distance: 8,
+                },
+              },
+              { yAxis: superior },
+            ],
+            // Grade B (Minor Superior)
+            [
+              {
+                yAxis: superior,
+                itemStyle: { color: 'rgba(5, 150, 105, 0.07)' },
+                label: {
+                  show: true,
+                  position: 'insideRight',
+                  formatter: 'Grade B (Minor Superior)',
+                  color: '#059669',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  distance: 8,
+                },
+              },
+              { yAxis: lower },
+            ],
+            // Grade C (Compliant Target)
+            [
+              {
+                yAxis: lower,
+                itemStyle: { color: 'rgba(132, 204, 22, 0.07)' },
+                label: {
+                  show: true,
+                  position: 'insideRight',
+                  formatter: 'Grade C (Target)',
+                  color: '#84cc16',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  distance: 8,
+                },
+              },
+              { yAxis: upper },
+            ],
+            // Grade D (Minor Inferior / Warning)
+            [
+              {
+                yAxis: upper,
+                itemStyle: { color: 'rgba(245, 158, 11, 0.08)' },
+                label: {
+                  show: true,
+                  position: 'insideRight',
+                  formatter: 'Grade D (Warning)',
+                  color: '#f59e0b',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  distance: 8,
+                },
+              },
+              { yAxis: inferior },
+            ],
+            // Grade E (Non-Compliant)
+            [
+              {
+                yAxis: inferior,
+                itemStyle: { color: 'rgba(225, 29, 72, 0.08)' },
+                label: {
+                  show: true,
+                  position: 'insideRight',
+                  formatter: 'Grade E (Inferior)',
+                  color: '#e11d48',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  distance: 8,
+                },
+              },
+              { yAxis: yAxisMax },
+            ],
+          ],
+        },
+        markLine: {
+          symbol: 'none',
+          silent: true,
+          data: [
+            {
+              yAxis: required,
+              name: 'IMO Limit',
+              lineStyle: {
+                color: '#ef4444',
+                type: 'dashed',
+                width: 2,
+              },
+              label: {
+                formatter: `IMO Cap: ${required.toFixed(2)}`,
+                position: 'insideStartTop',
+                fontSize: 10,
+                fontWeight: 700,
+                color: '#ef4444',
+                padding: [2, 4],
+              },
+            },
+          ],
+        },
+      },
+    ],
+  }
 })
 
 // Fuel Mix Donut Chart Data & Theme
@@ -1503,65 +1799,70 @@ const fuelDonutOption = computed(() => ({
           </CardContent>
         </Card>
 
-      <!-- Environmental & Technical Performance Intelligence (2x2 Grid) -->
-      <div v-if="ciiData?.performanceWidgets" class="space-y-4">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h3 class="text-base font-semibold text-foreground flex items-center gap-2">
-              <Layers class="size-4 text-primary" />
-              Environmental & Technical Performance Intelligence
-            </h3>
-            <p class="text-xs text-muted-foreground mt-0.5">
-              High-resolution diagnostics across adverse weather, hull biofouling, engine combustion, and operational profile
-            </p>
-          </div>
-          <Badge variant="outline" class="text-[10px] font-mono border-border text-muted-foreground self-start sm:self-auto">
-            4-Pillar Telemetry
-          </Badge>
-        </div>
+      <!-- Technical Performance & Diagnostic Telemetry (Unified Tabbed Studio) -->
+      <TechnicalTelemetryCard
+        v-if="ciiData?.performanceWidgets"
+        :weather="ciiData.performanceWidgets.weather"
+        :propulsion="ciiData.performanceWidgets.propulsion"
+        :engine="ciiData.performanceWidgets.engine"
+        :operations="ciiData.performanceWidgets.operations"
+      />
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <WeatherImpactCard :weather="ciiData.performanceWidgets.weather" />
-          <HullPropulsionCard :propulsion="ciiData.performanceWidgets.propulsion" />
-          <EngineSfocCard :engine="ciiData.performanceWidgets.engine" />
-          <OperationalProfileCard :operations="ciiData.performanceWidgets.operations" />
-        </div>
-      </div>
-
-      <!-- Chronological Monthly Trend Chart -->
+      <!-- Chronological Monthly Trend Chart with IMO Rating Zones -->
       <Card class="shadow-xs">
         <CardHeader class="pb-2">
-          <div class="flex items-center justify-between">
+          <div class="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <CardTitle class="text-base font-semibold">Monthly Rolling CII Performance</CardTitle>
-              <CardDescription class="text-xs">
-                Historical trajectory plotted against the annual IMO regulatory cap ({{ ciiData.summary.requiredCii.toFixed(2) }})
+              <div class="flex items-center gap-2">
+                <CardTitle class="text-base font-semibold">Monthly Rolling CII Performance</CardTitle>
+                <Badge variant="outline" class="text-[10px] font-medium border-border">
+                  IMO MEPC.338(76) Bands
+                </Badge>
+              </div>
+              <CardDescription class="text-xs mt-0.5">
+                Monthly attained intensity plotted against IMO Rating Zones (A–E) and regulatory cap ({{ ciiData.summary.requiredCii.toFixed(2) }})
               </CardDescription>
             </div>
-            <div class="flex items-center gap-3 text-xs">
-              <span class="inline-flex items-center gap-1.5 text-muted-foreground">
-                <span class="size-2 rounded-full bg-primary" /> Attained CII
+            
+            <!-- Rating Zones & Cap Legend Badges -->
+            <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
+              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium">
+                <span class="size-2 rounded-full bg-blue-500" /> Grade A &le; {{ ciiData.summary.boundaries?.superior_boundary?.toFixed(2) }}
               </span>
-              <span class="inline-flex items-center gap-1.5 text-muted-foreground">
-                <span class="size-2 rounded-full bg-destructive" /> Required Limit
+              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
+                <span class="size-2 rounded-full bg-emerald-500" /> Grade B &le; {{ ciiData.summary.boundaries?.lower_boundary?.toFixed(2) }}
+              </span>
+              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-lime-500/10 text-lime-700 dark:text-lime-400 font-medium">
+                <span class="size-2 rounded-full bg-lime-500" /> Grade C &le; {{ ciiData.summary.boundaries?.upper_boundary?.toFixed(2) }}
+              </span>
+              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
+                <span class="size-2 rounded-full bg-amber-500" /> Grade D &le; {{ ciiData.summary.boundaries?.inferior_boundary?.toFixed(2) }}
+              </span>
+              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 font-medium">
+                <span class="size-2 rounded-full bg-rose-500" /> Grade E &gt; {{ ciiData.summary.boundaries?.inferior_boundary?.toFixed(2) }}
+              </span>
+              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-destructive/40 text-destructive font-medium ml-0.5">
+                <span class="w-2.5 border-t-2 border-dashed border-destructive" /> Cap: {{ ciiData.summary.requiredCii?.toFixed(2) }}
               </span>
             </div>
           </div>
         </CardHeader>
-        <CardContent class="pt-2">
-          <ClientOnly>
-            <AreaChart
-              :data="chartData"
-              x-field="month"
-              :y-field="['Attained CII', 'Required Limit']"
-              height="260"
-            />
-            <template #fallback>
-              <div class="h-[260px] animate-pulse rounded-lg bg-muted/40 flex items-center justify-center text-xs text-muted-foreground">
-                Rendering timeline chart...
-              </div>
-            </template>
-          </ClientOnly>
+        <CardContent class="pt-1">
+          <div class="h-[280px] w-full" :style="{ height: '280px', minHeight: '280px' }">
+            <ClientOnly>
+              <VChart
+                :option="monthlyCiiChartOption"
+                autoresize
+                class="size-full"
+                :style="{ height: '280px', width: '100%' }"
+              />
+              <template #fallback>
+                <div class="h-[280px] animate-pulse rounded-lg bg-muted/40 flex items-center justify-center text-xs text-muted-foreground">
+                  Rendering timeline chart...
+                </div>
+              </template>
+            </ClientOnly>
+          </div>
         </CardContent>
       </Card>
     </div>

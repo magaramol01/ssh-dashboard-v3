@@ -41,5 +41,14 @@ export default defineNuxtPlugin(() => {
 
       options.headers = headers
     },
+    onResponseError({ response, request }) {
+      const url = request?.toString() || ''
+      // On 401 Unauthorized (except the login endpoint itself), redirect to sign-in
+      if (response.status === 401 && !url.includes('/api/auth/login')) {
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/sign-in')) {
+          window.location.href = '/auth/sign-in'
+        }
+      }
+    },
   })
 })
