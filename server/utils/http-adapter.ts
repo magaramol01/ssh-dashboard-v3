@@ -1,6 +1,6 @@
 import crypto from 'node:crypto'
 import type { H3Event } from 'h3'
-import { getCookie, getHeader } from 'h3'
+import { getCookie, getHeader, getQuery } from 'h3'
 import { getCurrentTenant } from './tenant-context'
 
 export interface BackendRequestOptions {
@@ -9,6 +9,8 @@ export interface BackendRequestOptions {
   headers?: Record<string, string>
   tenant?: string
   requestId?: string
+  authToken?: string
+  refreshToken?: string
   event?: H3Event
 }
 
@@ -19,7 +21,8 @@ export interface BackendResponse<T = unknown> {
   rawHeaders: Headers
 }
 
-export const BACKEND_API_BASE = process.env.BACKEND_API_URL || 'https://smartshipweb.com/prod/api/v2'
+export const BACKEND_SERVER_ORIGIN = process.env.BACKEND_SERVER_URL || 'https://smartshipweb.com'
+export const BACKEND_API_BASE = process.env.BACKEND_API_URL || `${BACKEND_SERVER_ORIGIN}/prod/api/v2`
 
 /**
  * MD5 hash helper.
@@ -36,7 +39,7 @@ export function hashMd5(input: string): string {
 
 /**
  * Generic HTTP adapter to communicate with the external backend server.
- * Injects required x-tenant-id, x-request-id, Referer, and token headers.
+ * Injects required x-tenant-id, x-request-id, Referer, and token headers dynamically.
  */
 export async function backendFetch<T = any>(
   endpoint: string,
@@ -44,29 +47,43 @@ export async function backendFetch<T = any>(
 ): Promise<BackendResponse<T>> {
   const { event } = options
 
-  // Resolve tenant: explicit > event context > AsyncLocalStorage > request header > fallback
+  // Resolve tenant dynamically: explicit > event context > AsyncLocalStorage > header > query > cookie
   const tenant = (
     options.tenant ||
     event?.context?.tenant ||
     getCurrentTenant() ||
     (event ? getHeader(event, 'x-tenant-id') : '') ||
-    'asiaticlloyd'
+    (event ? (getQuery(event).tenant as string) : '') ||
+    (event ? getCookie(event, 'ssh_tenant') : '') ||
+    ''
   ).trim().toLowerCase()
 
-  // Resolve request ID: explicit > event context > request header > generated UUID
+  // Resolve request ID dynamically: explicit > event context > header > generated UUID
   const requestId =
     options.requestId ||
     event?.context?.requestId ||
     (event ? getHeader(event, 'x-request-id') : '') ||
     crypto.randomUUID()
 
-  // Resolve auth tokens if available from cookies
-  const authToken = event ? (getCookie(event, 'auth_token') || getHeader(event, 'x-auth-id') || '') : ''
-  const refreshToken = event ? (getCookie(event, 'refresh_token') || getHeader(event, 'x-refresh-id') || '') : ''
+  // Resolve auth tokens dynamically: explicit > cookie > header > bearer
+  const authToken =
+    options.authToken ||
+    (event ? (getCookie(event, 'auth_token') || getHeader(event, 'x-auth-id') || getHeader(event, 'authorization')?.replace(/^Bearer\s+/i, '')) : '') ||
+    ''
+  const refreshToken =
+    options.refreshToken ||
+    (event ? (getCookie(event, 'refresh_token') || getHeader(event, 'x-refresh-id')) : '') ||
+    ''
 
-  const url = endpoint.startsWith('http')
-    ? endpoint
-    : `${BACKEND_API_BASE}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
+  let url = endpoint
+  if (!url.startsWith('http')) {
+    if (url.startsWith('/prod/api/') || url.startsWith('/api/')) {
+      const cleanPath = url.startsWith('/prod/') ? url : `/prod${url}`
+      url = `${BACKEND_SERVER_ORIGIN}${cleanPath}`
+    } else {
+      url = `${BACKEND_API_BASE}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
+    }
+  }
 
   const headers: Record<string, string> = {
     'accept': 'application/json, text/plain, */*',
@@ -152,5 +169,72 @@ export async function validateUser(payload: ValidateUserPayload): Promise<Backen
       Email: payload.email.trim(),
       Password: hashedPassword,
     },
+  })
+}
+
+export interface VesselsGeoJsonResponse {
+  sourceDestinationPortToPortArray: Array<{
+    vesselId: number
+    portToPortGeoJson: Array<{
+      type: 'Feature'
+      geometry: {
+        type: 'LineString' | 'Point'
+        coordinates: [number, number] | [number, number][]
+      }
+      properties?: {
+        isSource?: boolean
+        isDestination?: boolean
+        [key: string]: any
+      }
+    }>
+  }>
+  allshipDataGEoJson: Array<{
+    type: 'Feature'
+    geometry: {
+      type: 'Point'
+      coordinates: [number, number] // [lng, lat]
+    }
+    properties: {
+      lat: string
+      long: string
+      packetTs: string
+      waveDirection: string
+      swellDirection: string
+      currentSpeed: string
+      currentDirection: string
+      latDirection: string
+      longDirection: string
+      sog: number // speed over ground (knots)
+      vessleName: string
+      vesselId: number
+      windSpeedBF: number
+      [key: string]: any
+    }
+  }>
+  mapTooltipConfiguration?: any[]
+  spireLayerConfigurations?: Record<string, any>
+}
+
+export interface GetVesselsOptions {
+  tenant?: string
+  authToken?: string
+  refreshToken?: string
+  requestId?: string
+  event?: H3Event
+}
+
+/**
+ * Fetch all vessels GeoJSON data from external backend with dynamic tenant and auth.
+ */
+export async function getAllVesselsGeoJsonData(
+  options: GetVesselsOptions = {}
+): Promise<BackendResponse<VesselsGeoJsonResponse>> {
+  return backendFetch<VesselsGeoJsonResponse>('/prod/api/v1/getAllVesselsGeoJsonData', {
+    method: 'GET',
+    tenant: options.tenant,
+    authToken: options.authToken,
+    refreshToken: options.refreshToken,
+    requestId: options.requestId,
+    event: options.event,
   })
 }

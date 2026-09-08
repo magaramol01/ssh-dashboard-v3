@@ -17,7 +17,7 @@ type RouteLayers = {
   color: string
 }
 
-const props = defineProps<{ trips: ResolvedTrip[]; selectedId: string | null }>()
+const props = defineProps<{ trips: (ResolvedTrip | any)[]; selectedId: string | null }>()
 const emit = defineEmits<{ (e: 'select', id: string): void }>()
 
 const { theme } = useTheme()
@@ -28,6 +28,35 @@ const routes = new Map<string, RouteLayers>()
 const networkMarkers: any[] = []
 const itineraryMarkers: any[] = []
 const hoverId = ref<string | null>(null)
+
+function getTripId(t: any): string {
+  return t.id || t.shipment?.id || ''
+}
+function getTripName(t: any): string {
+  return t.name || t.shipment?.driver || t.shipment?.id || ''
+}
+function getTripTone(t: any): Tone {
+  return t.tone || 'info'
+}
+function getTripProgress(t: any): number {
+  return typeof t.progress === 'number' ? t.progress : (t.shipment?.progress ?? 50)
+}
+function getTripCoords(t: any): Point[] {
+  if (Array.isArray(t.routeCoords) && t.routeCoords.length > 0) return t.routeCoords
+  if (Array.isArray(t.coords) && Array.isArray(t.coords[0])) return t.coords
+  return []
+}
+function getTripMarkerPos(t: any): Point {
+  if (Array.isArray(t.coords) && typeof t.coords[0] === 'number') {
+    return t.coords as Point
+  }
+  const route = getTripCoords(t)
+  if (route.length > 0) {
+    const { truck } = splitByProgress(route, getTripProgress(t))
+    return truck
+  }
+  return [0, 0]
+}
 
 function splitByProgress(coords: Point[], progress: number) {
   const segments: { a: Point; b: Point; distance: number }[] = []
@@ -67,10 +96,10 @@ function icon(html: string, size: [number, number], anchor: [number, number] = [
   return L.divIcon({ html, className: 'lm-leaflet-icon', iconSize: size, iconAnchor: anchor })
 }
 
-function truckIcon(color: string, selected: boolean) {
+function vesselIcon(color: string, selected: boolean) {
   const size = selected ? 38 : 32
   return icon(
-    `<div class="lm-truck-icon" style="width:${size}px;height:${size}px;border-color:${color};color:${color}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2M15 18H9M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14M7 16a2 2 0 1 0 0 4 2 2 0 0 0 0-4M17 16a2 2 0 1 0 0 4 2 2 0 0 0 0-4" /></svg></div>`,
+    `<div class="lm-vessel-icon" style="width:${size}px;height:${size}px;border-color:${color};color:${color}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 17l2 3h16l2-3-4-2H6l-4 2zm10-15L4 13h16L12 2zm-1 4v4h2V6h-2z" /></svg></div>`,
     [size, size],
   )
 }
@@ -98,17 +127,25 @@ function clearItinerary() {
 
 function drawItinerary() {
   clearItinerary()
-  const trip = props.trips.find((t) => t.shipment.id === props.selectedId)
+  const trip = props.trips.find((t: any) => getTripId(t) === props.selectedId) as any
   if (!trip || !map) return
-  const color = toneColor(trip.tone)
-  const first = trip.coords[0]!
-  const last = trip.coords[trip.coords.length - 1]!
-  const via = (trip.shipment.lastLocation || '').split('—')[0]!.trim()
-  itineraryMarkers.push(L.marker(first, { icon: pointIcon('origin', color, trip.shipment.origin), interactive: false }).addTo(map))
-  for (const [i, stop] of (trip.stops ?? []).entries()) {
-    itineraryMarkers.push(L.marker(stop, { icon: pointIcon('stop', color, via || `Stop ${i + 1}`), interactive: false }).addTo(map))
+  const color = toneColor(getTripTone(trip))
+  const route = getTripCoords(trip)
+  if (route.length > 0) {
+    const first = trip.originCoords || route[0]
+    const last = trip.destCoords || route[route.length - 1]
+    const originLabel = trip.origin || (trip.vesselId ? 'Origin Port' : trip.shipment?.origin) || 'Origin'
+    const destLabel = trip.destination || (trip.vesselId ? 'Destination Port' : trip.shipment?.destination) || 'Destination'
+    if (first) {
+      itineraryMarkers.push(L.marker(first, { icon: pointIcon('origin', color, originLabel), interactive: false }).addTo(map))
+    }
+    for (const [i, stop] of (trip.stops ?? []).entries()) {
+      itineraryMarkers.push(L.marker(stop, { icon: pointIcon('stop', color, `Stop ${i + 1}`), interactive: false }).addTo(map))
+    }
+    if (last) {
+      itineraryMarkers.push(L.marker(last, { icon: pointIcon('destination', color, destLabel), interactive: false }).addTo(map))
+    }
   }
-  itineraryMarkers.push(L.marker(last, { icon: pointIcon('destination', color, trip.shipment.destination), interactive: false }).addTo(map))
 }
 
 function applyFocus() {
@@ -118,49 +155,70 @@ function applyFocus() {
     const focused = id === focus
     const dim = focus !== null && !focused
     const opacity = dim ? 0.2 : 1
-    route.base.setStyle({ opacity: opacity * 0.5 })
-    route.travelled.setStyle({ opacity })
-    route.remaining.setStyle({ opacity: dim ? 0.08 : 0.7 })
-    route.origin.setStyle({ opacity, fillOpacity: opacity })
+    if (route.base) route.base.setStyle({ opacity: opacity * 0.4 })
+    if (route.travelled) route.travelled.setStyle({ opacity })
+    if (route.remaining) route.remaining.setStyle({ opacity: dim ? 0.08 : 0.7 })
+    if (route.origin) route.origin.setStyle({ opacity, fillOpacity: opacity })
     route.marker.setOpacity(dim ? 0.35 : 1)
     route.marker.setZIndexOffset(focused ? 1000 : 0)
-    route.marker.setIcon(truckIcon(route.color, props.selectedId === id))
+    route.marker.setIcon(vesselIcon(route.color, props.selectedId === id))
   })
 }
 
 function drawRoutes() {
   if (!map || !L) return
-  routes.forEach((route) => [route.base, route.travelled, route.remaining, route.origin, route.marker].forEach((layer) => map.removeLayer(layer)))
+  routes.forEach((route) => [route.base, route.travelled, route.remaining, route.origin, route.marker].forEach((layer) => layer && map.removeLayer(layer)))
   routes.clear()
   const allPoints: Point[] = []
+
   for (const trip of props.trips) {
-    const color = toneColor(trip.tone)
-    const { truck, travelled, remaining } = splitByProgress(trip.coords, trip.shipment.progress)
-    allPoints.push(...trip.coords)
-    const base = L.polyline(trip.coords, { color: cssVar('--muted-foreground'), weight: 2, opacity: 0.4 }).addTo(map)
-    const remainingLine = L.polyline(remaining, { color: cssVar('--muted-foreground'), weight: 3, opacity: 0.7, dashArray: '2 8', lineCap: 'round' }).addTo(map)
-    const travelledLine = L.polyline(travelled, { color, weight: 4, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(map)
-    const origin = L.circleMarker(trip.coords[0], { radius: 4, color, weight: 2, fillColor: cssVar('--card'), fillOpacity: 1 }).addTo(map)
-    const marker = L.marker(truck, { icon: truckIcon(color, false), riseOnHover: true }).addTo(map)
-    marker.on('click', () => emit('select', trip.shipment.id))
-    marker.bindTooltip(`${trip.shipment.id} · ${STATUS_LABELS[trip.shipment.status]}`, { direction: 'top', offset: [0, -18] })
-    routes.set(trip.shipment.id, { base, travelled: travelledLine, remaining: remainingLine, origin, marker, truck, color })
+    const id = getTripId(trip)
+    const name = getTripName(trip)
+    const color = toneColor(getTripTone(trip))
+    const route = getTripCoords(trip)
+    const markerPos = getTripMarkerPos(trip)
+    allPoints.push(markerPos)
+
+    let base: any = null
+    let travelledLine: any = null
+    let remainingLine: any = null
+    let origin: any = null
+
+    if (route.length > 1) {
+      allPoints.push(...route)
+      const progress = getTripProgress(trip)
+      const { travelled, remaining } = splitByProgress(route, progress)
+      base = L.polyline(route, { color: cssVar('--muted-foreground'), weight: 2, opacity: 0.35 }).addTo(map)
+      remainingLine = L.polyline(remaining, { color: cssVar('--muted-foreground'), weight: 3, opacity: 0.6, dashArray: '2 8', lineCap: 'round' }).addTo(map)
+      travelledLine = L.polyline(travelled, { color, weight: 3.5, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }).addTo(map)
+      origin = L.circleMarker(route[0], { radius: 4, color, weight: 2, fillColor: cssVar('--card'), fillOpacity: 1 }).addTo(map)
+    }
+
+    const marker = L.marker(markerPos, { icon: vesselIcon(color, false), riseOnHover: true }).addTo(map)
+    marker.on('click', () => emit('select', id))
+    const speedText = (trip as any).sog !== undefined ? ` · ${(trip as any).sog} kts` : ''
+    marker.bindTooltip(`<b>${name}</b>${speedText}`, { direction: 'top', offset: [0, -18] })
+    routes.set(id, { base, travelled: travelledLine, remaining: remainingLine, origin, marker, truck: markerPos, color })
   }
-  if (allPoints.length) map.fitBounds(allPoints, { padding: [70, 70], maxZoom: 6 })
+
+  if (allPoints.length) {
+    map.fitBounds(allPoints, { padding: [50, 50], maxZoom: 6 })
+  }
   drawItinerary()
   applyFocus()
 }
 
-function addNetworkMarkers() {
-  for (const location of NETWORK) {
-    const marker = L.marker(location.coords, { icon: facilityIcon(location.type, location.name, location.code), interactive: false }).addTo(map)
-    networkMarkers.push(marker)
-  }
-}
-
 function fitSelected() {
-  const trip = props.trips.find((t) => t.shipment.id === props.selectedId)
-  if (trip && map) map.fitBounds(trip.coords, { paddingTopLeft: [72, 72], paddingBottomRight: [380, 72], maxZoom: 11, animate: true, duration: 0.7 })
+  const trip = props.trips.find((t: any) => getTripId(t) === props.selectedId) as any
+  if (trip && map) {
+    const route = getTripCoords(trip)
+    const points = route.length > 0 ? route : [getTripMarkerPos(trip)]
+    if (points.length > 1) {
+      map.fitBounds(points, { paddingTopLeft: [72, 72], paddingBottomRight: [380, 72], maxZoom: 9, animate: true, duration: 0.7 })
+    } else if (points.length === 1) {
+      map.setView(points[0], 7, { animate: true, duration: 0.7 })
+    }
+  }
 }
 
 function hover(id: string | null) {
@@ -172,13 +230,12 @@ defineExpose({ hover })
 onMounted(async () => {
   L = (await import('leaflet')).default
   if (!el.value) return
-  map = L.map(el.value, { zoomControl: false, minZoom: 2, maxZoom: 19, attributionControl: true }).setView([39.5, -98.35], 4)
+  map = L.map(el.value, { zoomControl: false, minZoom: 2, maxZoom: 19, attributionControl: true }).setView([15, 75], 3)
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   }).addTo(map)
   L.control.zoom({ position: 'bottomright' }).addTo(map)
-  addNetworkMarkers()
   drawRoutes()
   requestAnimationFrame(() => map?.invalidateSize())
 })

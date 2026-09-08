@@ -41,3 +41,30 @@ test('validateUser rejects invalid credentials with 400', async () => {
   assert.equal(res.data.msg, 'Invalid email or password. Please try again.')
 })
 
+test('dynamic auth flow: user token from validateUser is reused directly for getAllVesselsGeoJsonData', async () => {
+  // 1. Authenticate user dynamically
+  const loginRes = await validateUser({
+    email: 'a.magar@smartshiphub.com',
+    password: '46d824505203861e34bc2ed5951a5166',
+    tenant: 'asiaticlloyd',
+  })
+
+  assert.equal(loginRes.status, 200)
+  const userToken = loginRes.data.authToken
+  const userRefresh = loginRes.data.refreshToken
+  assert.ok(userToken, 'User must have authToken from login')
+
+  // 2. Reuse the user exact token directly without creating a new token
+  const { getAllVesselsGeoJsonData } = await import('../server/utils/http-adapter')
+  const vesselsRes = await getAllVesselsGeoJsonData({
+    tenant: 'asiaticlloyd',
+    authToken: userToken,
+    refreshToken: userRefresh,
+  })
+
+  assert.equal(vesselsRes.status, 200)
+  assert.ok(vesselsRes.data.allshipDataGEoJson.length > 0, 'Must return vessel fleet geojson data')
+  assert.ok(vesselsRes.data.sourceDestinationPortToPortArray.length > 0, 'Must return vessel routes')
+})
+
+
