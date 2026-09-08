@@ -10,7 +10,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import {
   Target, X, Bot, Send, RotateCcw, ArrowUpRight,
   CloudRain, Compass, AlertTriangle, RefreshCw, ChevronDown, Maximize2, Minimize2,
-  Gauge, Clock, Search, Anchor, CheckCircle2
+  Gauge, Clock, Search, Anchor, CheckCircle2, Wind, Waves, Navigation
 } from 'lucide-vue-next'
 
 import { Badge } from '@/components/ui/badge'
@@ -56,6 +56,9 @@ export interface LiveVesselItem {
   etaHours: number
   etaIso: string
   etaFormatted: string
+  plannedSpeedKts?: number
+  requiredSpeedKts?: number
+  speedDeltaKts?: number
   tone: Tone
 }
 
@@ -252,6 +255,13 @@ function scheduleBadgeVariant(
   return 'warning'
 }
 
+function speedDelta(item: LiveVesselItem): number {
+  if (item.scheduleStatus === 'moored') return 0
+  if (typeof item.speedDeltaKts === 'number') return item.speedDeltaKts
+  const req = item.requiredSpeedKts ?? 13.5
+  return Math.round((req - item.sog) * 10) / 10
+}
+
 function select(id: string) {
   const next = selectedId.value === id ? null : id
   if (next && !import.meta.server) triggerEl = (document.activeElement as HTMLElement) ?? null
@@ -428,7 +438,11 @@ const selected = computed(() => {
                   </Badge>
                 </div>
                 <div class="mt-1 flex items-baseline justify-between gap-2 text-[12px] text-muted-foreground">
-                  <span class="truncate">SOG: <strong class="text-foreground font-medium">{{ t.sog }} kts</strong> · {{ t.heading }}</span>
+                  <span class="truncate">
+                    SOG: <strong class="text-foreground font-medium">{{ t.sog }} kts</strong>
+                    <span v-if="t.scheduleStatus !== 'moored'" class="text-muted-foreground/80"> · Req: <strong class="text-foreground font-medium">{{ (t.requiredSpeedKts ?? 13.5).toFixed(1) }} kts</strong></span>
+                    · {{ t.heading }}
+                  </span>
                   <span class="shrink-0 text-[11px] text-foreground font-medium tabular-nums">ETA: {{ t.etaFormatted }}</span>
                 </div>
                 <div class="bg-muted mt-2 h-[3px] w-full overflow-hidden rounded-full">
@@ -550,20 +564,20 @@ const selected = computed(() => {
             role="dialog"
             tabindex="-1"
             :aria-label="`Details for ${selected.name}`"
-            class="bg-card text-card-foreground absolute bottom-0 right-0 top-0 z-[1001] w-[360px] overflow-y-auto border-l shadow-2xl outline-none"
+            class="bg-card text-card-foreground absolute bottom-0 right-0 top-0 z-[1001] w-full sm:w-[390px] xl:w-[410px] overflow-y-auto border-l shadow-2xl outline-none"
             @keydown.esc="closeInspector"
           >
-            <div class="p-5">
+            <div class="p-5 space-y-4">
               <div class="flex items-center justify-between gap-2">
                 <div class="min-w-0">
-                  <h2 class="font-semibold text-sm truncate">{{ selected.name }}</h2>
-                  <p class="text-xs text-muted-foreground tabular-nums">Vessel #{{ selected.vesselId }}</p>
+                  <h2 class="font-semibold text-base tracking-tight truncate">{{ selected.name }}</h2>
+                  <p class="text-xs text-muted-foreground tabular-nums mt-0.5">Vessel #{{ selected.vesselId }}</p>
                 </div>
-                <button type="button" class="text-muted-foreground hover:text-foreground focus-visible:ring-ring -mr-1.5 rounded-md p-1 outline-none focus-visible:ring-2" aria-label="Close" @click="closeInspector"><X class="size-4" /></button>
+                <button type="button" class="text-muted-foreground hover:text-foreground focus-visible:ring-ring -mr-1.5 rounded-md p-1.5 outline-none focus-visible:ring-2 hover:bg-muted/60 transition-colors" aria-label="Close" @click="closeInspector"><X class="size-4" /></button>
               </div>
 
               <!-- Schedule / ETA Hero Box -->
-              <div class="mt-4 rounded-lg border bg-muted/40 p-3.5 space-y-2">
+              <div class="rounded-xl border bg-muted/30 p-3.5 space-y-2.5">
                 <div class="flex items-center justify-between">
                   <span class="text-muted-foreground text-[11px] font-medium uppercase tracking-wider">Estimated Arrival (ETA)</span>
                   <Badge :variant="scheduleBadgeVariant(selected)" class="text-xs font-medium">
@@ -575,29 +589,62 @@ const selected = computed(() => {
                     {{ selected.etaFormatted }}
                   </span>
                 </div>
-                <p v-if="selected.scheduleStatus !== 'moored'" class="text-xs font-medium" :class="selected.varianceHours > 0 ? 'text-warning' : (selected.varianceHours < 0 ? 'text-info' : 'text-success')">
-                  {{ selected.varianceHours > 0 ? `+${selected.varianceHours}h behind baseline charter ETA` : (selected.varianceHours < 0 ? `${selected.varianceHours}h ahead of baseline charter ETA` : 'On track with baseline charter ETA') }}
-                </p>
+                <div v-if="selected.scheduleStatus !== 'moored'" class="space-y-1.5 border-t border-border/40 pt-2 text-xs">
+                  <p class="font-medium" :class="selected.varianceHours > 0 ? 'text-warning' : (selected.varianceHours < 0 ? 'text-info' : 'text-success')">
+                    {{ selected.varianceHours > 0 ? `+${selected.varianceHours}h behind baseline charter ETA` : (selected.varianceHours < 0 ? `${selected.varianceHours}h ahead of baseline charter ETA` : 'On track with baseline charter ETA') }}
+                  </p>
+                  <div class="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5">
+                    <span>Required speed for on-time ETA:</span>
+                    <span class="inline-flex items-center gap-1">
+                      <strong class="text-foreground font-semibold tabular-nums">{{ (selected.requiredSpeedKts ?? 13.5).toFixed(1) }} kts</strong>
+                      <span
+                        v-if="speedDelta(selected) > 0"
+                        class="inline-flex items-center rounded px-1.5 py-0.2 bg-warning/10 text-warning font-medium tabular-nums text-[10px]"
+                      >
+                        +{{ speedDelta(selected).toFixed(1) }} kts needed
+                      </span>
+                      <span
+                        v-else-if="speedDelta(selected) < 0"
+                        class="inline-flex items-center rounded px-1.5 py-0.2 bg-info/10 text-info font-medium tabular-nums text-[10px]"
+                      >
+                        {{ speedDelta(selected).toFixed(1) }} kts eco margin
+                      </span>
+                    </span>
+                  </div>
+                </div>
               </div>
 
               <!-- Telemetry 3-col Grid -->
-              <div class="border-border divide-border mt-4 grid grid-cols-3 divide-x border-y py-2.5 text-center">
-                <div>
-                  <p class="text-muted-foreground text-[10px] uppercase tracking-wide">Current SOG</p>
-                  <p class="mt-0.5 text-sm font-semibold tabular-nums">{{ selected.sog }} kts</p>
+              <div class="border-border divide-border grid grid-cols-3 divide-x rounded-lg border bg-card/50 py-2.5 text-center">
+                <div class="px-2">
+                  <p class="text-muted-foreground text-[10px] uppercase font-medium tracking-wide">Current SOG</p>
+                  <p class="mt-1 text-sm font-semibold tabular-nums text-foreground">{{ selected.sog }} kts</p>
                 </div>
-                <div>
-                  <p class="text-muted-foreground text-[10px] uppercase tracking-wide">Baseline</p>
-                  <p class="mt-0.5 text-sm font-semibold tabular-nums text-muted-foreground">13.5 kts</p>
+                <div class="px-2 bg-primary/5">
+                  <p class="text-primary text-[10px] uppercase font-semibold tracking-wide flex items-center justify-center gap-1">
+                    <Gauge class="size-3" />
+                    Req. Speed
+                  </p>
+                  <p class="mt-1 text-sm font-bold tabular-nums text-foreground">
+                    {{ selected.scheduleStatus === 'moored' ? '0.0 kts' : `${(selected.requiredSpeedKts ?? 13.5).toFixed(1)} kts` }}
+                  </p>
+                  <p
+                    v-if="selected.scheduleStatus !== 'moored'"
+                    class="text-[10px] font-medium mt-0.5 tabular-nums"
+                    :class="speedDelta(selected) > 0 ? 'text-warning' : (speedDelta(selected) < 0 ? 'text-info' : 'text-success')"
+                  >
+                    {{ speedDelta(selected) > 0 ? `+${speedDelta(selected).toFixed(1)} kts to hit ETA` : (speedDelta(selected) < 0 ? `${speedDelta(selected).toFixed(1)} kts eco margin` : 'On target') }}
+                  </p>
                 </div>
-                <div>
-                  <p class="text-muted-foreground text-[10px] uppercase tracking-wide">Remaining</p>
-                  <p class="mt-0.5 text-sm font-semibold tabular-nums">{{ selected.remainingNm }} nm</p>
+                <div class="px-2">
+                  <p class="text-muted-foreground text-[10px] uppercase font-medium tracking-wide">Remaining</p>
+                  <p class="mt-1 text-sm font-semibold tabular-nums text-foreground">{{ selected.remainingNm }} nm</p>
+                  <p class="text-[10px] text-muted-foreground mt-0.5">Base: 13.5 kts</p>
                 </div>
               </div>
 
               <!-- Voyage Progress -->
-              <div class="mt-4">
+              <div>
                 <div class="flex justify-between text-xs mb-1.5">
                   <span class="text-muted-foreground">Voyage Progress</span>
                   <span class="font-medium tabular-nums">{{ selected.progress }}% ({{ selected.travelledNm }} / {{ selected.distanceNm }} nm)</span>
@@ -608,70 +655,108 @@ const selected = computed(() => {
               </div>
 
               <!-- Maritime Weather & Sea State Card -->
-              <div class="mt-4 rounded-lg border bg-muted/30 p-3.5 space-y-2.5">
+              <div class="rounded-xl border bg-muted/20 p-3.5 space-y-3">
                 <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-1.5">
-                    <CloudRain class="size-3.5 text-primary" />
-                    <span class="text-xs font-semibold text-foreground">Weather & Sea State</span>
+                  <div class="flex items-center gap-2">
+                    <div class="size-6 rounded-md bg-primary/10 flex items-center justify-center text-primary">
+                      <Wind class="size-3.5" />
+                    </div>
+                    <span class="text-xs font-semibold text-foreground tracking-tight">Weather & Sea State</span>
                   </div>
                   <Badge
                     :variant="selected.windSpeedBF >= 7 ? 'destructive' : (selected.windSpeedBF >= 6 ? 'warning' : 'outline')"
-                    class="text-[10px] font-medium px-1.5 py-0"
+                    class="text-[10px] font-medium px-2 py-0.5"
                   >
                     BF {{ selected.windSpeedBF }} · {{ selected.weather?.windDescription || 'Moderate' }}
                   </Badge>
                 </div>
 
-                <div class="grid grid-cols-2 gap-2 text-xs">
-                  <div class="rounded border border-border/60 bg-background/80 p-2">
-                    <div class="text-[10px] uppercase font-semibold tracking-wider text-muted-foreground">Wind Velocity</div>
-                    <div class="font-semibold text-foreground mt-0.5">{{ selected.weather?.windSpeedKts || '11 – 16 kts' }}</div>
-                    <div class="text-[10px] text-muted-foreground">Beaufort Force {{ selected.windSpeedBF }}</div>
+                <!-- 2 Metrics: Wind & Wave -->
+                <div class="grid grid-cols-2 gap-2.5">
+                  <div class="rounded-lg border border-border/70 bg-card p-2.5 space-y-1">
+                    <div class="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                      <Wind class="size-3 text-primary/70 shrink-0" />
+                      <span>Wind Velocity</span>
+                    </div>
+                    <div class="text-sm font-bold text-foreground tabular-nums leading-tight">
+                      {{ selected.weather?.windSpeedKts || '11 – 16 kts' }}
+                    </div>
+                    <div class="text-[11px] text-muted-foreground">
+                      Force {{ selected.windSpeedBF }}
+                    </div>
                   </div>
-                  <div class="rounded border border-border/60 bg-background/80 p-2">
-                    <div class="text-[10px] uppercase font-semibold tracking-wider text-muted-foreground">Est. Wave Height</div>
-                    <div class="font-semibold text-foreground mt-0.5">{{ selected.weather?.waveHeightM || '1.0 – 1.5 m' }}</div>
-                    <div class="text-[10px] text-muted-foreground truncate">{{ selected.weather?.seaState || 'Moderate Sea' }}</div>
+
+                  <div class="rounded-lg border border-border/70 bg-card p-2.5 space-y-1">
+                    <div class="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                      <Waves class="size-3 text-info/70 shrink-0" />
+                      <span>Est. Sea State</span>
+                    </div>
+                    <div class="text-sm font-bold text-foreground tabular-nums leading-tight">
+                      {{ selected.weather?.waveHeightM || '1.0 – 1.5 m' }}
+                    </div>
+                    <div class="text-[11px] text-muted-foreground truncate" :title="selected.weather?.seaState || 'Moderate Sea'">
+                      {{ selected.weather?.seaState || 'Moderate Sea' }}
+                    </div>
                   </div>
                 </div>
 
                 <!-- Impact Notice -->
                 <div
-                  class="rounded-md px-2.5 py-1.5 text-xs flex items-start gap-2"
+                  class="rounded-lg px-3 py-2 text-xs flex items-center gap-2"
                   :class="selected.windSpeedBF >= 7
                     ? 'bg-destructive/10 text-destructive border border-destructive/30'
                     : (selected.windSpeedBF >= 6
                       ? 'bg-warning/10 text-warning border border-warning/30'
-                      : 'bg-muted/50 text-muted-foreground border border-border/40')"
+                      : 'bg-muted/40 text-muted-foreground border border-border/60')"
                 >
-                  <AlertTriangle v-if="selected.windSpeedBF >= 6" class="size-3.5 shrink-0 mt-0.5" />
-                  <Compass v-else class="size-3.5 shrink-0 mt-0.5 text-primary" />
-                  <div class="min-w-0">
-                    <p class="font-medium leading-tight">{{ selected.weather?.impactText || 'Favorable passage conditions' }}</p>
+                  <AlertTriangle v-if="selected.windSpeedBF >= 6" class="size-3.5 shrink-0 text-warning" />
+                  <CheckCircle2 v-else-if="selected.windSpeedBF <= 3" class="size-3.5 shrink-0 text-success" />
+                  <Compass v-else class="size-3.5 shrink-0 text-primary" />
+                  <p class="font-medium leading-tight text-[11px]">
+                    {{ selected.scheduleStatus === 'moored' ? 'In-port berth conditions · Nominal operations' : (selected.weather?.impactText || 'Favorable passage conditions') }}
+                  </p>
+                </div>
+              </div>
+
+              <!-- Navigation & AIS Telemetry -->
+              <div class="rounded-xl border bg-muted/20 p-3.5 space-y-2.5">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <div class="size-6 rounded-md bg-primary/10 flex items-center justify-center text-primary">
+                      <Navigation class="size-3.5" />
+                    </div>
+                    <span class="text-xs font-semibold text-foreground tracking-tight">Navigation & AIS Telemetry</span>
                   </div>
+                  <span class="inline-flex items-center gap-1 text-[10px] text-muted-foreground font-medium">
+                    <span class="size-1.5 rounded-full bg-success" />
+                    AIS Fix
+                  </span>
                 </div>
 
-                <!-- Telemetry Table -->
-                <div class="text-[11px] space-y-1 pt-1 border-t border-border/40 text-muted-foreground">
-                  <div class="flex justify-between">
-                    <span>Heading / Course:</span>
-                    <span class="text-foreground font-medium">{{ selected.vesselHeading !== undefined ? `${selected.vesselHeading}° (${selected.heading})` : selected.heading }}</span>
+                <div class="grid grid-cols-2 gap-x-3 gap-y-2 text-xs pt-0.5">
+                  <div class="rounded-md bg-card/60 border border-border/40 p-2">
+                    <p class="text-[10px] uppercase font-medium tracking-wider text-muted-foreground">Heading</p>
+                    <p class="font-semibold text-foreground mt-0.5 tabular-nums">
+                      {{ selected.vesselHeading !== undefined ? `${selected.vesselHeading}° (${selected.heading})` : selected.heading }}
+                    </p>
                   </div>
-                  <div class="flex justify-between">
-                    <span>Wave / Swell Dir:</span>
-                    <span class="text-foreground">{{ selected.weather?.waveDirection || 'Fair' }} / {{ selected.weather?.swellDirection || 'Nominal' }}</span>
+                  <div class="rounded-md bg-card/60 border border-border/40 p-2">
+                    <p class="text-[10px] uppercase font-medium tracking-wider text-muted-foreground">Surface Current</p>
+                    <p class="font-semibold text-foreground mt-0.5 truncate">
+                      {{ selected.weather?.currentSpeed || 'Normal' }}
+                    </p>
                   </div>
-                  <div class="flex justify-between">
-                    <span>Surface Current:</span>
-                    <span class="text-foreground">{{ selected.weather?.currentSpeed || 'Normal' }} ({{ selected.weather?.currentDirection || 'Nominal' }})</span>
+                  <div class="rounded-md bg-card/60 border border-border/40 p-2">
+                    <p class="text-[10px] uppercase font-medium tracking-wider text-muted-foreground">Coordinates</p>
+                    <p class="font-semibold text-foreground mt-0.5 tabular-nums text-[11px]">
+                      {{ Math.abs(selected.coords[0]).toFixed(3) }}°{{ selected.coords[0] >= 0 ? 'N' : 'S' }}, {{ Math.abs(selected.coords[1]).toFixed(3) }}°{{ selected.coords[1] >= 0 ? 'E' : 'W' }}
+                    </p>
                   </div>
-                  <div class="flex justify-between">
-                    <span>Coordinates:</span>
-                    <span class="text-foreground tabular-nums">{{ selected.coords[0].toFixed(3) }}°, {{ selected.coords[1].toFixed(3) }}°</span>
-                  </div>
-                  <div class="flex justify-between">
-                    <span>Last Transmission:</span>
-                    <span class="text-muted-foreground tabular-nums">{{ selected.packetTs }}</span>
+                  <div class="rounded-md bg-card/60 border border-border/40 p-2">
+                    <p class="text-[10px] uppercase font-medium tracking-wider text-muted-foreground">Last Transmission</p>
+                    <p class="font-semibold text-muted-foreground mt-0.5 tabular-nums text-[11px]">
+                      {{ selected.packetTs }}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -680,7 +765,7 @@ const selected = computed(() => {
               <Button
                 variant="outline"
                 size="sm"
-                class="w-full mt-3.5 h-8 text-xs gap-1.5 font-medium border-primary/40 hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
+                class="w-full h-8 text-xs gap-1.5 font-medium border-primary/40 hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
                 @click="askCopilotForVessel(selected)"
               >
                 <Bot class="size-3.5 text-primary" />

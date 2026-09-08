@@ -43,6 +43,9 @@ export interface NormalizedVessel {
   etaHours: number
   etaIso: string
   etaFormatted: string
+  plannedSpeedKts: number
+  requiredSpeedKts: number
+  speedDeltaKts: number
   tone: 'success' | 'warning' | 'info' | 'muted' | 'destructive'
 }
 
@@ -353,6 +356,9 @@ export default defineEventHandler(async (event) => {
       etaHours: Math.round(etaHours * 10) / 10,
       etaIso: etaDate.toISOString(),
       etaFormatted,
+      plannedSpeedKts: PLANNED_SPEED_KTS,
+      requiredSpeedKts: scheduleStatus === 'moored' ? 0 : PLANNED_SPEED_KTS,
+      speedDeltaKts: scheduleStatus === 'moored' ? 0 : Math.round((PLANNED_SPEED_KTS - p.sog) * 10) / 10,
       tone,
     }
   })
