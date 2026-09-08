@@ -26,8 +26,10 @@ import type { CommandPaletteGroup, CommandPaletteItem } from '~/components/block
 const { current: persona, set: setPersona } = usePersona()
 const { theme, setTheme } = useTheme()
 const { tenant, tenantPath } = useTenant()
+const { displayName, email, initials, logout } = useAuthUser()
 
 function handleSignOut() {
+  logout()
   return navigateTo(tenantPath('/auth/sign-in'))
 }
 
@@ -97,7 +99,7 @@ const paletteGroups = computed<CommandPaletteGroup[]>(() =>
       <DropdownMenuTrigger as-child>
         <Button variant="ghost" size="icon" class="size-9 rounded-full" aria-label="User menu">
           <Avatar class="size-8 ring-1 ring-border">
-            <AvatarFallback class="text-xs font-semibold">AQ</AvatarFallback>
+            <AvatarFallback class="text-xs font-semibold">{{ initials }}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
@@ -105,11 +107,11 @@ const paletteGroups = computed<CommandPaletteGroup[]>(() =>
         <DropdownMenuLabel class="font-normal">
           <div class="flex items-center gap-2.5">
             <Avatar class="size-9">
-              <AvatarFallback class="text-xs font-semibold">AQ</AvatarFallback>
+              <AvatarFallback class="text-xs font-semibold">{{ initials }}</AvatarFallback>
             </Avatar>
             <div class="min-w-0">
-              <p class="text-sm font-semibold truncate">Avery Quinn</p>
-              <p class="text-muted-foreground truncate text-xs">avery.quinn@zepp.dev</p>
+              <p class="text-sm font-semibold truncate">{{ displayName }}</p>
+              <p class="text-muted-foreground truncate text-xs">{{ email }}</p>
             </div>
           </div>
         </DropdownMenuLabel>

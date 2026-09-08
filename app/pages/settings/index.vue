@@ -28,15 +28,22 @@ import { PERSONA_LABELS, type Persona } from '~/composables/usePersona'
 useHead({ title: 'Settings · Zepp' })
 
 const { isAdmin, current: persona, set: setPersona } = usePersona()
+const { displayName, email, role: authRole } = useAuthUser()
 
 // ── Profile ────────────────────────────────────────────────────────
 const profile = ref({
-  name: 'Avery Quinn',
-  email: 'avery.quinn@zepp.dev',
-  role: 'Operations Lead',
+  name: displayName.value,
+  email: email.value,
+  role: authRole.value || 'Smart Ship Super User',
   phone: '+1 415-555-0100',
   timezone: 'America/Los_Angeles',
-  bio: 'Runs the West Coast control tower. Obsessed with on-time rate.',
+  bio: 'Runs the control tower. Obsessed with fleet performance.',
+})
+
+watch([displayName, email, authRole], ([n, e, r]) => {
+  if (n) profile.value.name = n
+  if (e) profile.value.email = e
+  if (r) profile.value.role = r
 })
 
 const TIMEZONES = [
@@ -94,9 +101,9 @@ function toggleIntegration(id: string) {
 // ── Organization (admin) ───────────────────────────────────────────
 const org = ref({
   name: 'Smart Ship Hub',
-  domain: 'zepp.dev',
-  hq: 'Los Angeles, CA',
-  units: 'imperial',
+  domain: 'smartshiphub.com',
+  hq: 'Singapore',
+  units: 'metric',
 })
 function saveOrg() {
   toast.success('Organization settings saved (mock)')

@@ -31,10 +31,47 @@ function targetDashboard() {
 const email = ref('')
 const password = ref('')
 const remember = ref(true)
+const isLoading = ref(false)
+const errorMessage = ref('')
 
 async function handleSubmit() {
-  toast.success('Signed in as Avery Quinn')
-  await navigateTo(targetDashboard())
+  if (!email.value || !password.value) {
+    toast.error('Please enter your email and password')
+    return
+  }
+
+  isLoading.value = true
+  errorMessage.value = ''
+
+  try {
+    const res = await $fetch<{
+      success: boolean
+      message?: string
+      user?: { email?: string; firstName?: string; userName?: string; role?: string }
+      authToken?: string
+    }>('/api/auth/login', {
+      method: 'POST',
+      body: {
+        email: email.value,
+        password: password.value,
+        tenant: tenant.value || 'asiaticlloyd',
+      },
+    })
+
+    if (res.success) {
+      toast.success(res.message || `Signed in as ${res.user?.firstName || res.user?.userName || email.value}`)
+      setPersona('admin')
+      await navigateTo(targetDashboard())
+    } else {
+      toast.error(res.message || 'Login failed')
+    }
+  } catch (err: any) {
+    const msg = err?.data?.statusMessage || err?.data?.message || err?.message || 'Login failed. Please check credentials.'
+    errorMessage.value = msg
+    toast.error(msg)
+  } finally {
+    isLoading.value = false
+  }
 }
 async function continueWithSso(provider: 'Google' | 'Microsoft') {
   toast.info(`Continuing with ${provider} (mock)`)
@@ -106,7 +143,18 @@ const personas: Array<{ key: Persona; label: string; tagline: string }> = [
               <span class="text-muted-foreground text-sm">Remember me on this device</span>
             </label>
 
-            <Button type="submit" class="w-full">Sign in<ArrowRight class="ml-2 size-4" /></Button>
+            <div v-if="errorMessage" class="rounded-lg bg-destructive/10 border border-destructive/20 p-2.5 text-xs text-destructive">
+              {{ errorMessage }}
+            </div>
+
+            <Button type="submit" class="w-full" :disabled="isLoading">
+              <span v-if="isLoading" class="flex items-center gap-2">
+                Signing in...
+              </span>
+              <span v-else class="inline-flex items-center">
+                Sign in<ArrowRight class="ml-2 size-4" />
+              </span>
+            </Button>
           </form>
         </CardContent>
       </Card>

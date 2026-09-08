@@ -45,12 +45,13 @@ function iconFor(name?: string) {
   return (icons as Record<string, any>)[name] ?? null
 }
 
-// Canonical "me" for the demo. Single source so every persona renders
-// the same avatar without forking SSR/client.
-const ME = {
-  name: 'Avery Quinn',
-  email: 'avery.quinn@shiptrack.dev',
-}
+// Canonical user for sidebar footer if rendered
+const { displayName, email: userEmail } = useAuthUser()
+const currentUser = computed(() => ({
+  name: displayName.value,
+  email: userEmail.value,
+  avatar: '',
+}))
 </script>
 
 <template>
@@ -102,7 +103,7 @@ const ME = {
     </SidebarContent>
 
     <SidebarFooter>
-      <NavUser :user="ME" />
+      <NavUser :user="currentUser" />
     </SidebarFooter>
 
     <SidebarRail />
