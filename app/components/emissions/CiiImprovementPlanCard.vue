@@ -133,10 +133,10 @@ const radarChartOption = computed(() => {
       textStyle: { color: chartTooltipText.value, fontSize: 11 },
     },
     legend: {
-      bottom: 0,
-      itemWidth: 10,
-      itemHeight: 10,
-      textStyle: { color: chartTextColor.value, fontSize: 10 },
+      bottom: 2,
+      itemWidth: 12,
+      itemHeight: 12,
+      textStyle: { color: chartTextColor.value, fontSize: 11 },
       data: ['Vessel Deviation', 'Balanced Benchmark'],
     },
     radar: {
@@ -147,11 +147,11 @@ const radarChartOption = computed(() => {
         { name: 'Port / Aux Load', max: 50 },
         { name: 'Ballast Work Deficit', max: 50 },
       ],
-      center: ['50%', '45%'],
-      radius: '62%',
+      center: ['50%', '46%'],
+      radius: '68%',
       axisName: {
         color: chartTextColor.value,
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: 500,
       },
       splitLine: {
@@ -219,24 +219,24 @@ const speedCurveOption = computed(() => {
       },
     },
     grid: {
-      top: 20,
-      right: 15,
-      bottom: 25,
-      left: 35,
+      top: 25,
+      right: 20,
+      bottom: 28,
+      left: 38,
     },
     xAxis: {
       type: 'value',
       name: 'kts',
-      nameTextStyle: { color: chartTextColor.value, fontSize: 10 },
+      nameTextStyle: { color: chartTextColor.value, fontSize: 11 },
       min: (value: any) => Math.floor(value.min - 0.5),
       max: (value: any) => Math.ceil(value.max + 0.5),
-      axisLabel: { color: chartTextColor.value, fontSize: 10 },
+      axisLabel: { color: chartTextColor.value, fontSize: 11 },
       splitLine: { show: false },
       axisLine: { lineStyle: { color: chartAxisColor.value } },
     },
     yAxis: {
       type: 'value',
-      axisLabel: { color: chartTextColor.value, fontSize: 10 },
+      axisLabel: { color: chartTextColor.value, fontSize: 11 },
       splitLine: { lineStyle: { color: chartSplitLineColor.value, type: 'dashed' } },
       min: (value: any) => Math.max(0, Math.floor(value.min - 0.5)),
     },
@@ -256,19 +256,19 @@ const speedCurveOption = computed(() => {
               yAxis: 5.25,
               name: 'Req Cap',
               lineStyle: { color: '#ef4444', type: 'dotted', width: 1.5 },
-              label: { formatter: 'Req Cap', position: 'insideEndTop', fontSize: 9, color: '#ef4444' },
+              label: { formatter: 'Req Cap', position: 'insideEndTop', fontSize: 10, color: '#ef4444' },
             },
             {
               yAxis: 4.65,
               name: 'Grade B',
               lineStyle: { color: '#10b981', type: 'dashed', width: 1 },
-              label: { formatter: 'Grade B', position: 'insideEndTop', fontSize: 9, color: '#10b981' },
+              label: { formatter: 'Grade B', position: 'insideEndTop', fontSize: 10, color: '#10b981' },
             },
           ],
         },
         markPoint: {
           symbol: 'pin',
-          symbolSize: 32,
+          symbolSize: 34,
           itemStyle: { color: '#f59e0b' },
           data: [
             {
@@ -371,7 +371,7 @@ function copyPlanToClipboard() {
             </div>
 
             <!-- Radar Chart -->
-            <div class="h-[210px] w-full flex items-center justify-center pt-1">
+            <div class="h-[285px] w-full flex items-center justify-center pt-1">
               <ClientOnly>
                 <VChart
                   :option="radarChartOption"
@@ -379,7 +379,7 @@ function copyPlanToClipboard() {
                   class="h-full w-full"
                 />
                 <template #fallback>
-                  <Skeleton class="h-[210px] w-full rounded-lg" />
+                  <Skeleton class="h-[285px] w-full rounded-lg" />
                 </template>
               </ClientOnly>
             </div>
@@ -434,7 +434,7 @@ function copyPlanToClipboard() {
             </div>
 
             <!-- Sensitivity Line Chart -->
-            <div class="h-[145px] w-full">
+            <div class="h-[225px] w-full">
               <ClientOnly>
                 <VChart
                   :option="speedCurveOption"
@@ -442,7 +442,7 @@ function copyPlanToClipboard() {
                   class="h-full w-full"
                 />
                 <template #fallback>
-                  <Skeleton class="h-[145px] w-full rounded-lg" />
+                  <Skeleton class="h-[225px] w-full rounded-lg" />
                 </template>
               </ClientOnly>
             </div>
@@ -497,26 +497,32 @@ function copyPlanToClipboard() {
               <div
                 v-for="(item, idx) in improvementPlan.actionItems"
                 :key="idx"
-                class="p-2 rounded-lg bg-card border border-border/50 text-xs flex items-center justify-between gap-2"
+                class="p-2.5 rounded-lg bg-card border border-border/50 text-xs flex flex-col gap-1.5"
               >
-                <div class="flex items-center gap-2 min-w-0">
-                  <span
-                    :class="[
-                      'size-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0',
-                      idx === 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
-                      idx === 1 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' :
-                      'bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                    ]"
-                  >
-                    {{ idx + 1 }}
-                  </span>
-                  <div class="truncate">
-                    <span class="font-medium text-foreground block truncate">{{ item.title }}</span>
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span
+                      :class="[
+                        'size-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0',
+                        idx === 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
+                        idx === 1 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' :
+                        'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                      ]"
+                    >
+                      {{ idx + 1 }}
+                    </span>
+                    <span class="font-medium text-foreground truncate text-[11px]">{{ item.title }}</span>
                   </div>
+                  <Badge variant="outline" class="text-[9px] font-mono shrink-0 border-border text-foreground font-semibold">
+                    {{ item.phase }}
+                  </Badge>
                 </div>
-                <Badge variant="outline" class="text-[9px] font-mono shrink-0 border-border text-foreground font-semibold">
-                  {{ item.impact.split('(')[0] }}
-                </Badge>
+                <div class="flex items-center justify-between text-[10px] text-muted-foreground pl-7 gap-2">
+                  <span class="truncate">{{ item.impact.split('(')[0] }}</span>
+                  <Badge variant="secondary" class="text-[9px] px-1.5 py-0 shrink-0 capitalize">
+                    {{ item.status.replace('_', ' ') }}
+                  </Badge>
+                </div>
               </div>
             </div>
           </div>
