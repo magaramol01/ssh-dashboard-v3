@@ -92,11 +92,13 @@ defineProps<{
         </div>
       </div>
 
-      <!-- Regulatory Context Banner -->
-      <div class="p-2.5 rounded-lg border border-border/40 bg-muted/15 flex items-start gap-2 text-[11px] text-muted-foreground leading-relaxed">
-        <Info class="size-3.5 text-primary shrink-0 mt-0.5" />
-        <span>
-          Under <strong>IMO MEPC.355(78)</strong>, fuel consumed while traversing severe weather corridors is eligible for formal exclusion reporting, preventing unwarranted CII score degradation.
+      <!-- Regulatory Context Strip -->
+      <div class="p-2.5 rounded-lg border border-border/40 bg-muted/15 flex items-center justify-between text-xs font-mono">
+        <span class="text-muted-foreground text-[11px] flex items-center gap-1.5">
+          <ShieldCheck class="size-3.5 text-emerald-500" /> IMO MEPC.355(78) Correction:
+        </span>
+        <span :class="weather.imoExclusionEligible ? 'text-emerald-500 font-bold' : 'text-muted-foreground'">
+          {{ weather.imoExclusionEligible ? 'Deduction Applicable' : 'Not Required' }}
         </span>
       </div>
     </CardContent>
