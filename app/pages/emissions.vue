@@ -1802,6 +1802,10 @@ const fuelDonutOption = computed(() => ({
       <!-- Technical Performance & Diagnostic Telemetry (Unified Tabbed Studio) -->
       <TechnicalTelemetryCard
         v-if="ciiData?.performanceWidgets"
+        :key="`telemetry-${selectedVesselId}-${selectedYear}`"
+        :vessel-id="parseInt(selectedVesselId, 10)"
+        :vessel-name="ciiData.vessel.vesselName"
+        :deadweight="ciiData.vessel.deadweight"
         :weather="ciiData.performanceWidgets.weather"
         :propulsion="ciiData.performanceWidgets.propulsion"
         :engine="ciiData.performanceWidgets.engine"

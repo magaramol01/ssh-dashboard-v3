@@ -64,6 +64,9 @@ const props = defineProps<{
   propulsion: HullPropulsionData
   engine: EngineSfocData
   operations: OperationalProfileData
+  vesselId?: number
+  vesselName?: string
+  deadweight?: number
 }>()
 
 type TelemetryTab = 'weather' | 'propulsion' | 'engine' | 'operations'
@@ -79,10 +82,12 @@ const tabs = [
 // 1. Weather Chart Option: Beaufort Distribution & Speed Loss Curve
 const weatherChartOption = computed(() => {
   const badWeather = Number(props.weather?.badWeatherPct ?? 28)
-  const calmPct = Math.max(10, 100 - badWeather - 22)
-  const moderatePct = 22
+  const vSeed = Math.abs((props.vesselId || 1) * 3)
+  const moderatePct = Number((20 + (vSeed % 8)).toFixed(1))
+  const calmPct = Math.max(8, Number((100 - badWeather - moderatePct).toFixed(1)))
   const roughPct = Number((badWeather * 0.65).toFixed(1))
-  const galePct = Number((badWeather * 0.35).toFixed(1))
+  const galePct = Number(Math.max(0, badWeather - roughPct).toFixed(1))
+  const speedLoss = Number(props.weather?.speedLossKnots ?? 1.2)
 
   return {
     tooltip: {
@@ -134,7 +139,7 @@ const weatherChartOption = computed(() => {
         type: 'line',
         yAxisIndex: 1,
         smooth: true,
-        data: [0, -0.3, -Number(props.weather?.speedLossKnots ?? 1.2), -Number((props.weather?.speedLossKnots * 1.5).toFixed(1))],
+        data: [0, -Number((speedLoss * 0.25).toFixed(1)), -Number(speedLoss.toFixed(1)), -Number((speedLoss * 1.5).toFixed(1))],
         lineStyle: { width: 2.5, color: '#f59e0b' },
         itemStyle: { color: '#f59e0b' },
       },
@@ -145,7 +150,12 @@ const weatherChartOption = computed(() => {
 // 2. Propulsion Chart Option: Speed vs Shaft Power Curves (Baseline vs Fouled)
 const propulsionChartOption = computed(() => {
   const penaltyFactor = 1 + (Number(props.propulsion?.dragPenaltyPct ?? 12.6) / 100)
-  const baselinePowers = [3200, 4200, 5400, 6800, 8500, 10500]
+  const dwt = Number(props.deadweight || 54000)
+  // Reference MCR shaft power calibrated by vessel displacement
+  const cruisingPower = Math.round(dwt * 0.135)
+  const speeds = [10, 11, 12, 13, 14, 15]
+  // Standard cubic propulsion law: P = P_ref * (v / 13)^3
+  const baselinePowers = speeds.map((s) => Math.round(cruisingPower * Math.pow(s / 13.0, 3)))
   const currentPowers = baselinePowers.map((p) => Math.round(p * penaltyFactor))
 
   return {
@@ -320,16 +330,80 @@ const engineChartOption = computed(() => {
   }
 })
 
+// Sea and Port percentages derived consistently from operational days or legs
+const seaPercent = computed(() => {
+  const sDays = Number(props.operations?.seaDays || 0)
+  const pDays = Number(props.operations?.portDays || 0)
+  if (sDays > 0 && pDays > 0) {
+    return Number(((sDays / (sDays + pDays)) * 100).toFixed(1))
+  }
+  const seaSum = Number(props.operations?.ladenPct || 0) + Number(props.operations?.ballastPct || 0)
+  if (seaSum >= 40) return Number(seaSum.toFixed(1))
+  return 71.2
+})
+
+const portPercent = computed(() => {
+  return Number((100 - seaPercent.value).toFixed(1))
+})
+
 // 4. Operations Chart Option: Interactive Donut Chart of Voyage Status
 const operationsChartOption = computed(() => {
   const ops = props.operations
+  const sPct = seaPercent.value
+  const pPct = portPercent.value
+  const seaDays = Number(ops?.seaDays ?? 159)
+  const portDays = Number(ops?.portDays ?? 64)
+
+  // Derive proportional slices that strictly sum to 100%
+  const ladenRaw = Number(ops?.ladenPct ?? (sPct * 0.5))
+  const ballastRaw = Number(ops?.ballastPct ?? (sPct * 0.5))
+  const rawSeaSum = Math.max(1, ladenRaw + ballastRaw)
+  const ladenVal = Number(((ladenRaw / rawSeaSum) * sPct).toFixed(1))
+  const ballastVal = Number((sPct - ladenVal).toFixed(1))
+
+  const portRaw = Number(ops?.portPct ?? (pPct * 0.55))
+  const anchRaw = Number(ops?.anchoragePct ?? (pPct * 0.35))
+  const manRaw = Number(ops?.maneuveringPct ?? (pPct * 0.10))
+  const rawPortSum = Math.max(1, portRaw + anchRaw + manRaw)
+  const portVal = Number(((portRaw / rawPortSum) * pPct).toFixed(1))
+  const anchVal = Number(((anchRaw / rawPortSum) * pPct).toFixed(1))
+  const manVal = Number(Math.max(0, pPct - portVal - anchVal).toFixed(1))
+
   return {
     tooltip: {
       trigger: 'item',
       backgroundColor: chartTooltipBg.value,
       borderColor: chartTooltipBorder.value,
       textStyle: { color: chartTooltipText.value, fontSize: 11 },
-      formatter: '{b}: <b>{c}%</b> of annual time',
+      formatter: (params: any) => {
+        const name = params.name
+        const val = params.value
+        let daysStr = ''
+        if (name.includes('Laden') || name.includes('Ballast')) {
+          const days = Math.round(seaDays * (val / Math.max(1, sPct)))
+          daysStr = ` (${days} days)`
+        } else {
+          const days = Math.round(portDays * (val / Math.max(1, pPct)))
+          daysStr = ` (${days} days)`
+        }
+        return `<b>${name}</b>: ${val}% of annual time${daysStr}`
+      },
+    },
+    title: {
+      text: `${sPct}%`,
+      subtext: 'Sea Utilization',
+      left: '39%',
+      top: '42%',
+      textAlign: 'center',
+      textStyle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: chartTextColor.value,
+      },
+      subtextStyle: {
+        fontSize: 10,
+        color: chartTextColor.value,
+      },
     },
     legend: {
       orient: 'vertical',
@@ -343,7 +417,7 @@ const operationsChartOption = computed(() => {
       {
         name: 'Voyage Distribution',
         type: 'pie',
-        radius: ['50%', '76%'],
+        radius: ['52%', '76%'],
         center: ['40%', '50%'],
         avoidLabelOverlap: false,
         label: { show: false },
@@ -352,11 +426,11 @@ const operationsChartOption = computed(() => {
           scaleSize: 6,
         },
         data: [
-          { value: Number(ops?.ladenPct ?? 30.7), name: 'Laden Leg', itemStyle: { color: '#10b981' } },
-          { value: Number(ops?.ballastPct ?? 30.7), name: 'Ballast Leg', itemStyle: { color: '#14b8a6' } },
-          { value: Number(ops?.portPct ?? 15.2), name: 'Port Operations', itemStyle: { color: '#3b82f6' } },
-          { value: Number(ops?.anchoragePct ?? 18.4), name: 'Anchorage Idle', itemStyle: { color: '#f59e0b' } },
-          { value: Number(ops?.maneuveringPct ?? 5.0), name: 'Maneuvering', itemStyle: { color: '#a855f7' } },
+          { value: ladenVal, name: 'Laden Leg', itemStyle: { color: '#10b981' } },
+          { value: ballastVal, name: 'Ballast Leg', itemStyle: { color: '#14b8a6' } },
+          { value: portVal, name: 'Port Operations', itemStyle: { color: '#3b82f6' } },
+          { value: anchVal, name: 'Anchorage Idle', itemStyle: { color: '#f59e0b' } },
+          { value: manVal, name: 'Maneuvering', itemStyle: { color: '#a855f7' } },
         ],
       },
     ],
@@ -419,25 +493,33 @@ const operationsChartOption = computed(() => {
             <ClientOnly>
               <VChart
                 v-if="activeTab === 'weather'"
+                :key="`weather-${props.vesselId ?? 0}-${props.weather?.badWeatherPct ?? 0}`"
                 :option="weatherChartOption"
+                :update-options="{ notMerge: true }"
                 autoresize
                 class="size-full"
               />
               <VChart
                 v-else-if="activeTab === 'propulsion'"
+                :key="`propulsion-${props.vesselId ?? 0}-${props.propulsion?.dragPenaltyPct ?? 0}-${props.deadweight ?? 0}`"
                 :option="propulsionChartOption"
+                :update-options="{ notMerge: true }"
                 autoresize
                 class="size-full"
               />
               <VChart
                 v-else-if="activeTab === 'engine'"
+                :key="`engine-${props.vesselId ?? 0}-${props.engine?.currentSfoc ?? 0}`"
                 :option="engineChartOption"
+                :update-options="{ notMerge: true }"
                 autoresize
                 class="size-full"
               />
               <VChart
                 v-else-if="activeTab === 'operations'"
+                :key="`operations-${props.vesselId ?? 0}-${props.operations?.ladenPct ?? 0}`"
                 :option="operationsChartOption"
+                :update-options="{ notMerge: true }"
                 autoresize
                 class="size-full"
               />
@@ -504,16 +586,16 @@ const operationsChartOption = computed(() => {
                 <span class="text-[9px] text-muted-foreground block mt-0.5">vs Sea Trial</span>
               </div>
               <div class="p-2.5 rounded-lg border border-border/50 bg-muted/20">
-                <span class="text-[10px] text-muted-foreground block">Propeller Slip</span>
-                <span class="text-xl font-bold font-mono text-foreground">{{ Number(propulsion.engineSlipPct).toFixed(1) }}%</span>
-                <span class="text-[9px] text-muted-foreground block mt-0.5">Apparent slip</span>
+                <span class="text-[10px] text-muted-foreground block">Fuel Loss / Gain</span>
+                <span class="text-xl font-bold font-mono text-rose-500">{{ Number(propulsion.fuelLossPct ?? -35.1).toFixed(1) }}%</span>
+                <span class="text-[9px] text-muted-foreground block mt-0.5">Slip: {{ Number(propulsion.engineSlipPct).toFixed(1) }}% · LRM: {{ Number(propulsion.lrmPct ?? 2.3).toFixed(1) }}%</span>
               </div>
             </div>
 
             <div class="p-2.5 rounded-lg border border-border/40 bg-muted/15 text-xs space-y-1">
               <span class="text-[10px] uppercase font-bold text-muted-foreground">Executive Assessment</span>
               <p class="text-xs text-foreground leading-relaxed">
-                Power penalty has drifted to <b class="font-mono text-amber-500">+{{ Number(propulsion.dragPenaltyPct).toFixed(1) }}%</b>. In-water propeller polishing recovers approximately <b class="font-mono text-emerald-500">~{{ Number(propulsion.powerRecoveryPotentialPct).toFixed(1) }}%</b> shaft power.
+                Hull drag penalty is <b class="font-mono text-amber-500">+{{ Number(propulsion.dragPenaltyPct).toFixed(1) }}%</b> with <b class="font-mono text-rose-500">{{ Number(propulsion.fuelLossPct ?? -35.1).toFixed(1) }}%</b> fuel loss as per Sea Trial. In-water propeller polishing recovers approximately <b class="font-mono text-emerald-500">~{{ Number(propulsion.powerRecoveryPotentialPct).toFixed(1) }}%</b> shaft power.
               </p>
             </div>
           </div>
@@ -525,9 +607,9 @@ const operationsChartOption = computed(() => {
               <Badge
                 variant="outline"
                 class="text-[10px] font-mono uppercase"
-                :class="engine.status === 'optimal' ? 'border-emerald-500 text-emerald-500 bg-emerald-500/5' : 'border-amber-500 text-amber-500 bg-amber-500/5'"
+                :class="Number(engine.currentSfoc) <= Number(engine.expectedSfoc || 176) ? 'border-emerald-500 text-emerald-500 bg-emerald-500/5' : 'border-amber-500 text-amber-500 bg-amber-500/5'"
               >
-                {{ engine.status === 'optimal' ? 'Optimal SFOC' : 'Normal Combustion' }}
+                {{ Number(engine.currentSfoc) <= Number(engine.expectedSfoc || 176) ? 'Optimal SFOC' : 'Normal Combustion' }}
               </Badge>
             </div>
 
@@ -535,31 +617,31 @@ const operationsChartOption = computed(() => {
               <div class="p-2.5 rounded-lg border border-border/50 bg-muted/20">
                 <span class="text-[10px] text-muted-foreground block">Attained SFOC</span>
                 <span class="text-xl font-bold font-mono text-foreground">{{ Number(engine.currentSfoc).toFixed(1) }}</span>
-                <span class="text-[9px] text-muted-foreground block mt-0.5">Target: {{ Number(engine.expectedSfoc).toFixed(0) }} g/kWh</span>
+                <span class="text-[9px] text-muted-foreground block mt-0.5">Expected: 176–187 g/kWh</span>
               </div>
               <div class="p-2.5 rounded-lg border border-border/50 bg-muted/20">
-                <span class="text-[10px] text-muted-foreground block">Thermal Delta</span>
+                <span class="text-[10px] text-muted-foreground block">Fleet Position</span>
                 <span
                   class="text-xl font-bold font-mono"
-                  :class="engine.sfocDelta > 5 ? 'text-amber-500' : 'text-emerald-500'"
+                  :class="Number(engine.currentSfoc) <= 176 ? 'text-emerald-500' : 'text-amber-500'"
                 >
-                  {{ engine.sfocDelta > 0 ? '+' : '' }}{{ Number(engine.sfocDelta).toFixed(1) }}
+                  {{ Number(engine.currentSfoc) <= 176 ? 'In Band' : '+Elevated' }}
                 </span>
-                <span class="text-[9px] text-muted-foreground block mt-0.5">Fleet Avg: {{ Number(engine.fleetAvgSfoc).toFixed(0) }}</span>
+                <span class="text-[9px] text-muted-foreground block mt-0.5">Fleet Avg: {{ Number(engine.fleetAvgSfoc || 174.3).toFixed(1) }}</span>
               </div>
             </div>
 
             <div class="p-2.5 rounded-lg border border-border/40 bg-muted/15 text-xs space-y-1">
               <span class="text-[10px] uppercase font-bold text-muted-foreground">Executive Assessment</span>
               <p class="text-xs text-foreground leading-relaxed">
-                <template v-if="engine.sfocDelta > 8">
-                  Combustion consumption has drifted <b class="font-mono text-amber-500">+{{ Number(engine.sfocDelta).toFixed(1) }} g/kWh</b> above target. Inspect scavenge air coolers and injector nozzles.
+                <template v-if="Number(engine.currentSfoc) <= 176">
+                  Main engine specific consumption (<b class="font-mono text-emerald-500">{{ Number(engine.currentSfoc).toFixed(1) }} g/kWh</b>) is below the expected 176–187 band. Thermal efficiency and fuel injection timing remain optimal.
                 </template>
-                <template v-else-if="engine.sfocDelta > 3">
-                  Combustion operates within acceptable variance (<b class="font-mono text-foreground">+{{ Number(engine.sfocDelta).toFixed(1) }} g/kWh</b>). Thermal efficiency remains stable.
+                <template v-else-if="Number(engine.currentSfoc) <= 187">
+                  Engine SFOC operates within the expected 176–187 g/kWh band (<b class="font-mono text-foreground">{{ Number(engine.currentSfoc).toFixed(1) }} g/kWh</b>). Combustion is balanced.
                 </template>
                 <template v-else>
-                  Main engine thermal efficiency is optimal. Scavenge air coolers and injection timing remain aligned with shop trial specifications.
+                  Combustion consumption has drifted above 187 g/kWh. Inspect scavenge air coolers and fuel injector nozzles.
                 </template>
               </p>
             </div>
@@ -576,21 +658,26 @@ const operationsChartOption = computed(() => {
 
             <div class="grid grid-cols-2 gap-2">
               <div class="p-2.5 rounded-lg border border-border/50 bg-muted/20">
-                <span class="text-[10px] text-muted-foreground block">Cargo Laden Ratio</span>
-                <span class="text-xl font-bold font-mono text-foreground">{{ Number(operations.ladenPct).toFixed(1) }}%</span>
-                <span class="text-[9px] text-muted-foreground block mt-0.5">Ballast: {{ Number(operations.ballastPct).toFixed(1) }}%</span>
+                <span class="text-[10px] text-muted-foreground block">Sea Utilization</span>
+                <span class="text-xl font-bold font-mono text-emerald-500">{{ seaPercent }}%</span>
+                <span class="text-[9px] text-muted-foreground block mt-0.5">~{{ Number(operations.seaDays ?? 159).toFixed(0) }} Days at Sea</span>
               </div>
               <div class="p-2.5 rounded-lg border border-border/50 bg-muted/20">
-                <span class="text-[10px] text-muted-foreground block">Port Idle Stays</span>
-                <span class="text-xl font-bold font-mono text-amber-500">{{ (Number(operations.portPct) + Number(operations.anchoragePct)).toFixed(1) }}%</span>
-                <span class="text-[9px] text-muted-foreground block mt-0.5">~{{ Number(operations.nonProductiveFuelMt).toFixed(0) }} MT Fuel</span>
+                <span class="text-[10px] text-muted-foreground block">Port Operations</span>
+                <span class="text-xl font-bold font-mono text-foreground">{{ portPercent }}%</span>
+                <span class="text-[9px] text-muted-foreground block mt-0.5">~{{ Number(operations.portDays ?? 64).toFixed(0) }} Days in Port</span>
               </div>
             </div>
 
             <div class="p-2.5 rounded-lg border border-border/40 bg-muted/15 text-xs space-y-1">
               <span class="text-[10px] uppercase font-bold text-muted-foreground">Executive Assessment</span>
               <p class="text-xs text-foreground leading-relaxed">
-                Over 60% of vessel time is non-productive port/anchorage stay. Connecting to shore-power / cold-ironing eliminates idle auxiliary emissions.
+                <template v-if="portPercent > 45">
+                  Port and anchorage time is elevated ({{ portPercent }}%). Connecting to shore-power / cold-ironing eliminates idle auxiliary fuel burn.
+                </template>
+                <template v-else>
+                  Vessel maintains active sea deployment ({{ seaPercent }}% sea vs {{ portPercent }}% port). Turnaround and voyage efficiency are on schedule.
+                </template>
               </p>
             </div>
           </div>

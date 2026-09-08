@@ -446,6 +446,10 @@ export function processCiiRecords(params: {
       totalCo2Mt: totalMassOfCo2Mt,
       totalFuelMt: fuelBreakdown.reduce((acc, f) => acc + f.totalMt, 0),
       attainedCii,
+      vesselId,
+      deadweight,
+      runningHoursAtSea: operationalHours.seaHours,
+      runningHoursAtPort: operationalHours.portHours,
     }),
   }
 }
