@@ -51,9 +51,9 @@ useHead({
 })
 
 const currentYear = new Date().getFullYear()
-const selectedYear = ref(currentYear)
-const selectedVesselId = ref<number>(1)
-const selectedVoyage = ref<string>('')
+const selectedYear = ref<string>(String(currentYear))
+const selectedVesselId = ref<string>('1')
+const selectedVoyage = ref<string>('all')
 const selectedVoyageType = ref<string>('all')
 const activeScenarioIndex = ref<number>(1) // Default to -10% speed reduction
 
@@ -65,16 +65,16 @@ const { data: fleetData } = await useFetch('/api/vessels/geojson')
 const vesselOptions = computed(() => {
   if (fleetData.value?.vessels?.length) {
     return fleetData.value.vessels.map((v) => ({
-      id: v.vesselId,
+      id: String(v.vesselId),
       name: v.name,
       dwt: 54000,
     }))
   }
   return [
-    { id: 1, name: 'Pacific Titan', dwt: 55000 },
-    { id: 2, name: 'Nordic Star', dwt: 48000 },
-    { id: 3, name: 'Atlantic Pioneer', dwt: 52000 },
-    { id: 4, name: 'Ocean Navigator', dwt: 61000 },
+    { id: '1', name: 'Pacific Titan', dwt: 55000 },
+    { id: '2', name: 'Nordic Star', dwt: 48000 },
+    { id: '3', name: 'Atlantic Pioneer', dwt: 52000 },
+    { id: '4', name: 'Ocean Navigator', dwt: 61000 },
   ]
 })
 
@@ -85,9 +85,9 @@ const {
   refresh: refreshCiiData,
 } = await useFetch<EmissionsCiiResponse>('/api/emissions/cii', {
   query: computed(() => ({
-    vesselId: selectedVesselId.value,
-    year: selectedYear.value,
-    voyageNumber: selectedVoyage.value || undefined,
+    vesselId: parseInt(selectedVesselId.value, 10) || 1,
+    year: parseInt(selectedYear.value, 10) || currentYear,
+    voyageNumber: selectedVoyage.value !== 'all' ? selectedVoyage.value : undefined,
     voyageType: selectedVoyageType.value,
   })),
 })
@@ -282,7 +282,7 @@ const chartData = computed(() => {
               <SelectItem
                 v-for="yr in yearOptions"
                 :key="yr"
-                :value="yr"
+                :value="String(yr)"
                 class="text-xs cursor-pointer"
               >
                 {{ yr }}
@@ -291,18 +291,18 @@ const chartData = computed(() => {
           </Select>
         </div>
 
-        <!-- Voyage Selector (if voyages exist) -->
-        <div v-if="ciiData?.availableVoyages?.length" class="w-[160px]">
+        <!-- Voyage Selector -->
+        <div class="w-[180px]">
           <Select v-model="selectedVoyage">
             <SelectTrigger class="h-8 text-xs font-medium">
               <SelectValue placeholder="All Voyages (YTD)" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="" class="text-xs cursor-pointer">
+              <SelectItem value="all" class="text-xs cursor-pointer">
                 All Voyages (YTD)
               </SelectItem>
               <SelectItem
-                v-for="voy in ciiData.availableVoyages"
+                v-for="voy in ciiData?.availableVoyages || []"
                 :key="voy.voyageNumber"
                 :value="voy.voyageNumber"
                 class="text-xs cursor-pointer"

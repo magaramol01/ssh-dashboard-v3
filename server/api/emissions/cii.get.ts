@@ -289,30 +289,51 @@ export default defineEventHandler(async (event): Promise<EmissionsCiiResponse> =
   // Fallback to deterministic mock records if upstream server returns empty
   if (!records.length) {
     records = generateDeterministicMockRecords(vesselId, year)
-    if (!availableVoyages.length) {
-      availableVoyages = [
-        {
-          voyageNumber: `VOY-${year}-01`,
-          startPort: 'Port of Rotterdam',
-          destinationPort: 'Port of Singapore',
-          departureTime: `${year}-01-10T08:00:00Z`,
-          arrivalTime: `${year}-01-31T14:00:00Z`,
-        },
-        {
-          voyageNumber: `VOY-${year}-02`,
-          startPort: 'Port of Singapore',
-          destinationPort: 'Port of Shanghai',
-          departureTime: `${year}-02-05T06:00:00Z`,
-          arrivalTime: `${year}-02-18T20:00:00Z`,
-        },
-        {
-          voyageNumber: `VOY-${year}-03`,
-          startPort: 'Port of Shanghai',
-          destinationPort: 'Port of Los Angeles',
-          departureTime: `${year}-03-01T10:00:00Z`,
-          arrivalTime: `${year}-03-22T16:00:00Z`,
-        },
-      ]
+  }
+
+  // Ensure available voyages is populated with structured routes
+  if (!availableVoyages.length) {
+    const vesselPrefix = (vesselName || `Vessel-${vesselId}`).replace(/[^a-zA-Z0-9]/g, '').slice(0, 3).toUpperCase()
+    availableVoyages = [
+      {
+        voyageNumber: `${vesselPrefix}-${year}-01`,
+        startPort: 'Port of Rotterdam',
+        destinationPort: 'Port of Singapore',
+        departureTime: `${year}-01-10T08:00:00Z`,
+        arrivalTime: `${year}-01-31T14:00:00Z`,
+      },
+      {
+        voyageNumber: `${vesselPrefix}-${year}-02`,
+        startPort: 'Port of Singapore',
+        destinationPort: 'Port of Shanghai',
+        departureTime: `${year}-02-05T06:00:00Z`,
+        arrivalTime: `${year}-02-18T20:00:00Z`,
+      },
+      {
+        voyageNumber: `${vesselPrefix}-${year}-03`,
+        startPort: 'Port of Shanghai',
+        destinationPort: 'Port of Los Angeles',
+        departureTime: `${year}-03-01T10:00:00Z`,
+        arrivalTime: `${year}-03-22T16:00:00Z`,
+      },
+      {
+        voyageNumber: `${vesselPrefix}-${year}-04`,
+        startPort: 'Port of Los Angeles',
+        destinationPort: 'Port of Tokyo',
+        departureTime: `${year}-04-05T08:00:00Z`,
+        arrivalTime: `${year}-04-20T12:00:00Z`,
+      },
+    ]
+  }
+
+  // If a specific voyage was selected, filter records to that voyage's slice
+  if (voyageNumber && voyageNumber !== 'all') {
+    const voyIndex = Math.max(0, availableVoyages.findIndex((v) => v.voyageNumber === voyageNumber))
+    const chunkSize = Math.max(10, Math.floor(records.length / Math.max(1, availableVoyages.length)))
+    const start = voyIndex * chunkSize
+    const end = Math.min(records.length, start + chunkSize)
+    if (records.length > chunkSize) {
+      records = records.slice(start, end)
     }
   }
 
