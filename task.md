@@ -1,10 +1,2 @@
-eg  http://localhost:3340/asiaticlloyd/live , http://localhost:3340/xyz/live
-
-we are planing to make this application multitenent 
- we are taking the tenant name form the url it self
-
-it will be the requeste hader for each requect to our server 
- x-request-id :
-0905c74c-3cc5-4d67-be18-5482b4c3488b
-x-tenant-id :
-asiaticlloyd
+frontend path of where the upper backeend server api used :- home/developer/Desktop/DAY TO DAY/superset embed/ssh-dashboard/src/RTCM/screens/Emissions/CII_/index.jsx
+the things they are doning on front end we hae to doit on our backend , rename the inbound to emission on side bar and  sff nre page there ALSO CHECK how theere showing data on that page we have dont show the extach same way to insiht rich , also check how many api are getting used we have to use less api that with maximaun output 
