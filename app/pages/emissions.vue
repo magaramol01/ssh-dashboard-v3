@@ -6,6 +6,7 @@ import {
   Ship,
   Fuel,
   TrendingDown,
+  TrendingUp,
   Calendar,
   Download,
   RefreshCw,
@@ -18,6 +19,11 @@ import {
   FileSpreadsheet,
   ArrowDownRight,
   ShieldCheck,
+  Coins,
+  Scale,
+  Award,
+  BarChart3,
+  Users,
 } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -40,6 +46,7 @@ import {
 } from '@/components/ui/table'
 import { Progress } from '@/components/ui/progress'
 import AreaChart from '@/components/ui/charts/area-chart/AreaChart.vue'
+import BarChart from '@/components/ui/charts/bar-chart/BarChart.vue'
 import type { EmissionsCiiResponse } from '~~/server/api/emissions/cii.get'
 
 definePageMeta({
@@ -47,7 +54,7 @@ definePageMeta({
 })
 
 useHead({
-  title: 'Emissions & CII Intelligence | ShipTrack',
+  title: 'Vessel Emissions & CII Intelligence | ShipTrack',
 })
 
 const currentYear = new Date().getFullYear()
@@ -56,6 +63,7 @@ const selectedVesselId = ref<string>('1')
 const selectedVoyage = ref<string>('all')
 const selectedVoyageType = ref<string>('all')
 const activeScenarioIndex = ref<number>(1) // Default to -10% speed reduction
+const compareTargetId = ref<string>('fleet') // 'fleet' or another vesselId string
 
 // Available years from 2020 to current
 const yearOptions = Array.from({ length: currentYear - 2019 }, (_, i) => currentYear - i)
@@ -75,10 +83,36 @@ const vesselOptions = computed(() => {
     { id: '2', name: 'Nordic Star', dwt: 48000 },
     { id: '3', name: 'Atlantic Pioneer', dwt: 52000 },
     { id: '4', name: 'Ocean Navigator', dwt: 61000 },
+    { id: '5', name: 'Southern Cross', dwt: 45000 },
+    { id: '6', name: 'Baltic Wind', dwt: 58000 },
   ]
 })
 
-// Unified single API call to Nuxt server
+// Watch for fleetData to automatically select the first fleet vessel
+watch(
+  () => vesselOptions.value,
+  (options) => {
+    if (options.length && (!selectedVesselId.value || selectedVesselId.value === '1')) {
+      const exists = options.some((v) => v.id === selectedVesselId.value)
+      if (!exists) {
+        selectedVesselId.value = options[0].id
+      }
+    }
+  },
+  { immediate: true }
+)
+
+const selectedVessel = computed(() => {
+  return vesselOptions.value.find((v) => v.id === selectedVesselId.value) || vesselOptions.value[0]
+})
+
+// Client-side cache of known vessel CIIs to guarantee cross-selection stability
+const knownVesselCii = useState<Record<string, { attainedCii: number; rating: string; deadweight?: number }>>(
+  'emissions_known_vessel_cii',
+  () => ({})
+)
+
+// Unified single API call to Nuxt server for selected vessel data
 const {
   data: ciiData,
   pending: isLoading,
@@ -86,11 +120,50 @@ const {
 } = await useFetch<EmissionsCiiResponse>('/api/emissions/cii', {
   query: computed(() => ({
     vesselId: parseInt(selectedVesselId.value, 10) || 1,
+    vesselName: selectedVessel.value?.name,
+    fleetVessels: JSON.stringify(
+      vesselOptions.value.map((v) => {
+        const known = knownVesselCii.value[v.id]
+        return {
+          vesselId: parseInt(v.id, 10),
+          vesselName: v.name,
+          deadweight: known?.deadweight || v.dwt,
+          attainedCii: known?.attainedCii,
+          rating: known?.rating,
+        }
+      })
+    ),
     year: parseInt(selectedYear.value, 10) || currentYear,
     voyageNumber: selectedVoyage.value !== 'all' ? selectedVoyage.value : undefined,
     voyageType: selectedVoyageType.value,
   })),
 })
+
+// Synchronize returned peer benchmarks and active vessel metrics into client-side cache
+watch(
+  () => ciiData.value,
+  (data) => {
+    if (data?.benchmark?.peers) {
+      for (const p of data.benchmark.peers) {
+        if (typeof p.attainedCii === 'number' && p.attainedCii > 0) {
+          knownVesselCii.value[String(p.vesselId)] = {
+            attainedCii: p.attainedCii,
+            rating: p.rating,
+            deadweight: p.deadweight,
+          }
+        }
+      }
+    }
+    if (data?.vessel?.vesselId && data?.summary?.attainedCii) {
+      knownVesselCii.value[String(data.vessel.vesselId)] = {
+        attainedCii: data.summary.attainedCii,
+        rating: data.summary.attainedRating,
+        deadweight: data.vessel.deadweight,
+      }
+    }
+  },
+  { immediate: true }
+)
 
 // Rating badge colors and classes
 function getRatingTone(rating?: string) {
@@ -159,7 +232,7 @@ const gaugePositionPercent = computed(() => {
   return Math.round(((clamped - min) / (max - min)) * 100)
 })
 
-// Format large numbers with commas
+// Format numbers with commas
 function formatNumber(n?: number, decimals = 0): string {
   if (n === undefined || n === null || isNaN(n)) return '--'
   return n.toLocaleString('en-US', {
@@ -167,6 +240,110 @@ function formatNumber(n?: number, decimals = 0): string {
     maximumFractionDigits: decimals,
   })
 }
+
+// Comparison target resolution (Fleet Average vs Selected Sister Ship)
+const comparisonData = computed(() => {
+  if (!ciiData.value?.benchmark) return null
+  const current = ciiData.value.summary
+  const bench = ciiData.value.benchmark
+
+  if (compareTargetId.value === 'fleet') {
+    const diff = current.attainedCii - bench.fleetAverageCii
+    const diffPct = bench.fleetAverageCii > 0 ? (diff / bench.fleetAverageCii) * 100 : 0
+    return {
+      name: 'Fleet Average',
+      attainedCii: bench.fleetAverageCii,
+      rating: getRatingTone(getRatingToneForCii(bench.fleetAverageCii, current.boundaries)).label,
+      ratingGrade: getRatingToneForCii(bench.fleetAverageCii, current.boundaries),
+      diffCii: Number(diff.toFixed(2)),
+      diffPct: Number(diffPct.toFixed(1)),
+      isBetter: diff <= 0,
+      description: `${Math.abs(Number(diffPct.toFixed(1)))}% ${diff <= 0 ? 'more fuel-efficient' : 'higher intensity'} than fleet average`,
+    }
+  }
+
+  const peer = bench.peers.find((p) => String(p.vesselId) === compareTargetId.value)
+  if (peer) {
+    const diff = current.attainedCii - peer.attainedCii
+    const diffPct = peer.attainedCii > 0 ? (diff / peer.attainedCii) * 100 : 0
+    return {
+      name: peer.vesselName,
+      attainedCii: peer.attainedCii,
+      rating: getRatingTone(peer.rating).label,
+      ratingGrade: peer.rating,
+      diffCii: Number(diff.toFixed(2)),
+      diffPct: Number(diffPct.toFixed(1)),
+      isBetter: diff <= 0,
+      description: `${Math.abs(Number(diffPct.toFixed(1)))}% ${diff <= 0 ? 'more fuel-efficient' : 'higher intensity'} than ${peer.vesselName}`,
+    }
+  }
+
+  return null
+})
+
+function getRatingToneForCii(cii: number, b: any) {
+  if (!b) return 'C'
+  if (cii <= b.superior_boundary) return 'A'
+  if (cii <= b.lower_boundary) return 'B'
+  if (cii <= b.upper_boundary) return 'C'
+  if (cii <= b.inferior_boundary) return 'D'
+  return 'E'
+}
+
+// Peer Benchmark Bar Chart Data
+const peerChartData = computed(() => {
+  if (!ciiData.value?.benchmark?.peers) return []
+  return ciiData.value.benchmark.peers.map((p) => ({
+    vessel: p.vesselName.replace('Pacific ', 'Pac. ').replace('Atlantic ', 'Atl. ').replace('Northern ', 'Nor. '),
+    'Attained CII': p.attainedCii,
+  }))
+})
+
+// Peer comparison chart options with threshold benchmark lines
+const peerChartOption = computed(() => {
+  if (!ciiData.value?.benchmark) return {}
+  const fleetAvg = ciiData.value.benchmark.fleetAverageCii
+  const req = ciiData.value.summary.requiredCii
+
+  return {
+    grid: { left: 8, right: 16, top: 24, bottom: 24, containLabel: true },
+    yAxis: {
+      name: 'gCO₂/(MT·NM)',
+      nameTextStyle: { fontSize: 10, color: '#888' },
+    },
+    series: [
+      {
+        itemStyle: {
+          color: (params: any) => {
+            const peer = ciiData.value?.benchmark.peers[params.dataIndex]
+            if (peer?.isCurrentVessel) {
+              return 'var(--primary, #0ea5e9)'
+            }
+            return 'rgba(148, 163, 184, 0.45)'
+          },
+          borderRadius: [4, 4, 0, 0],
+        },
+        markLine: {
+          symbol: 'none',
+          data: [
+            {
+              yAxis: fleetAvg,
+              name: 'Fleet Avg',
+              lineStyle: { color: '#38bdf8', type: 'dashed', width: 2 },
+              label: { formatter: `Fleet Avg: ${fleetAvg.toFixed(2)}`, position: 'insideEndTop', fontSize: 10 },
+            },
+            {
+              yAxis: req,
+              name: 'IMO Limit',
+              lineStyle: { color: '#f43f5e', type: 'dotted', width: 2 },
+              label: { formatter: `IMO Cap: ${req.toFixed(2)}`, position: 'insideStartTop', fontSize: 10 },
+            },
+          ],
+        },
+      },
+    ],
+  }
+})
 
 // Export CSV report
 function exportCsv() {
@@ -185,11 +362,13 @@ function exportCsv() {
     ['Attained Rating', summary.attainedRating],
     ['Required CII', String(summary.requiredCii)],
     ['Margin %', `${summary.marginPercent}%`],
+    ['EU ETS Cost Liability (€)', String(summary.euEtsCostEur)],
+    ['EEOI Cargo Index', String(summary.eeoi)],
     ['Total CO2 (MT)', String(summary.totalCo2Mt)],
     ['Transport Work (MT*NM)', String(summary.totalTransportWork)],
     ['Total Distance (NM)', String(summary.totalDistanceNm)],
-    ['Sea Running Hours', String(summary.runningHoursAtSea)],
-    ['Port Running Hours', String(summary.runningHoursAtPort)],
+    ['Fleet Rank', `#${ciiData.value.benchmark.vesselRank} of ${ciiData.value.benchmark.fleetTotalVessels}`],
+    ['Fleet Average CII', String(ciiData.value.benchmark.fleetAverageCii)],
     [],
     ['Fuel Breakdown', 'Sea (MT)', 'Port (MT)', 'Total (MT)', 'Carbon Coeff', 'Total CO2 (MT)'],
     ...ciiData.value.fuelBreakdown.map((f) => [
@@ -243,9 +422,16 @@ const chartData = computed(() => {
             <Gauge class="size-5" />
           </div>
           <div>
-            <h1 class="text-xl font-bold tracking-tight text-foreground">Emissions & CII Intelligence</h1>
+            <div class="flex items-center gap-2">
+              <h1 class="text-xl font-bold tracking-tight text-foreground">
+                {{ ciiData?.vessel.vesselName || 'Vessel' }} Emissions & CII
+              </h1>
+              <Badge variant="outline" class="text-[10px] font-semibold border-primary/30 text-primary">
+                Vessel Deep-Dive
+              </Badge>
+            </div>
             <p class="text-xs text-muted-foreground">
-              IMO MARPOL Annex VI Carbon Intensity Indicator compliance, fuel mix, and speed advisory
+              IMO MARPOL Annex VI Carbon Intensity Indicator, EU ETS exposure, and fleet benchmarking
             </p>
           </div>
         </div>
@@ -253,8 +439,8 @@ const chartData = computed(() => {
 
       <!-- Controls Bar -->
       <div class="flex flex-wrap items-center gap-2.5">
-        <!-- Vessel Selector -->
-        <div class="w-[180px]">
+        <!-- Vessel Selector (Required: always one vessel selected) -->
+        <div class="w-[190px]">
           <Select v-model="selectedVesselId">
             <SelectTrigger class="h-8 text-xs font-medium">
               <SelectValue placeholder="Select Vessel" />
@@ -273,7 +459,7 @@ const chartData = computed(() => {
         </div>
 
         <!-- Year Selector -->
-        <div class="w-[100px]">
+        <div class="w-[95px]">
           <Select v-model="selectedYear">
             <SelectTrigger class="h-8 text-xs font-medium">
               <SelectValue placeholder="Year" />
@@ -292,7 +478,7 @@ const chartData = computed(() => {
         </div>
 
         <!-- Voyage Selector -->
-        <div class="w-[180px]">
+        <div class="w-[185px]">
           <Select v-model="selectedVoyage">
             <SelectTrigger class="h-8 text-xs font-medium">
               <SelectValue placeholder="All Voyages (YTD)" />
@@ -341,9 +527,10 @@ const chartData = computed(() => {
 
     <!-- Loading Skeleton State -->
     <div v-if="isLoading && !ciiData" class="space-y-6">
+      <Skeleton class="h-16 w-full rounded-xl" />
       <Skeleton class="h-44 w-full rounded-xl" />
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Skeleton v-for="i in 4" :key="i" class="h-28 rounded-xl" />
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <Skeleton v-for="i in 6" :key="i" class="h-28 rounded-xl" />
       </div>
       <div class="grid gap-6 lg:grid-cols-12">
         <Skeleton class="h-80 rounded-xl lg:col-span-7" />
@@ -352,6 +539,66 @@ const chartData = computed(() => {
     </div>
 
     <div v-else-if="ciiData" class="space-y-6">
+      <!-- Vessel Fleet Ranking & Context Strip -->
+      <div class="bg-card/70 border rounded-xl p-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-3 shadow-xs">
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-sm text-foreground">{{ ciiData.vessel.vesselName }}</span>
+            <Badge variant="outline" class="text-[10px] font-mono">
+              DWT: {{ formatNumber(ciiData.vessel.deadweight) }} MT
+            </Badge>
+          </div>
+          <div class="h-4 w-px bg-border hidden sm:block" />
+          <div class="flex items-center gap-1.5 text-xs">
+            <Award class="size-3.5 text-primary" />
+            <span class="text-muted-foreground">Fleet Position:</span>
+            <span class="font-bold text-foreground">
+              Rank #{{ ciiData.benchmark.vesselRank }}
+            </span>
+            <span class="text-[11px] text-muted-foreground">of {{ ciiData.benchmark.fleetTotalVessels }} vessels</span>
+          </div>
+          <div class="h-4 w-px bg-border hidden sm:block" />
+          <div class="flex items-center gap-1.5 text-xs">
+            <component
+              :is="ciiData.benchmark.deltaVsFleetPercent <= 0 ? TrendingDown : TrendingUp"
+              :class="['size-3.5', ciiData.benchmark.deltaVsFleetPercent <= 0 ? 'text-emerald-500' : 'text-amber-500']"
+            />
+            <span :class="['font-semibold', ciiData.benchmark.deltaVsFleetPercent <= 0 ? 'text-emerald-500' : 'text-amber-500']">
+              {{ Math.abs(ciiData.benchmark.deltaVsFleetPercent) }}%
+              {{ ciiData.benchmark.deltaVsFleetPercent <= 0 ? 'better' : 'higher intensity' }}
+            </span>
+            <span class="text-muted-foreground">than Fleet Avg ({{ ciiData.benchmark.fleetAverageCii.toFixed(2) }})</span>
+          </div>
+        </div>
+
+        <!-- Comparator Switcher: Compare this vessel with Fleet Average or sister ship -->
+        <div class="flex items-center gap-2 self-end md:self-auto">
+          <span class="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
+            <Scale class="size-3.5 text-primary" /> Compare against:
+          </span>
+          <div class="w-[160px]">
+            <Select v-model="compareTargetId">
+              <SelectTrigger class="h-7 text-xs">
+                <SelectValue placeholder="Compare With" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fleet" class="text-xs cursor-pointer">
+                  Fleet Average
+                </SelectItem>
+                <SelectItem
+                  v-for="p in ciiData.benchmark.peers.filter((x) => !x.isCurrentVessel)"
+                  :key="p.vesselId"
+                  :value="String(p.vesselId)"
+                  class="text-xs cursor-pointer"
+                >
+                  {{ p.vesselName }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
       <!-- Hero CII Compliance Card -->
       <Card :class="['border shadow-sm transition-colors', currentRatingInfo.cardBorder]">
         <CardContent class="p-5 md:p-6">
@@ -447,8 +694,8 @@ const chartData = computed(() => {
         </CardContent>
       </Card>
 
-      <!-- 4-Tile Operational KPI Grid -->
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <!-- Enhanced 6-Tile Operational KPI Grid (Vessel-Specific Metrics) -->
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <!-- Tile 1: Total CO2 -->
         <Card class="shadow-xs">
           <CardContent class="p-4 space-y-1.5">
@@ -456,12 +703,12 @@ const chartData = computed(() => {
               <span class="font-medium uppercase tracking-wider text-[10px]">Total CO₂ Emitted</span>
               <Leaf class="size-4 text-emerald-500" />
             </div>
-            <div class="text-2xl font-bold tracking-tight tabular-nums text-foreground">
+            <div class="text-xl font-bold tracking-tight tabular-nums text-foreground">
               {{ formatNumber(ciiData.summary.totalCo2Mt, 1) }}
               <span class="text-xs font-normal text-muted-foreground">MT</span>
             </div>
             <p class="text-[11px] text-muted-foreground">
-              Across {{ ciiData.fuelBreakdown.length }} fuel types consumed
+              Rate: {{ ciiData.summary.co2PerDistanceNm }} MT/NM
             </p>
           </CardContent>
         </Card>
@@ -473,12 +720,12 @@ const chartData = computed(() => {
               <span class="font-medium uppercase tracking-wider text-[10px]">Transport Work</span>
               <Compass class="size-4 text-primary" />
             </div>
-            <div class="text-2xl font-bold tracking-tight tabular-nums text-foreground">
+            <div class="text-xl font-bold tracking-tight tabular-nums text-foreground">
               {{ formatNumber(Math.round(ciiData.summary.totalTransportWork / 1000000), 1) }}
               <span class="text-xs font-normal text-muted-foreground">M MT·NM</span>
             </div>
             <p class="text-[11px] text-muted-foreground">
-              DWT: {{ formatNumber(ciiData.vessel.deadweight) }} MT baseline
+              DWT: {{ formatNumber(ciiData.vessel.deadweight) }} MT capacity
             </p>
           </CardContent>
         </Card>
@@ -490,7 +737,7 @@ const chartData = computed(() => {
               <span class="font-medium uppercase tracking-wider text-[10px]">Distance Sailed</span>
               <Ship class="size-4 text-cyan-500" />
             </div>
-            <div class="text-2xl font-bold tracking-tight tabular-nums text-foreground">
+            <div class="text-xl font-bold tracking-tight tabular-nums text-foreground">
               {{ formatNumber(ciiData.summary.totalDistanceNm, 0) }}
               <span class="text-xs font-normal text-muted-foreground">NM</span>
             </div>
@@ -504,19 +751,143 @@ const chartData = computed(() => {
         <Card class="shadow-xs">
           <CardContent class="p-4 space-y-1.5">
             <div class="flex items-center justify-between text-xs text-muted-foreground">
-              <span class="font-medium uppercase tracking-wider text-[10px]">Mean Draft & Trim</span>
+              <span class="font-medium uppercase tracking-wider text-[10px]">Loaded Drafts</span>
               <Anchor class="size-4 text-amber-500" />
             </div>
-            <div class="text-2xl font-bold tracking-tight tabular-nums text-foreground">
+            <div class="text-xl font-bold tracking-tight tabular-nums text-foreground">
               {{ ciiData.summary.averageDraftFwdMts?.toFixed(2) ?? '--' }} / {{ ciiData.summary.averageDraftAftMts?.toFixed(2) ?? '--' }}
               <span class="text-xs font-normal text-muted-foreground">mts</span>
             </div>
             <p class="text-[11px] text-muted-foreground">
-              Fwd / Aft average loaded drafts
+              Fwd / Aft loaded draft
+            </p>
+          </CardContent>
+        </Card>
+
+        <!-- Tile 5: EU ETS Carbon Allowance Exposure (€) -->
+        <Card class="shadow-xs border-primary/20 bg-primary/5">
+          <CardContent class="p-4 space-y-1.5">
+            <div class="flex items-center justify-between text-xs text-muted-foreground">
+              <span class="font-medium uppercase tracking-wider text-[10px] text-primary">EU ETS Cost</span>
+              <Coins class="size-4 text-primary" />
+            </div>
+            <div class="text-xl font-bold tracking-tight tabular-nums text-foreground">
+              €{{ formatNumber(ciiData.summary.euEtsCostEur, 0) }}
+            </div>
+            <p class="text-[11px] text-muted-foreground">
+              EUA Liability @ €65/MT
+            </p>
+          </CardContent>
+        </Card>
+
+        <!-- Tile 6: EEOI Operational Cargo Efficiency -->
+        <Card class="shadow-xs">
+          <CardContent class="p-4 space-y-1.5">
+            <div class="flex items-center justify-between text-xs text-muted-foreground">
+              <span class="font-medium uppercase tracking-wider text-[10px]">EEOI Index</span>
+              <Scale class="size-4 text-emerald-500" />
+            </div>
+            <div class="text-xl font-bold tracking-tight tabular-nums text-foreground">
+              {{ ciiData.summary.eeoi.toFixed(2) }}
+              <span class="text-xs font-normal text-muted-foreground">g/t·nm</span>
+            </div>
+            <p class="text-[11px] text-muted-foreground">
+              Cargo payload efficiency
             </p>
           </CardContent>
         </Card>
       </div>
+
+      <!-- Vessel Comparison Section: Selected Vessel vs Fleet / Sister Ships -->
+      <Card class="shadow-xs">
+        <CardHeader class="pb-3">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <CardTitle class="text-base font-semibold flex items-center gap-2">
+                <BarChart3 class="size-4 text-primary" />
+                Vessel Performance Benchmarking (vs Fleet & Peers)
+              </CardTitle>
+              <CardDescription class="text-xs">
+                Compare <span class="font-semibold text-foreground">{{ ciiData.vessel.vesselName }}</span> against the fleet average and sister vessels
+              </CardDescription>
+            </div>
+            <Badge variant="outline" class="text-[11px] w-fit font-medium">
+              Rank #{{ ciiData.benchmark.vesselRank }} of {{ ciiData.benchmark.fleetTotalVessels }}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent class="space-y-6">
+          <div class="grid gap-6 lg:grid-cols-12 items-center">
+            <!-- Left: Side-by-Side Target Comparison Card (4 cols) -->
+            <div class="lg:col-span-4 bg-muted/20 border rounded-xl p-4 space-y-4">
+              <div class="flex items-center justify-between border-b pb-2">
+                <div class="space-y-0.5">
+                  <span class="text-[10px] uppercase font-bold text-muted-foreground">Benchmark Comparison</span>
+                  <p class="text-xs font-semibold text-foreground">
+                    {{ ciiData.vessel.vesselName }} vs. {{ comparisonData?.name }}
+                  </p>
+                </div>
+                <Badge
+                  :variant="comparisonData?.isBetter ? 'default' : 'destructive'"
+                  class="text-[10px] font-semibold"
+                >
+                  {{ comparisonData?.diffPct && comparisonData.diffPct <= 0 ? `${Math.abs(comparisonData.diffPct)}% Better` : `${comparisonData?.diffPct}% Higher` }}
+                </Badge>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3 text-xs">
+                <div class="space-y-1 bg-card p-2.5 rounded-lg border">
+                  <span class="text-[10px] text-muted-foreground block truncate">{{ ciiData.vessel.vesselName }}</span>
+                  <div class="text-lg font-bold tabular-nums text-foreground">
+                    {{ ciiData.summary.attainedCii.toFixed(2) }}
+                  </div>
+                  <Badge :class="currentRatingInfo.badge" class="text-[9px] py-0 px-1">
+                    Rating {{ ciiData.summary.attainedRating }}
+                  </Badge>
+                </div>
+
+                <div class="space-y-1 bg-card p-2.5 rounded-lg border">
+                  <span class="text-[10px] text-muted-foreground block truncate">{{ comparisonData?.name }}</span>
+                  <div class="text-lg font-bold tabular-nums text-muted-foreground">
+                    {{ comparisonData?.attainedCii.toFixed(2) }}
+                  </div>
+                  <Badge variant="outline" class="text-[9px] py-0 px-1 border-border">
+                    {{ comparisonData?.ratingGrade ? `Rating ${comparisonData.ratingGrade}` : 'Average' }}
+                  </Badge>
+                </div>
+              </div>
+
+              <p class="text-[11px] text-muted-foreground leading-relaxed">
+                {{ comparisonData?.description }}. This vessel holds rank <strong>#{{ ciiData.benchmark.vesselRank }}</strong> among {{ ciiData.benchmark.fleetTotalVessels }} operational fleet vessels.
+              </p>
+            </div>
+
+            <!-- Right: Peer Comparison Bar Chart (8 cols) -->
+            <div class="lg:col-span-8">
+              <div class="flex items-center justify-between text-xs text-muted-foreground pb-2">
+                <span class="font-medium">Fleet Peer Ranking (Attained CII - Lower is Cleaner)</span>
+                <span class="text-[11px] flex items-center gap-2">
+                  <span class="size-2 rounded-full bg-primary" /> Highlighted: Selected Ship
+                </span>
+              </div>
+              <ClientOnly>
+                <BarChart
+                  :data="peerChartData"
+                  x-field="vessel"
+                  y-field="Attained CII"
+                  height="220"
+                  :option="peerChartOption"
+                />
+                <template #fallback>
+                  <div class="h-[220px] animate-pulse rounded-lg bg-muted/40 flex items-center justify-center text-xs text-muted-foreground">
+                    Rendering peer comparison chart...
+                  </div>
+                </template>
+              </ClientOnly>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <!-- Main Section: Fuel Breakdown & What-If Speed Reduction Advisor -->
       <div class="grid gap-6 lg:grid-cols-12">
