@@ -48,14 +48,14 @@ A read-only PostgreSQL connection succeeded using the configuration in `plan.txt
 | Vessel assets/metadata | `shipping_db.ship_metadata` | 12 | vessel documents/media metadata, not primary vessel identity |
 | Fleet grouping | `shipping_db.fleet` | 5 | fleet definitions; join to vessels through the current data contract, not an assumed FK |
 | Vessel-specific parameter definitions | `shipping_db.vesselparameters` | 7,335 | machinery/telemetry parameter catalog per vessel |
-| Standard parameter definitions | `shipping_db.standardparameters` and `shipping_db.standard_parameters` | 7,087 and 200 | parameter dictionary candidates; source choice must be validated before implementation |
-| Parameter mapping | `shipping_db.parametermapping` | 4,934 | maps vessel parameter names to standard names and unit/scaling rules |
+| Standard parameter definitions | `shipping_db.standardparameters` | parameter metadata, labels, and units for high-frequency values | canonical metadata source for telemetry interpretation |
+| Parameter mapping | `shipping_db.parametermapping` | 4,934 | maps vessel parameter names to standard names; use with `standardparameters` metadata where a vessel-specific mapping is required |
 | Standardized noon reports | `shipping_db.std_enoonreporttable` | 19,816 | reporting, voyage history, fuel, speed, position, drafts, cargo and emissions analytics |
 | Legacy/new noon report variants | `mrvnoonreport`, `newmrvnoonreport`, `newmrvnoonreportdata`, `reporteddatabyship` | empty at inspection | do not make these the primary read source without evidence they are populated in the target environment |
 | Voyage forecast | `shipping_db.voyageforecast` | 778 | current/forecast voyage, last and next port, ETA, distance, route and journey counter |
-| Weather forecast | `shipping_db.voyageweatherforecast` | 680 | voyage weather panel; `weatherdata` is an array with `location`, `times`, and `values` members |
-| Real-time telemetry | `shipping_db.std_rtdas_realtime` and partition tables | monthly range partitions | latest vessel telemetry; query server-side by vessel/time and never transfer whole partitions |
-| Raw/legacy telemetry | `shipping_db.rtdasrealtimedata` and partitions | large historical archive plus partitions | fallback/comparison source only after standard source profiling |
+| Weather / good-weather basis | `shipping_db.std_stormglassweather` | Stormglass weather/NMEA records | CP good-weather filtering and voyage weather context; match records by timestamp and vessel position |
+| Real-time telemetry | `shipping_db.highfrequencydata` | high-frequency vessel telemetry | latest vessel telemetry; query server-side by vessel/time and never transfer whole partitions; do not use `std_rtdas_realtimedata` |
+| Other/legacy telemetry | RTDAS tables | not selected | do not use; `shipping_db.highfrequencydata` is the sole telemetry source for this product |
 | Connectivity | `shipping_db.vstconnectivitystatus` / `vstconnectivitystatushistory` | 6 / 189,300 | live connectivity status and history |
 | Fleet KPI/trends | `shipping_db.fleetciikpi` / `fleetciitrending` | 0 / 10 | CII KPI/trending candidates; `kpivalues` is an array of `{label,min,max,tag}` objects |
 | Alerts/advisories | `shipping_db.systemadvisories` / `std_triggeredoutcomestoday` / `std_triggeredoutcomeshistory` | 164 / 2,851 current rows / historical partitions | control tower alert queue, acknowledgement and closure workflow |
@@ -64,9 +64,9 @@ A read-only PostgreSQL connection succeeded using the configuration in `plan.txt
 | Users and permissions | `shipping_db.std_user`, `usermapping`, `shipusers` | 114 / 105 / empty | user/session/role and screen access; never use password columns from the client |
 | Audit | `shipping_db.audit_logs`, `audittrail` | 488 / 6,151 | administrative audit history |
 
-The database has foreign keys from many active tables to `shipping_db.ship(id)`, including parameter mappings, real-time data, noon reports, forecasts, advisories, instructions, widget layout, and anomaly records. It also has substantial legacy references to `old_v1_table_user`. There are no safe grounds to infer every relationship from matching column names alone; use catalog metadata and explicit read-model joins.
+The database has foreign keys from many active tables to `shipping_db.ship(id)`, including parameter mappings, high-frequency data, noon reports, forecasts, advisories, instructions, widget layout, and anomaly records. High-frequency values must be interpreted with metadata from `shipping_db.standardparameters`, with `parametermapping` used where vessel-specific names need resolution. It also has substantial legacy references to `old_v1_table_user`. There are no safe grounds to infer every relationship from matching column names alone; use catalog metadata and explicit read-model joins.
 
-The main partitioned high-volume tables are range-partitioned by packet/report timestamp. `std_rtdas_realtime` has monthly partitions, as do high-frequency telemetry, weather, and triggered-outcome history. Several future/empty partitions exist, so table existence is not evidence of data availability.
+The main partitioned high-volume tables are range-partitioned by packet/report timestamp. `highfrequencydata` is the sole selected telemetry source and `std_stormglassweather` is the selected weather source for good-weather filtering; triggered-outcome history is also high-volume. Several future/empty partitions exist, so table existence is not evidence of data availability.
 
 ### Initial source set selected for the marine product
 

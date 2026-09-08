@@ -9,6 +9,7 @@ import {
 } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import type { SentinelAction, SentinelBlock, SentinelChatResponse } from '#shared/types/sentinel'
+import type { ThresholdAnalysis } from '#shared/types/marine'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -39,7 +40,7 @@ type Alert = {
   last_fired_at: string | null
   occurrences: number
   acknowledged: boolean | null
-}
+} & Partial<ThresholdAnalysis>
 
 type Voyage = {
   vessel_id: number
@@ -86,6 +87,11 @@ type ControlTowerResponse = {
   }
   alerts: Alert[]
   voyages: Voyage[]
+  provenance?: {
+    alerts: string
+    voyages: string
+    connectivity: string
+  }
 }
 
 definePageMeta({ middleware: 'require-dispatcher' })
@@ -215,6 +221,20 @@ function alertLabel(alert: Alert) {
   return alertTone(alert) === 'destructive' ? 'Critical' : 'Warning'
 }
 
+function thresholdLabel(alert: Alert) {
+  if (alert.thresholdValue == null || !alert.thresholdDirection) return null
+  const operator = alert.thresholdDirection === 'below' ? '<' : '>'
+  return `${operator}${alert.thresholdValue}`
+}
+
+function thresholdStatus(alert: Alert) {
+  if (alert.breached == null) return null
+  if (!alert.breached) return 'Within limit'
+  const direction = alert.thresholdDirection === 'below' ? 'Below' : 'Above'
+  const deviation = alert.deviationPercent == null ? '' : ` by ${alert.deviationPercent.toFixed(1)}%`
+  return `${direction} limit${deviation}`
+}
+
 function parseAlertDetails(alert: Alert) {
   const rawMsg = alert.message || 'Alert triggered'
   let system = alert.system_name && alert.system_name !== '—' ? alert.system_name : ''
@@ -264,12 +284,12 @@ const filteredAlerts = computed(() => {
 
   if (sortBySeverity.value) {
     list = [...list].sort((a, b) => {
-      const toneA = alertTone(a) === 'destructive' ? 2 : 1
-      const toneB = alertTone(b) === 'destructive' ? 2 : 1
-      if (toneA !== toneB) return toneB - toneA
-      if (a.live_value && !b.live_value) return -1
-      if (!a.live_value && b.live_value) return 1
-      return 0
+      const severityA = alertTone(a) === 'destructive' ? 1 : 0
+      const severityB = alertTone(b) === 'destructive' ? 1 : 0
+      if (severityA !== severityB) return severityB - severityA
+      if (Number(a.breached === true) !== Number(b.breached === true)) return Number(b.breached === true) - Number(a.breached === true)
+      if (a.occurrences !== b.occurrences) return b.occurrences - a.occurrences
+      return new Date(b.last_fired_at || 0).getTime() - new Date(a.last_fired_at || 0).getTime()
     })
   }
 
@@ -474,6 +494,11 @@ onUnmounted(() => {
             </span>
           </div>
           <p class="text-muted-foreground text-xs mt-0.5">Fleet operations & telemetry command center</p>
+          <div v-if="data?.provenance" class="mt-2 flex flex-wrap gap-1.5">
+            <Badge variant="outline" class="text-[10px] font-mono">Alerts · {{ data.provenance.alerts }}</Badge>
+            <Badge variant="outline" class="text-[10px] font-mono">Voyage · {{ data.provenance.voyages }}</Badge>
+            <Badge variant="outline" class="text-[10px] font-mono">Connectivity · {{ data.provenance.connectivity }}</Badge>
+          </div>
         </div>
 
         <div class="flex items-center gap-2 self-start sm:self-auto">
@@ -561,7 +586,7 @@ onUnmounted(() => {
                 title="Toggle sort order"
                 @click="sortBySeverity = !sortBySeverity"
               >
-                {{ sortBySeverity ? 'Sort: Severity First' : 'Sort: Most Recent' }}
+                {{ sortBySeverity ? 'Sort: Risk First' : 'Sort: Most Recent' }}
               </button>
             </div>
             <CardDescription class="text-xs mt-0.5">
@@ -705,10 +730,15 @@ onUnmounted(() => {
 
                   <!-- Live Value -->
                   <TableCell>
-                    <div v-if="alert.live_value" class="inline-flex items-center gap-1 font-mono text-xs tabular-nums font-semibold">
-                      <Gauge class="size-3 text-muted-foreground shrink-0" />
-                      <span>{{ alert.live_value }}</span>
-                      <span v-if="alert.live_value_unit" class="text-muted-foreground text-[10px] font-normal">{{ alert.live_value_unit }}</span>
+                    <div v-if="alert.live_value" class="flex flex-col gap-0.5 font-mono text-xs tabular-nums">
+                      <div class="inline-flex items-center gap-1 font-semibold">
+                        <Gauge class="size-3 text-muted-foreground shrink-0" />
+                        <span>{{ alert.live_value }}</span>
+                        <span v-if="alert.live_value_unit" class="text-muted-foreground text-[10px] font-normal">{{ alert.live_value_unit }}</span>
+                      </div>
+                      <span v-if="thresholdStatus(alert)" :class="['text-[10px] font-normal', alert.breached ? 'text-destructive' : 'text-muted-foreground']">
+                        {{ thresholdStatus(alert) }} · limit {{ thresholdLabel(alert) }}
+                      </span>
                     </div>
                     <span v-else class="text-muted-foreground">—</span>
                   </TableCell>
@@ -774,10 +804,15 @@ onUnmounted(() => {
                     </div>
 
                     <div class="flex items-center gap-2.5">
-                      <div v-if="alert.live_value" class="inline-flex items-center gap-1 font-mono text-xs tabular-nums">
-                        <Gauge class="size-3 text-muted-foreground" />
-                        <span class="font-semibold text-foreground">{{ alert.live_value }}</span>
-                        <span v-if="alert.live_value_unit" class="text-muted-foreground text-[10px]">{{ alert.live_value_unit }}</span>
+                      <div v-if="alert.live_value" class="flex flex-col items-end gap-0.5 font-mono text-xs tabular-nums">
+                        <div class="inline-flex items-center gap-1">
+                          <Gauge class="size-3 text-muted-foreground" />
+                          <span class="font-semibold text-foreground">{{ alert.live_value }}</span>
+                          <span v-if="alert.live_value_unit" class="text-muted-foreground text-[10px]">{{ alert.live_value_unit }}</span>
+                        </div>
+                        <span v-if="thresholdStatus(alert)" :class="['text-[10px]', alert.breached ? 'text-destructive' : 'text-muted-foreground']">
+                          {{ thresholdStatus(alert) }}
+                        </span>
                       </div>
                       <span class="text-muted-foreground text-[11px] font-mono tabular-nums">
                         {{ formatTimeAgo(alert.last_fired_at) }}

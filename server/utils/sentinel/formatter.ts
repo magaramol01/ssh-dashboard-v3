@@ -52,6 +52,13 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
         blocks.push(
           { type: 'kpi', label: 'Alert value', value: `${text(analysis.currentValue)}${alert.live_value_unit ? ` ${text(alert.live_value_unit)}` : ''}`, tone: alert.severity === 'critical' ? 'destructive' : 'warning' },
           { type: 'kpi', label: 'Configured threshold', value: analysis.thresholdValue == null ? 'Not available' : `${analysis.thresholdDirection === 'below' ? '<' : analysis.thresholdDirection === 'above' ? '>' : ''}${text(analysis.thresholdValue)}${alert.live_value_unit ? ` ${text(alert.live_value_unit)}` : ''}` },
+          ...(analysis.breached === true || analysis.breached === false ? [{
+            type: 'kpi' as const,
+            label: 'Threshold status',
+            value: analysis.breached ? 'Breached' : 'Within limit',
+            detail: analysis.deviationPercent == null ? undefined : `${text(analysis.deviationPercent)}% from limit`,
+            tone: analysis.breached ? 'destructive' as const : 'success' as const,
+          }] : []),
           { type: 'kpi', label: 'Related alerts', value: text(analysis.relatedAlertCount, '0'), detail: 'Same vessel, current open-alert snapshot' },
         )
       }

@@ -1,5 +1,6 @@
 import { createError, defineEventHandler, getQuery } from 'h3'
 import { dbQuery } from '../utils/db'
+import { analyzeThreshold } from '../../shared/types/marine'
 
 const DEFAULT_PAGE_SIZE = 10
 const MAX_PAGE_SIZE = 50
@@ -252,6 +253,11 @@ export default defineEventHandler(async (event) => {
 
     return {
       asOf: new Date().toISOString(),
+      provenance: {
+        alerts: 'Operational alert stream',
+        voyages: 'Voyage forecast + noon reports',
+        connectivity: 'VSAT heartbeat',
+      },
       kpis: {
         vessels: Number(kpis.vessels),
         activeVoyages: Number(kpis.active_voyages),
@@ -261,7 +267,10 @@ export default defineEventHandler(async (event) => {
         openAlerts: totalAlerts,
         criticalAlerts: Number(alertCountResult.rows[0]?.critical_count ?? 0),
       },
-      alerts: alertsResult.rows,
+      alerts: alertsResult.rows.map((alert) => ({
+        ...alert,
+        ...analyzeThreshold(alert.message, alert.live_value),
+      })),
       voyages: voyagesResult.rows,
       networkVessels: networkVesselsResult.rows,
       pagination: { page, pageSize, total: totalAlerts, totalPages },

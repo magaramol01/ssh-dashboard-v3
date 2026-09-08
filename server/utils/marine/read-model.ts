@@ -1,4 +1,5 @@
 import { dbQuery } from '../db'
+import { analyzeThreshold } from '../../../shared/types/marine'
 
 export type AlertSeverity = 'critical' | 'warning'
 
@@ -233,21 +234,12 @@ export async function analyzeOperationalAlert(alertId: number) {
     : { alerts: [], total: 0 }
   const groupedAlert = related.alerts.find((item) => item.system_name === alert.system_name && item.message === alert.message && item.live_value_unit === alert.live_value_unit)
   const mappedAlert = mapAlert(alert)
-  const currentValue = alert.live_value == null ? null : Number.parseFloat(alert.live_value.replace(/[^0-9.+-]/g, ''))
-  const thresholdMatch = alert.message?.match(/(?:less than|below|under|greater than|above|over|[<>])\s*(-?\d+(?:\.\d+)?)/i)
-  const thresholdValue = thresholdMatch ? Number(thresholdMatch[1]) : null
-  const isLowerLimit = Boolean(alert.message?.match(/less than|below|under|</i))
-  const isUpperLimit = Boolean(alert.message?.match(/greater than|above|over|>/i))
-  const deviation = currentValue !== null && thresholdValue !== null ? currentValue - thresholdValue : null
+  const threshold = analyzeThreshold(alert.message, alert.live_value)
 
   return {
     alert: groupedAlert ? { ...mappedAlert, started_at: groupedAlert.started_at, last_fired_at: groupedAlert.last_fired_at, occurrences: groupedAlert.occurrences } : mappedAlert,
     analysis: {
-      currentValue: Number.isFinite(currentValue) ? currentValue : null,
-      thresholdValue,
-      thresholdDirection: isLowerLimit ? 'below' : isUpperLimit ? 'above' : null,
-      deviation: Number.isFinite(deviation) ? deviation : null,
-      deviationPercent: deviation !== null && thresholdValue ? Math.abs(deviation / thresholdValue * 100) : null,
+      ...threshold,
       relatedAlertCount: related.total,
       relatedAlerts: related.alerts.slice(0, 10).map((item) => ({
         id: item.id,
