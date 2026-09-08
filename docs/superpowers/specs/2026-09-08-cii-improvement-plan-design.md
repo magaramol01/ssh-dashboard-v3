@@ -24,7 +24,7 @@ flowchart TD
     A[Vessel Selection & Filters] --> B[GET /api/emissions/cii]
     B --> C{Telemetry Sources}
     C -->|Upstream API / Cache| D[Monthly CII Trajectory & Voyage Logs]
-    C -->|PostgreSQL Fallback| E[shipping_db: vesselparameters, std_rtdasrealtimedata]
+    C -->|PostgreSQL Fallback| E[shipping_db: std_enoonreporttable, highfrequencydata, standardparameters]
     D --> F[cii-improvement.ts Diagnostic Engine]
     E --> F
     F --> G[Degradation Analysis Result]
@@ -132,7 +132,7 @@ export interface CiiImprovementPlan {
    - Compare propulsion vs. auxiliary fuel ratios.
    - Estimate hull resistance increase from speed vs. consumption exponent delta.
    - Evaluate transport work density ($CO_2 / (DWT \times Distance)$).
-3. **Database Fallback**: When granular sensor records are present in PostgreSQL (`std_rtdasrealtimedata`), incorporate speed over ground (SOG) vs. speed through water (STW) slip factor.
+3. **Database Fallback**: When granular logs are queried from PostgreSQL (`shipping_db.std_enoonreporttable`, `shipping_db.highfrequencydata`, `shipping_db.standardparameters`), incorporate logged noon slip (`Engine_Slip`), drafts (`Draft_FWD`, `Draft_AFT`), speed, and high-frequency packet load.
 
 ---
 

@@ -4,7 +4,7 @@
 
 **Goal:** Build an automated, non-chat CII Improvement Plan widget on the Emissions Dashboard that pinpoints when and why degradation started, calculates root cause factor attributions, provides prescriptive recovery steps, and incorporates the interactive speed reduction advisory.
 
-**Architecture:** Create a domain utility `server/utils/marine/cii-improvement.ts` to diagnose degradation onset, root causes (speed, hull resistance, auxiliary/port load, transport work shortfall), and generate recovery plans. Expose this via `server/api/emissions/cii.get.ts`, and render a responsive 3-pillar executive console on `app/pages/emissions.vue`.
+**Architecture:** Create a domain utility `server/utils/marine/cii-improvement.ts` to diagnose degradation onset, root causes (speed, hull resistance, auxiliary/port load, transport work shortfall), and generate recovery plans using telemetry logs and PostgreSQL fallback (`shipping_db.std_enoonreporttable`, `shipping_db.highfrequencydata`, `shipping_db.standardparameters`). Expose this via `server/api/emissions/cii.get.ts`, and render a responsive 3-pillar executive console on `app/pages/emissions.vue`.
 
 **Tech Stack:** Nuxt 4, Vue 3, Tailwind v4 (OKLCH tokens), TypeScript, Lucide Icons, Node.js test runner (`tsx --test`).
 
