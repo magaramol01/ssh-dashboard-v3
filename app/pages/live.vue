@@ -8,7 +8,7 @@
  */
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import {
-  Target, MapPin, Truck, Star, X, Bot, Send, RotateCcw, ArrowUpRight,
+  Target, X, Bot, Send, RotateCcw, ArrowUpRight,
   CloudRain, Compass, AlertTriangle, RefreshCw, ChevronDown, Maximize2, Minimize2,
   Gauge, Clock, Search, Anchor, CheckCircle2
 } from 'lucide-vue-next'
@@ -16,20 +16,17 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { OverlayScroll } from '@/components/ui/overlay-scroll'
+import { Skeleton } from '@/components/ui/skeleton'
 import LiveMapLeaflet from '@/components/LiveMapLeaflet.vue'
 import SentinelBlockRenderer from '@/components/sentinel/SentinelBlockRenderer.vue'
-import { toneBadge, toneDot, shortDate } from '@/lib/utils'
+import { toneBadge, toneDot } from '@/lib/utils'
 
 import type { SentinelAction, SentinelBlock, SentinelChatResponse } from '#shared/types/sentinel'
 import type { WeatherDetail } from '~~/server/api/vessels/geojson.get'
 
-import { resolvedTrips, type ResolvedTrip } from '~/mocks/live'
-import { STATUS_LABELS, type Tone } from '~/mocks/shipments'
-import { DRIVERS, DRIVER_STATUS_LABELS, DRIVER_STATUS_TONE } from '~/mocks/drivers'
-import { VEHICLES, VEHICLE_TYPE_LABELS, VEHICLE_STATUS_LABELS, VEHICLE_STATUS_TONE } from '~/mocks/fleet'
+export type Tone = 'success' | 'info' | 'warning' | 'destructive' | 'muted'
 
 export interface LiveVesselItem {
   id: string
@@ -80,11 +77,8 @@ const { data: vesselResponse, status: vesselStatus, refresh: refreshVessels } = 
   }
 )
 
+const isLoading = computed(() => vesselStatus.value === 'pending' || !vesselResponse.value)
 const liveVessels = computed(() => vesselResponse.value?.vessels || [])
-const isRealData = computed(() => liveVessels.value.length > 0)
-
-const trips = resolvedTrips() // mock fallback
-const activeTrips = computed<any[]>(() => (isRealData.value ? liveVessels.value : trips))
 
 const selectedId = ref<string | null>(null)
 const activeTab = ref<string>('all')
@@ -237,18 +231,6 @@ onUnmounted(() => {
   if (!import.meta.server) window.removeEventListener('keydown', handleKeydown)
 })
 
-watch(
-  isRealData,
-  (val) => {
-    if (val && !['all', 'on-time', 'late', 'early', 'moored'].includes(activeTab.value)) {
-      activeTab.value = 'all'
-    } else if (!val && !['trips', 'drivers', 'vehicles'].includes(activeTab.value)) {
-      activeTab.value = 'trips'
-    }
-  },
-  { immediate: true }
-)
-
 function scheduleBadgeText(item: LiveVesselItem): string {
   if (item.scheduleStatus === 'on-time') return 'On time'
   if (item.scheduleStatus === 'late') {
@@ -302,109 +284,37 @@ const TONE_BG: Record<Tone, string> = {
   muted: 'var(--muted-foreground)',
 }
 
-function initials(name?: string): string {
-  if (!name) return '—'
-  return name
-    .split(' ')
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase()
-}
-
-// Telemetry for the inspector
-const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
-function headingOf(t: any): string {
-  if (t.heading) return t.heading
-  if (!t.coords || !t.coords.length) return 'N'
-  const a = t.coords[0]!,
-    b = t.coords[t.coords.length - 1]!
-  const deg = (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI
-  return COMPASS[Math.round((((deg % 360) + 360) % 360) / 45) % 8]!
-}
-
-function speedOf(t: any): string {
-  if (t.sog !== undefined) return `${t.sog} kts`
-  if (!['in-transit', 'out-for-delivery', 'picked-up'].includes(t.shipment?.status)) return '0 kts'
-  const n = parseInt((t.shipment?.id || '').replace(/\D/g, '').slice(-3) || '0', 10)
-  return `${12 + (n % 10)} kts`
-}
-
-function etaChip(tone: Tone): { label: string; variant: ReturnType<typeof toneBadge> } {
-  if (tone === 'destructive') return { label: 'Exception', variant: 'destructive' }
-  if (tone === 'warning') return { label: 'Caution', variant: 'warning' }
-  if (tone === 'muted') return { label: 'Moored', variant: 'secondary' }
-  return { label: 'Underway', variant: 'success' }
-}
-
 /** Live fleet schedule and progress summary for the docked KPI ribbon. */
 const stats = computed(() => {
-  if (isRealData.value) {
-    const list = liveVessels.value
-    const onRoute = list.filter((v) => v.sog > 0.5).length
-    const onTime = list.filter((v) => v.scheduleStatus === 'on-time').length
-    const late = list.filter((v) => v.scheduleStatus === 'late').length
-    const early = list.filter((v) => v.scheduleStatus === 'early').length
-    const moored = list.filter((v) => v.scheduleStatus === 'moored').length
-    const avgProgress = Math.round(list.reduce((s, v) => s + v.progress, 0) / Math.max(1, list.length))
-    return { active: list.length, onRoute, onTime, late, early, moored, avgProgress }
-  }
-  const onRoute = trips.filter((t) =>
-    ['in-transit', 'out-for-delivery', 'picked-up'].includes(t.shipment.status)
-  ).length
-  const attention = trips.filter((t) => ['delayed', 'exception'].includes(t.shipment.status)).length
-  const avgProgress = Math.round(
-    trips.reduce((s, t) => s + t.shipment.progress, 0) / Math.max(1, trips.length)
-  )
-  return {
-    active: trips.length,
-    onRoute,
-    onTime: onRoute - attention,
-    late: attention,
-    early: 0,
-    moored: 0,
-    avgProgress,
-  }
+  const list = liveVessels.value
+  const onRoute = list.filter((v) => v.sog > 0.5).length
+  const onTime = list.filter((v) => v.scheduleStatus === 'on-time').length
+  const late = list.filter((v) => v.scheduleStatus === 'late').length
+  const early = list.filter((v) => v.scheduleStatus === 'early').length
+  const moored = list.filter((v) => v.scheduleStatus === 'moored').length
+  const avgProgress = list.length
+    ? Math.round(list.reduce((s, v) => s + v.progress, 0) / list.length)
+    : 0
+  return { active: list.length, onRoute, onTime, late, early, moored, avgProgress }
 })
 
 /** Filtered list based on activeTab */
-const displayedTrips = computed(() => {
-  if (!isRealData.value) return trips
+const displayedVessels = computed(() => {
   if (activeTab.value === 'all') return liveVessels.value
   return liveVessels.value.filter((v) => v.scheduleStatus === activeTab.value)
 })
 
 /** Route-colour key */
-const legend = computed(() => {
-  if (isRealData.value) {
-    return [
-      { label: 'On time', tone: 'success' as Tone },
-      { label: 'Running early', tone: 'info' as Tone },
-      { label: 'Running late', tone: 'warning' as Tone },
-      { label: 'In port', tone: 'muted' as Tone },
-    ]
-  }
-  const seen = new Set<Tone>()
-  const out: { label: string; tone: Tone }[] = []
-  for (const t of trips) {
-    if (seen.has(t.tone)) continue
-    seen.add(t.tone)
-    out.push({ label: STATUS_LABELS[t.shipment.status], tone: t.tone })
-  }
-  return out
-})
+const legend: { label: string; tone: Tone }[] = [
+  { label: 'On time', tone: 'success' },
+  { label: 'Running early', tone: 'info' },
+  { label: 'Running late', tone: 'warning' },
+  { label: 'In port', tone: 'muted' },
+]
 
 const selected = computed(() => {
-  if (isRealData.value) {
-    return liveVessels.value.find((v) => v.id === selectedId.value) ?? null
-  }
-  return trips.find((t) => t.shipment.id === selectedId.value) ?? null
+  return liveVessels.value.find((v) => v.id === selectedId.value) ?? null
 })
-
-const drivers = computed(() =>
-  [...DRIVERS].sort((a, b) => (a.status === 'on-route' ? 0 : 1) - (b.status === 'on-route' ? 0 : 1))
-)
-const vehicles = computed(() => VEHICLES.filter((v) => v.status === 'active'))
 </script>
 
 <template>
@@ -419,26 +329,56 @@ const vehicles = computed(() => VEHICLES.filter((v) => v.status === 'active'))
             Live
           </span>
         </div>
-        <p class="text-muted-foreground mt-0.5 text-xs tabular-nums">
-          <template v-if="isRealData">
+
+        <!-- Header counts / Skeleton -->
+        <div v-if="isLoading" class="mt-2 space-y-2">
+          <Skeleton class="h-3.5 w-44" />
+          <div class="flex flex-wrap gap-2.5">
+            <Skeleton v-for="i in 4" :key="i" class="h-3 w-16" />
+          </div>
+        </div>
+        <div v-else>
+          <p class="text-muted-foreground mt-0.5 text-xs tabular-nums font-mono">
             {{ stats.active }} vessels · {{ stats.onTime }} on time · {{ stats.late }} late
-          </template>
-          <template v-else>
-            {{ stats.active }} active · {{ stats.onRoute }} on route
-          </template>
-        </p>
-        <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-          <span v-for="l in legend" :key="l.label" class="inline-flex items-center gap-1.5">
-            <span class="size-2 rounded-full" :class="toneDot(l.tone)" />
-            <span class="text-muted-foreground text-[11px]">{{ l.label }}</span>
-          </span>
+          </p>
+          <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+            <span v-for="l in legend" :key="l.label" class="inline-flex items-center gap-1.5">
+              <span class="size-2 rounded-full" :class="toneDot(l.tone)" />
+              <span class="text-muted-foreground text-[11px]">{{ l.label }}</span>
+            </span>
+          </div>
         </div>
       </div>
 
-      <Tabs v-model="activeTab" class="flex min-h-0 flex-1 flex-col">
+      <!-- Schedule Tabs or Loading Skeleton -->
+      <div v-if="isLoading" class="px-4 py-2 border-b border-border/40">
+        <div class="flex gap-2 overflow-x-auto">
+          <Skeleton v-for="i in 5" :key="i" class="h-8 w-16 shrink-0 rounded-md" />
+        </div>
+      </div>
+
+      <!-- Rail Content: Skeletons or Real Vessel Cards -->
+      <div v-if="isLoading" class="flex-1 overflow-hidden p-4 space-y-2.5">
+        <div v-for="i in 6" :key="i" class="rounded-lg border bg-card p-3 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <Skeleton class="h-4 w-28" />
+            <Skeleton class="h-5 w-16 rounded-full" />
+          </div>
+          <div class="flex items-center justify-between">
+            <Skeleton class="h-3.5 w-36" />
+            <Skeleton class="h-3.5 w-20" />
+          </div>
+          <Skeleton class="h-1.5 w-full rounded-full" />
+          <div class="flex justify-between">
+            <Skeleton class="h-3 w-28" />
+            <Skeleton class="h-3 w-16" />
+          </div>
+        </div>
+      </div>
+
+      <Tabs v-else v-model="activeTab" class="flex min-h-0 flex-1 flex-col">
         <div class="px-4">
-          <!-- Real vessel schedule tabs -->
-          <TabsList v-if="isRealData" class="w-full justify-start overflow-x-auto">
+          <TabsList class="w-full justify-start overflow-x-auto">
             <TabsTrigger value="all">
               All<span class="text-muted-foreground ml-1 tabular-nums">{{ stats.active }}</span>
             </TabsTrigger>
@@ -455,144 +395,53 @@ const vehicles = computed(() => VEHICLES.filter((v) => v.status === 'active'))
               In Port<span class="text-muted-foreground ml-1 tabular-nums">{{ stats.moored }}</span>
             </TabsTrigger>
           </TabsList>
-
-          <!-- Mock fallback tabs -->
-          <TabsList v-else class="w-full justify-start">
-            <TabsTrigger value="trips">
-              Trips<span class="text-muted-foreground ml-1 tabular-nums">{{ activeTrips.length }}</span>
-            </TabsTrigger>
-            <TabsTrigger value="drivers">
-              Drivers<span class="text-muted-foreground ml-1 tabular-nums">{{ drivers.length }}</span>
-            </TabsTrigger>
-            <TabsTrigger value="vehicles">
-              Vehicles<span class="text-muted-foreground ml-1 tabular-nums">{{ vehicles.length }}</span>
-            </TabsTrigger>
-          </TabsList>
         </div>
 
-        <!-- Real vessels list for schedule tabs -->
-        <template v-if="isRealData">
-          <TabsContent
-            v-for="tabKey in ['all', 'on-time', 'late', 'early', 'moored']"
-            :key="tabKey"
-            :value="tabKey"
-            class="mt-0 min-h-0 flex-1"
-          >
-            <OverlayScroll class="h-full">
-              <div class="space-y-1.5 p-4">
-                <div v-if="displayedTrips.length === 0" class="py-8 text-center text-xs text-muted-foreground">
-                  No vessels in this category
+        <TabsContent
+          v-for="tabKey in ['all', 'on-time', 'late', 'early', 'moored']"
+          :key="tabKey"
+          :value="tabKey"
+          class="mt-0 min-h-0 flex-1"
+        >
+          <OverlayScroll class="h-full">
+            <div class="space-y-1.5 p-4">
+              <div v-if="displayedVessels.length === 0" class="py-12 text-center text-xs text-muted-foreground">
+                <Anchor class="size-8 mx-auto mb-2 text-muted-foreground/40" />
+                <p class="font-medium">No vessels in this category</p>
+              </div>
+              <button
+                v-for="t in displayedVessels"
+                :key="t.id"
+                type="button"
+                class="focus-visible:ring-ring block w-full rounded-lg border px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2"
+                :class="selectedId === t.id ? 'border-foreground/25 bg-accent' : 'bg-card hover:bg-accent/50'"
+                @click="select(t.id)"
+                @mouseenter="onHover(t.id)"
+                @mouseleave="onHover(null)"
+                @focus="onHover(t.id)"
+                @blur="onHover(null)"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-semibold text-[13px] tracking-tight truncate">{{ t.name }}</span>
+                  <Badge :variant="scheduleBadgeVariant(t)" class="shrink-0 text-xs font-mono">
+                    {{ scheduleBadgeText(t) }}
+                  </Badge>
                 </div>
-                <button
-                  v-for="t in displayedTrips"
-                  :key="t.id"
-                  type="button"
-                  class="focus-visible:ring-ring block w-full rounded-lg border px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2"
-                  :class="selectedId === t.id ? 'border-foreground/25 bg-accent' : 'bg-card hover:bg-accent/50'"
-                  @click="select(t.id)"
-                  @mouseenter="onHover(t.id)"
-                  @mouseleave="onHover(null)"
-                  @focus="onHover(t.id)"
-                  @blur="onHover(null)"
-                >
-                  <div class="flex items-center justify-between gap-2">
-                    <span class="font-semibold text-[13px] tracking-tight truncate">{{ t.name }}</span>
-                    <Badge :variant="scheduleBadgeVariant(t)" class="shrink-0 text-xs font-mono">
-                      {{ scheduleBadgeText(t) }}
-                    </Badge>
-                  </div>
-                  <div class="mt-1 flex items-baseline justify-between gap-2 text-[12px] text-muted-foreground">
-                    <span class="truncate">SOG: <strong class="text-foreground font-medium">{{ t.sog }} kts</strong> · {{ t.heading }}</span>
-                    <span class="shrink-0 font-mono text-[11px] text-foreground font-medium">ETA: {{ t.etaFormatted }}</span>
-                  </div>
-                  <div class="bg-muted mt-2 h-[3px] w-full overflow-hidden rounded-full">
-                    <div class="h-full rounded-full transition-all" :style="{ width: `${t.progress}%`, background: TONE_BG[t.tone] }" />
-                  </div>
-                  <div class="mt-1 flex items-center justify-between text-muted-foreground text-[11px] tabular-nums font-mono">
-                    <span>{{ t.progress }}% ({{ t.travelledNm }} / {{ t.distanceNm }} nm)</span>
-                    <span>Rem {{ t.remainingNm }} nm</span>
-                  </div>
-                </button>
-              </div>
-            </OverlayScroll>
-          </TabsContent>
-        </template>
-
-        <!-- Mock trips / drivers / vehicles -->
-        <template v-else>
-          <TabsContent value="trips" class="mt-0 min-h-0 flex-1">
-            <OverlayScroll class="h-full">
-              <div class="space-y-1.5 p-4">
-                <button
-                  v-for="t in activeTrips"
-                  :key="t.shipment?.id"
-                  type="button"
-                  class="focus-visible:ring-ring block w-full rounded-lg border px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2"
-                  :class="selectedId === t.shipment?.id ? 'border-foreground/25 bg-accent' : 'bg-card hover:bg-accent/50'"
-                  @click="select(t.shipment?.id)"
-                  @mouseenter="onHover(t.shipment?.id)"
-                  @mouseleave="onHover(null)"
-                  @focus="onHover(t.shipment?.id)"
-                  @blur="onHover(null)"
-                >
-                  <div class="flex items-center justify-between gap-2">
-                    <span class="font-semibold text-[13px] tracking-tight truncate">{{ t.shipment?.id }}</span>
-                    <Badge :variant="toneBadge(t.tone)" class="shrink-0 text-xs">
-                      {{ STATUS_LABELS[t.shipment?.status] }}
-                    </Badge>
-                  </div>
-                  <div class="mt-1.5 flex items-baseline justify-between gap-2">
-                    <p class="min-w-0 truncate text-[12px] text-muted-foreground">
-                      {{ t.shipment?.driver ?? 'Unassigned' }}
-                    </p>
-                    <span v-if="t.distanceKm" class="text-muted-foreground shrink-0 text-[11px] tabular-nums font-mono">
-                      {{ t.distanceKm }} km
-                    </span>
-                  </div>
-                  <div class="bg-muted mt-2 h-[3px] w-full overflow-hidden rounded-full">
-                    <div class="h-full rounded-full" :style="{ width: `${t.shipment?.progress}%`, background: TONE_BG[t.tone] }" />
-                  </div>
-                  <div class="mt-1 flex items-center justify-between text-muted-foreground text-[11px] tabular-nums">
-                    <span>{{ t.shipment?.progress }}% complete</span>
-                  </div>
-                </button>
-              </div>
-            </OverlayScroll>
-          </TabsContent>
-
-          <TabsContent value="drivers" class="mt-0 min-h-0 flex-1">
-            <OverlayScroll class="h-full">
-              <div class="space-y-1.5 p-4">
-                <div v-for="d in drivers" :key="d.id" class="bg-card flex items-center gap-3 rounded-lg border p-3">
-                  <Avatar class="size-9"><AvatarFallback class="text-xs font-semibold">{{ d.initials }}</AvatarFallback></Avatar>
-                  <div class="min-w-0 flex-1">
-                    <p class="truncate text-sm font-medium">{{ d.name }}</p>
-                    <p class="text-muted-foreground text-xs">{{ d.vehicle ?? 'No vehicle' }} · {{ d.deliveriesToday }} today</p>
-                  </div>
-                  <div class="flex flex-col items-end gap-1">
-                    <Badge :variant="toneBadge(DRIVER_STATUS_TONE[d.status])" class="text-xs">{{ DRIVER_STATUS_LABELS[d.status] }}</Badge>
-                    <span class="text-muted-foreground inline-flex items-center gap-0.5 text-xs"><Star class="fill-warning text-warning size-3" />{{ d.rating }}</span>
-                  </div>
+                <div class="mt-1 flex items-baseline justify-between gap-2 text-[12px] text-muted-foreground">
+                  <span class="truncate">SOG: <strong class="text-foreground font-medium">{{ t.sog }} kts</strong> · {{ t.heading }}</span>
+                  <span class="shrink-0 font-mono text-[11px] text-foreground font-medium">ETA: {{ t.etaFormatted }}</span>
                 </div>
-              </div>
-            </OverlayScroll>
-          </TabsContent>
-
-          <TabsContent value="vehicles" class="mt-0 min-h-0 flex-1">
-            <OverlayScroll class="h-full">
-              <div class="space-y-1.5 p-4">
-                <div v-for="v in vehicles" :key="v.id" class="bg-card flex items-center gap-3 rounded-lg border p-3">
-                  <span class="bg-muted flex size-9 shrink-0 items-center justify-center rounded-lg"><Truck class="text-muted-foreground size-4" /></span>
-                  <div class="min-w-0 flex-1">
-                    <p class="truncate text-sm font-medium">{{ v.id }}</p>
-                    <p class="text-muted-foreground text-xs">{{ VEHICLE_TYPE_LABELS[v.type] }} · {{ v.location }}</p>
-                  </div>
-                  <Badge :variant="toneBadge(VEHICLE_STATUS_TONE[v.status])" class="shrink-0 text-xs">{{ VEHICLE_STATUS_LABELS[v.status] }}</Badge>
+                <div class="bg-muted mt-2 h-[3px] w-full overflow-hidden rounded-full">
+                  <div class="h-full rounded-full transition-all" :style="{ width: `${t.progress}%`, background: TONE_BG[t.tone] }" />
                 </div>
-              </div>
-            </OverlayScroll>
-          </TabsContent>
-        </template>
+                <div class="mt-1 flex items-center justify-between text-muted-foreground text-[11px] tabular-nums font-mono">
+                  <span>{{ t.progress }}% ({{ t.travelledNm }} / {{ t.distanceNm }} nm)</span>
+                  <span>Rem {{ t.remainingNm }} nm</span>
+                </div>
+              </button>
+            </div>
+          </OverlayScroll>
+        </TabsContent>
       </Tabs>
     </aside>
 
@@ -605,50 +454,40 @@ const vehicles = computed(() => VEHICLES.filter((v) => v.status === 'active'))
     >
       <!-- Docked status ribbon -->
       <div class="bg-card flex h-[52px] shrink-0 items-center border-b px-4">
-        <div class="flex items-stretch overflow-x-auto">
+        <!-- Loading ribbon skeleton -->
+        <div v-if="isLoading" class="flex items-center gap-5 overflow-x-auto py-1">
+          <div v-for="i in 6" :key="i" class="flex flex-col gap-1 pr-4 border-r border-border/40 last:border-r-0">
+            <Skeleton class="h-2.5 w-14" />
+            <Skeleton class="h-5 w-10" />
+          </div>
+        </div>
+        <div v-else class="flex items-stretch overflow-x-auto">
           <div class="flex flex-col justify-center pr-4">
-            <span class="text-muted-foreground text-[10px] font-medium uppercase tracking-wide">
-              {{ isRealData ? 'Fleet' : 'Active' }}
-            </span>
+            <span class="text-muted-foreground text-[10px] font-medium uppercase tracking-wide">Fleet</span>
             <span class="text-foreground text-[15px] font-semibold tabular-nums">{{ stats.active }}</span>
           </div>
-          <template v-if="isRealData">
-            <div class="border-border flex flex-col justify-center border-l px-4">
-              <span class="text-muted-foreground text-[10px] font-medium uppercase tracking-wide">On time</span>
-              <span class="text-success text-[15px] font-semibold tabular-nums">{{ stats.onTime }}</span>
-            </div>
-            <div class="border-border flex flex-col justify-center border-l px-4">
-              <span class="text-muted-foreground text-[10px] font-medium uppercase tracking-wide">Running late</span>
-              <span class="text-warning text-[15px] font-semibold tabular-nums">{{ stats.late }}</span>
-            </div>
-            <div class="border-border flex flex-col justify-center border-l px-4">
-              <span class="text-muted-foreground text-[10px] font-medium uppercase tracking-wide">Running early</span>
-              <span class="text-info text-[15px] font-semibold tabular-nums">{{ stats.early }}</span>
-            </div>
-            <div class="border-border flex flex-col justify-center border-l px-4">
-              <span class="text-muted-foreground text-[10px] font-medium uppercase tracking-wide">In port</span>
-              <span class="text-muted-foreground text-[15px] font-semibold tabular-nums">{{ stats.moored }}</span>
-            </div>
-            <div class="border-border flex flex-col justify-center border-l px-4">
-              <span class="text-muted-foreground text-[10px] font-medium uppercase tracking-wide">Avg progress</span>
-              <span class="text-foreground text-[15px] font-semibold tabular-nums">{{ stats.avgProgress }}%</span>
-            </div>
-          </template>
-          <template v-else>
-            <div class="border-border flex flex-col justify-center border-l px-4">
-              <span class="text-muted-foreground text-[10px] font-medium uppercase tracking-wide">On route</span>
-              <span class="text-foreground text-[15px] font-semibold tabular-nums">{{ stats.onRoute }}</span>
-            </div>
-            <div class="border-border flex flex-col justify-center border-l px-4">
-              <span class="text-muted-foreground text-[10px] font-medium uppercase tracking-wide">Avg progress</span>
-              <span class="text-foreground text-[15px] font-semibold tabular-nums">{{ stats.avgProgress }}%</span>
-            </div>
-            <div class="border-border flex flex-col justify-center border-l px-4">
-              <span class="text-muted-foreground text-[10px] font-medium uppercase tracking-wide">Needs attention</span>
-              <span class="text-[15px] font-semibold tabular-nums text-warning">{{ stats.late }}</span>
-            </div>
-          </template>
+          <div class="border-border flex flex-col justify-center border-l px-4">
+            <span class="text-muted-foreground text-[10px] font-medium uppercase tracking-wide">On time</span>
+            <span class="text-success text-[15px] font-semibold tabular-nums">{{ stats.onTime }}</span>
+          </div>
+          <div class="border-border flex flex-col justify-center border-l px-4">
+            <span class="text-muted-foreground text-[10px] font-medium uppercase tracking-wide">Running late</span>
+            <span class="text-warning text-[15px] font-semibold tabular-nums">{{ stats.late }}</span>
+          </div>
+          <div class="border-border flex flex-col justify-center border-l px-4">
+            <span class="text-muted-foreground text-[10px] font-medium uppercase tracking-wide">Running early</span>
+            <span class="text-info text-[15px] font-semibold tabular-nums">{{ stats.early }}</span>
+          </div>
+          <div class="border-border flex flex-col justify-center border-l px-4">
+            <span class="text-muted-foreground text-[10px] font-medium uppercase tracking-wide">In port</span>
+            <span class="text-muted-foreground text-[15px] font-semibold tabular-nums">{{ stats.moored }}</span>
+          </div>
+          <div class="border-border flex flex-col justify-center border-l px-4">
+            <span class="text-muted-foreground text-[10px] font-medium uppercase tracking-wide">Avg progress</span>
+            <span class="text-foreground text-[15px] font-semibold tabular-nums">{{ stats.avgProgress }}%</span>
+          </div>
         </div>
+
         <div class="ml-auto flex items-center gap-2">
           <Button
             variant="outline"
@@ -670,8 +509,15 @@ const vehicles = computed(() => VEHICLES.filter((v) => v.status === 'active'))
             <span class="bg-success size-1.5 rounded-full" />
             Live
           </span>
-          <Button variant="ghost" size="sm" class="h-7 text-xs" @click="() => refreshVessels()">
-            Refresh
+          <Button
+            variant="ghost"
+            size="sm"
+            class="h-7 text-xs gap-1"
+            :disabled="isLoading"
+            @click="() => refreshVessels()"
+          >
+            <RefreshCw class="size-3" :class="isLoading ? 'animate-spin' : ''" />
+            <span>Refresh</span>
           </Button>
         </div>
       </div>
@@ -680,14 +526,16 @@ const vehicles = computed(() => VEHICLES.filter((v) => v.status === 'active'))
       <div class="relative flex-1 overflow-hidden isolate">
         <ClientOnly>
           <div class="size-full z-0 relative">
-            <LiveMapLeaflet ref="mapRef" :trips="activeTrips" :selected-id="selectedId" @select="select" />
+            <LiveMapLeaflet ref="mapRef" :trips="liveVessels" :selected-id="selectedId" @select="select" />
           </div>
           <template #fallback>
-            <div class="bg-muted size-full" />
+            <div class="size-full flex flex-col items-center justify-center bg-muted/30 p-6">
+              <Skeleton class="size-full rounded-none" />
+            </div>
           </template>
         </ClientOnly>
 
-        <!-- Selected-trip / vessel inspector drawer -->
+        <!-- Selected vessel inspector drawer -->
         <Transition
           enter-active-class="transition duration-200 ease-out"
           enter-from-class="translate-x-full"
@@ -701,199 +549,143 @@ const vehicles = computed(() => VEHICLES.filter((v) => v.status === 'active'))
             ref="inspectorRef"
             role="dialog"
             tabindex="-1"
-            :aria-label="`Details for ${selected.name || selected.shipment?.id}`"
+            :aria-label="`Details for ${selected.name}`"
             class="bg-card text-card-foreground absolute bottom-0 right-0 top-0 z-[1001] w-[360px] overflow-y-auto border-l shadow-2xl outline-none"
             @keydown.esc="closeInspector"
           >
             <div class="p-5">
               <div class="flex items-center justify-between gap-2">
                 <div class="min-w-0">
-                  <h2 class="font-semibold text-sm truncate">{{ selected.name || selected.shipment?.id }}</h2>
-                  <p v-if="selected.vesselId" class="text-xs text-muted-foreground font-mono">Vessel #{{ selected.vesselId }}</p>
+                  <h2 class="font-semibold text-sm truncate">{{ selected.name }}</h2>
+                  <p class="text-xs text-muted-foreground font-mono">Vessel #{{ selected.vesselId }}</p>
                 </div>
                 <button type="button" class="text-muted-foreground hover:text-foreground focus-visible:ring-ring -mr-1.5 rounded-md p-1 outline-none focus-visible:ring-2" aria-label="Close" @click="closeInspector"><X class="size-4" /></button>
               </div>
 
-              <!-- Vessel Real Data Display -->
-              <template v-if="selected.vesselId">
-                <!-- Schedule / ETA Hero Box -->
-                <div class="mt-4 rounded-lg border bg-muted/40 p-3.5 space-y-2">
-                  <div class="flex items-center justify-between">
-                    <span class="text-muted-foreground text-[11px] font-medium uppercase tracking-wider">Estimated Arrival (ETA)</span>
-                    <Badge :variant="scheduleBadgeVariant(selected)" class="text-xs font-mono">
-                      {{ scheduleBadgeText(selected) }}
-                    </Badge>
-                  </div>
-                  <div class="flex items-baseline justify-between">
-                    <span class="text-xl font-bold tracking-tight">
-                      {{ selected.etaFormatted }}
-                    </span>
-                  </div>
-                  <p v-if="selected.scheduleStatus !== 'moored'" class="text-xs font-mono" :class="selected.varianceHours > 0 ? 'text-warning' : (selected.varianceHours < 0 ? 'text-info' : 'text-success')">
-                    {{ selected.varianceHours > 0 ? `+${selected.varianceHours}h behind baseline charter ETA` : (selected.varianceHours < 0 ? `${selected.varianceHours}h ahead of baseline charter ETA` : 'On track with baseline charter ETA') }}
-                  </p>
+              <!-- Schedule / ETA Hero Box -->
+              <div class="mt-4 rounded-lg border bg-muted/40 p-3.5 space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-muted-foreground text-[11px] font-medium uppercase tracking-wider">Estimated Arrival (ETA)</span>
+                  <Badge :variant="scheduleBadgeVariant(selected)" class="text-xs font-mono">
+                    {{ scheduleBadgeText(selected) }}
+                  </Badge>
                 </div>
-
-                <!-- Telemetry 3-col Grid -->
-                <div class="border-border divide-border mt-4 grid grid-cols-3 divide-x border-y py-2.5 text-center">
-                  <div>
-                    <p class="text-muted-foreground text-[10px] uppercase tracking-wide">Current SOG</p>
-                    <p class="mt-0.5 text-sm font-semibold tabular-nums">{{ selected.sog }} kts</p>
-                  </div>
-                  <div>
-                    <p class="text-muted-foreground text-[10px] uppercase tracking-wide">Baseline</p>
-                    <p class="mt-0.5 text-sm font-semibold tabular-nums text-muted-foreground">13.5 kts</p>
-                  </div>
-                  <div>
-                    <p class="text-muted-foreground text-[10px] uppercase tracking-wide">Remaining</p>
-                    <p class="mt-0.5 text-sm font-semibold tabular-nums font-mono">{{ selected.remainingNm }} nm</p>
-                  </div>
+                <div class="flex items-baseline justify-between">
+                  <span class="text-xl font-bold tracking-tight">
+                    {{ selected.etaFormatted }}
+                  </span>
                 </div>
+                <p v-if="selected.scheduleStatus !== 'moored'" class="text-xs font-mono" :class="selected.varianceHours > 0 ? 'text-warning' : (selected.varianceHours < 0 ? 'text-info' : 'text-success')">
+                  {{ selected.varianceHours > 0 ? `+${selected.varianceHours}h behind baseline charter ETA` : (selected.varianceHours < 0 ? `${selected.varianceHours}h ahead of baseline charter ETA` : 'On track with baseline charter ETA') }}
+                </p>
+              </div>
 
-                <!-- Voyage Progress -->
-                <div class="mt-4">
-                  <div class="flex justify-between text-xs mb-1.5">
-                    <span class="text-muted-foreground">Voyage Progress</span>
-                    <span class="font-medium tabular-nums">{{ selected.progress }}% ({{ selected.travelledNm }} / {{ selected.distanceNm }} nm)</span>
-                  </div>
-                  <div class="bg-muted h-2 w-full overflow-hidden rounded-full">
-                    <div class="h-full rounded-full transition-all" :style="{ width: `${selected.progress}%`, background: TONE_BG[selected.tone] }" />
-                  </div>
+              <!-- Telemetry 3-col Grid -->
+              <div class="border-border divide-border mt-4 grid grid-cols-3 divide-x border-y py-2.5 text-center">
+                <div>
+                  <p class="text-muted-foreground text-[10px] uppercase tracking-wide">Current SOG</p>
+                  <p class="mt-0.5 text-sm font-semibold tabular-nums">{{ selected.sog }} kts</p>
                 </div>
+                <div>
+                  <p class="text-muted-foreground text-[10px] uppercase tracking-wide">Baseline</p>
+                  <p class="mt-0.5 text-sm font-semibold tabular-nums text-muted-foreground">13.5 kts</p>
+                </div>
+                <div>
+                  <p class="text-muted-foreground text-[10px] uppercase tracking-wide">Remaining</p>
+                  <p class="mt-0.5 text-sm font-semibold tabular-nums font-mono">{{ selected.remainingNm }} nm</p>
+                </div>
+              </div>
 
-                <!-- Maritime Weather & Sea State Card -->
-                <div class="mt-4 rounded-lg border bg-muted/30 p-3.5 space-y-2.5">
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-1.5">
-                      <CloudRain class="size-3.5 text-primary" />
-                      <span class="text-xs font-semibold text-foreground">Weather & Sea State</span>
-                    </div>
-                    <Badge
-                      :variant="selected.windSpeedBF >= 7 ? 'destructive' : (selected.windSpeedBF >= 6 ? 'warning' : 'outline')"
-                      class="text-[10px] font-mono px-1.5 py-0"
-                    >
-                      BF {{ selected.windSpeedBF }} · {{ selected.weather?.windDescription || 'Moderate' }}
-                    </Badge>
+              <!-- Voyage Progress -->
+              <div class="mt-4">
+                <div class="flex justify-between text-xs mb-1.5">
+                  <span class="text-muted-foreground">Voyage Progress</span>
+                  <span class="font-medium tabular-nums">{{ selected.progress }}% ({{ selected.travelledNm }} / {{ selected.distanceNm }} nm)</span>
+                </div>
+                <div class="bg-muted h-2 w-full overflow-hidden rounded-full">
+                  <div class="h-full rounded-full transition-all" :style="{ width: `${selected.progress}%`, background: TONE_BG[selected.tone] }" />
+                </div>
+              </div>
+
+              <!-- Maritime Weather & Sea State Card -->
+              <div class="mt-4 rounded-lg border bg-muted/30 p-3.5 space-y-2.5">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-1.5">
+                    <CloudRain class="size-3.5 text-primary" />
+                    <span class="text-xs font-semibold text-foreground">Weather & Sea State</span>
                   </div>
-
-                  <div class="grid grid-cols-2 gap-2 text-xs">
-                    <div class="rounded border border-border/60 bg-background/80 p-2">
-                      <div class="text-[10px] uppercase font-mono text-muted-foreground">Wind Velocity</div>
-                      <div class="font-semibold text-foreground mt-0.5">{{ selected.weather?.windSpeedKts || '11 – 16 kts' }}</div>
-                      <div class="text-[10px] text-muted-foreground">Beaufort Force {{ selected.windSpeedBF }}</div>
-                    </div>
-                    <div class="rounded border border-border/60 bg-background/80 p-2">
-                      <div class="text-[10px] uppercase font-mono text-muted-foreground">Est. Wave Height</div>
-                      <div class="font-semibold text-foreground mt-0.5">{{ selected.weather?.waveHeightM || '1.0 – 1.5 m' }}</div>
-                      <div class="text-[10px] text-muted-foreground truncate">{{ selected.weather?.seaState || 'Moderate Sea' }}</div>
-                    </div>
-                  </div>
-
-                  <!-- Impact Notice -->
-                  <div
-                    class="rounded-md px-2.5 py-1.5 text-xs flex items-start gap-2"
-                    :class="selected.windSpeedBF >= 7
-                      ? 'bg-destructive/10 text-destructive border border-destructive/30'
-                      : (selected.windSpeedBF >= 6
-                        ? 'bg-warning/10 text-warning border border-warning/30'
-                        : 'bg-muted/50 text-muted-foreground border border-border/40')"
+                  <Badge
+                    :variant="selected.windSpeedBF >= 7 ? 'destructive' : (selected.windSpeedBF >= 6 ? 'warning' : 'outline')"
+                    class="text-[10px] font-mono px-1.5 py-0"
                   >
-                    <AlertTriangle v-if="selected.windSpeedBF >= 6" class="size-3.5 shrink-0 mt-0.5" />
-                    <Compass v-else class="size-3.5 shrink-0 mt-0.5 text-primary" />
-                    <div class="min-w-0">
-                      <p class="font-medium leading-tight">{{ selected.weather?.impactText || 'Favorable passage conditions' }}</p>
-                    </div>
-                  </div>
+                    BF {{ selected.windSpeedBF }} · {{ selected.weather?.windDescription || 'Moderate' }}
+                  </Badge>
+                </div>
 
-                  <!-- Telemetry Table -->
-                  <div class="text-[11px] space-y-1 pt-1 border-t border-border/40 text-muted-foreground font-mono">
-                    <div class="flex justify-between">
-                      <span>Heading / Course:</span>
-                      <span class="text-foreground font-medium">{{ selected.vesselHeading !== undefined ? `${selected.vesselHeading}° (${selected.heading})` : selected.heading }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                      <span>Wave / Swell Dir:</span>
-                      <span class="text-foreground">{{ selected.weather?.waveDirection || 'Fair' }} / {{ selected.weather?.swellDirection || 'Nominal' }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                      <span>Surface Current:</span>
-                      <span class="text-foreground">{{ selected.weather?.currentSpeed || 'Normal' }} ({{ selected.weather?.currentDirection || 'Nominal' }})</span>
-                    </div>
-                    <div class="flex justify-between">
-                      <span>Coordinates:</span>
-                      <span class="font-mono text-foreground">{{ selected.coords[0].toFixed(3) }}°, {{ selected.coords[1].toFixed(3) }}°</span>
-                    </div>
-                    <div class="flex justify-between">
-                      <span>Last Transmission:</span>
-                      <span class="font-mono text-muted-foreground">{{ selected.packetTs }}</span>
-                    </div>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                  <div class="rounded border border-border/60 bg-background/80 p-2">
+                    <div class="text-[10px] uppercase font-mono text-muted-foreground">Wind Velocity</div>
+                    <div class="font-semibold text-foreground mt-0.5">{{ selected.weather?.windSpeedKts || '11 – 16 kts' }}</div>
+                    <div class="text-[10px] text-muted-foreground">Beaufort Force {{ selected.windSpeedBF }}</div>
+                  </div>
+                  <div class="rounded border border-border/60 bg-background/80 p-2">
+                    <div class="text-[10px] uppercase font-mono text-muted-foreground">Est. Wave Height</div>
+                    <div class="font-semibold text-foreground mt-0.5">{{ selected.weather?.waveHeightM || '1.0 – 1.5 m' }}</div>
+                    <div class="text-[10px] text-muted-foreground truncate">{{ selected.weather?.seaState || 'Moderate Sea' }}</div>
                   </div>
                 </div>
 
-                <!-- Ask Copilot for this Vessel Button -->
-                <Button
-                  variant="outline"
-                  size="sm"
-                  class="w-full mt-3.5 h-8 text-xs gap-1.5 font-medium border-primary/40 hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
-                  @click="askCopilotForVessel(selected)"
+                <!-- Impact Notice -->
+                <div
+                  class="rounded-md px-2.5 py-1.5 text-xs flex items-start gap-2"
+                  :class="selected.windSpeedBF >= 7
+                    ? 'bg-destructive/10 text-destructive border border-destructive/30'
+                    : (selected.windSpeedBF >= 6
+                      ? 'bg-warning/10 text-warning border border-warning/30'
+                      : 'bg-muted/50 text-muted-foreground border border-border/40')"
                 >
-                  <Bot class="size-3.5 text-primary" />
-                  <span>Audit {{ selected.name }} with Copilot</span>
-                </Button>
-              </template>
-
-              <!-- Mock Legacy Shipment Display -->
-              <template v-else>
-                <div class="mt-4">
-                  <p class="text-muted-foreground text-[11px] uppercase tracking-wide">Arrives</p>
-                  <div class="mt-0.5 flex items-center gap-2">
-                    <span class="text-2xl font-semibold tabular-nums">
-                      {{ shortDate(selected.shipment?.estimatedDelivery) }}
-                    </span>
-                    <Badge :variant="toneBadge(selected.tone)" class="text-xs">
-                      {{ etaChip(selected.tone).label }}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div class="border-border divide-border mt-4 grid grid-cols-3 divide-x border-y py-2.5 text-center">
-                  <div>
-                    <p class="text-muted-foreground text-[10px] uppercase tracking-wide">Speed</p>
-                    <p class="mt-0.5 text-sm font-semibold tabular-nums">{{ speedOf(selected) }}</p>
-                  </div>
-                  <div>
-                    <p class="text-muted-foreground text-[10px] uppercase tracking-wide">Heading</p>
-                    <p class="mt-0.5 text-sm font-semibold">{{ headingOf(selected) }}</p>
-                  </div>
-                  <div>
-                    <p class="text-muted-foreground text-[10px] uppercase tracking-wide">Distance</p>
-                    <p class="mt-0.5 text-sm font-semibold tabular-nums">
-                      {{ selected.distanceKm ? `${selected.distanceKm} km` : '—' }}
-                    </p>
-                  </div>
-                </div>
-
-                <div v-if="selected.shipment" class="mt-4 flex items-center gap-2.5">
-                  <Avatar class="size-8"><AvatarFallback class="text-[11px] font-semibold">{{ initials(selected.shipment.driver) }}</AvatarFallback></Avatar>
+                  <AlertTriangle v-if="selected.windSpeedBF >= 6" class="size-3.5 shrink-0 mt-0.5" />
+                  <Compass v-else class="size-3.5 shrink-0 mt-0.5 text-primary" />
                   <div class="min-w-0">
-                    <p class="truncate text-sm font-medium">{{ selected.shipment.driver ?? 'Unassigned' }}</p>
-                    <p class="text-muted-foreground font-mono text-xs">{{ selected.shipment.vehicle ?? '—' }}</p>
+                    <p class="font-medium leading-tight">{{ selected.weather?.impactText || 'Favorable passage conditions' }}</p>
                   </div>
                 </div>
 
-                <div class="mt-4">
-                  <div class="text-muted-foreground mb-1 text-[11px] tabular-nums">
-                    {{ selected.shipment?.progress }}% complete
+                <!-- Telemetry Table -->
+                <div class="text-[11px] space-y-1 pt-1 border-t border-border/40 text-muted-foreground font-mono">
+                  <div class="flex justify-between">
+                    <span>Heading / Course:</span>
+                    <span class="text-foreground font-medium">{{ selected.vesselHeading !== undefined ? `${selected.vesselHeading}° (${selected.heading})` : selected.heading }}</span>
                   </div>
-                  <div class="bg-muted h-1 w-full overflow-hidden rounded-full">
-                    <div class="h-full rounded-full" :style="{ width: `${selected.shipment?.progress}%`, background: TONE_BG[selected.tone] }" />
+                  <div class="flex justify-between">
+                    <span>Wave / Swell Dir:</span>
+                    <span class="text-foreground">{{ selected.weather?.waveDirection || 'Fair' }} / {{ selected.weather?.swellDirection || 'Nominal' }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span>Surface Current:</span>
+                    <span class="text-foreground">{{ selected.weather?.currentSpeed || 'Normal' }} ({{ selected.weather?.currentDirection || 'Nominal' }})</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span>Coordinates:</span>
+                    <span class="font-mono text-foreground">{{ selected.coords[0].toFixed(3) }}°, {{ selected.coords[1].toFixed(3) }}°</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span>Last Transmission:</span>
+                    <span class="font-mono text-muted-foreground">{{ selected.packetTs }}</span>
                   </div>
                 </div>
+              </div>
 
-                <Button v-if="selected.shipment" as-child variant="secondary" class="mt-5 w-full">
-                  <NuxtLink :to="`/shipments/${selected.shipment.id}`">Open shipment</NuxtLink>
-                </Button>
-              </template>
+              <!-- Ask Copilot for this Vessel Button -->
+              <Button
+                variant="outline"
+                size="sm"
+                class="w-full mt-3.5 h-8 text-xs gap-1.5 font-medium border-primary/40 hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
+                @click="askCopilotForVessel(selected)"
+              >
+                <Bot class="size-3.5 text-primary" />
+                <span>Audit {{ selected.name }} with Copilot</span>
+              </Button>
             </div>
           </div>
         </Transition>
