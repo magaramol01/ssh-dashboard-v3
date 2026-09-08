@@ -1193,7 +1193,7 @@ onUnmounted(() => {
         ]"
       >
         <div :class="isCopilotFullscreen ? 'max-w-5xl mx-auto w-full' : ''">
-          <div class="text-[10px] uppercase font-mono tracking-wider text-muted-foreground font-semibold mb-1.5">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1.5">
             Quick Directives
           </div>
           <div class="flex flex-wrap gap-1.5">
@@ -1201,7 +1201,7 @@ onUnmounted(() => {
               v-for="chip in quickDirectives"
               :key="chip.label"
               type="button"
-              class="inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded border border-border/80 bg-background hover:border-primary/50 hover:bg-primary/5 text-foreground transition-all cursor-pointer"
+              class="inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-1 rounded border border-border/80 bg-background hover:border-primary/50 hover:bg-primary/5 text-foreground transition-all cursor-pointer"
               @click="askAgent(chip.query)"
             >
               <component :is="chip.icon" class="size-3 text-primary shrink-0" />
@@ -1232,7 +1232,7 @@ onUnmounted(() => {
               <div v-else class="rounded-lg border border-border/80 bg-background/90 p-3 space-y-2.5 shadow-xs">
                 <!-- Tool Executions Diagnostic Summary -->
                 <div v-if="msg.tools?.length" class="pb-1">
-                  <details class="group text-[11px] font-mono">
+                  <details class="group text-[11px]">
                     <summary class="inline-flex items-center gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground select-none py-1 px-2 rounded-md bg-muted/40 hover:bg-muted/70 border border-border/50 transition-colors">
                       <span class="text-emerald-500 font-bold">✓</span>
                       <span class="font-medium text-[10px]">{{ msg.tools.length }} diagnostic {{ msg.tools.length === 1 ? 'source' : 'sources' }} verified</span>
@@ -1264,7 +1264,7 @@ onUnmounted(() => {
                     :key="act.label"
                     variant="outline"
                     size="sm"
-                    class="h-6 text-[11px] font-mono px-2 py-0 border-primary/40 hover:bg-primary/10 text-foreground cursor-pointer gap-1 transition-colors"
+                    class="h-6 text-[11px] font-medium px-2 py-0 border-primary/40 hover:bg-primary/10 text-foreground cursor-pointer gap-1 transition-colors"
                     @click="act.handler()"
                   >
                     <ArrowUpRight class="size-2.5 text-primary shrink-0" />
@@ -1275,7 +1275,7 @@ onUnmounted(() => {
             </div>
 
             <!-- In-Flight Processing Indicator -->
-            <div v-if="isAgentProcessing" class="flex items-center gap-2 text-xs text-muted-foreground font-mono p-2.5 rounded border border-border/50 bg-muted/20">
+            <div v-if="isAgentProcessing" class="flex items-center gap-2 text-xs text-muted-foreground p-2.5 rounded border border-border/50 bg-muted/20">
               <RefreshCw class="size-3 text-primary animate-spin" />
               <span>Analyzing fleet telemetry...</span>
             </div>
@@ -1297,7 +1297,7 @@ onUnmounted(() => {
               <Input
                 v-model="agentInput"
                 placeholder="Ask about alerts or vessel status..."
-                class="h-8 pl-8 pr-7 text-xs border-border/80 bg-background font-mono"
+                class="h-8 pl-8 pr-7 text-xs border-border/80 bg-background"
               />
               <button
                 v-if="agentInput"
@@ -1317,7 +1317,7 @@ onUnmounted(() => {
               <Send class="size-3" />
             </Button>
           </form>
-          <div class="flex items-center justify-between mt-1.5 px-0.5 text-[10px] text-muted-foreground font-mono">
+          <div class="flex items-center justify-between mt-1.5 px-0.5 text-[10px] text-muted-foreground">
             <span>Read-only triage & summaries</span>
             <span>Esc to {{ isCopilotFullscreen ? 'exit full screen' : 'close' }} · ⌘J toggle</span>
           </div>

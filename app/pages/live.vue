@@ -338,7 +338,7 @@ const selected = computed(() => {
           </div>
         </div>
         <div v-else>
-          <p class="text-muted-foreground mt-0.5 text-xs tabular-nums font-mono">
+          <p class="text-muted-foreground mt-0.5 text-xs tabular-nums">
             {{ stats.active }} vessels · {{ stats.onTime }} on time · {{ stats.late }} late
           </p>
           <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1">
@@ -423,18 +423,18 @@ const selected = computed(() => {
               >
                 <div class="flex items-center justify-between gap-2">
                   <span class="font-semibold text-[13px] tracking-tight truncate">{{ t.name }}</span>
-                  <Badge :variant="scheduleBadgeVariant(t)" class="shrink-0 text-xs font-mono">
+                  <Badge :variant="scheduleBadgeVariant(t)" class="shrink-0 text-xs font-medium">
                     {{ scheduleBadgeText(t) }}
                   </Badge>
                 </div>
                 <div class="mt-1 flex items-baseline justify-between gap-2 text-[12px] text-muted-foreground">
                   <span class="truncate">SOG: <strong class="text-foreground font-medium">{{ t.sog }} kts</strong> · {{ t.heading }}</span>
-                  <span class="shrink-0 font-mono text-[11px] text-foreground font-medium">ETA: {{ t.etaFormatted }}</span>
+                  <span class="shrink-0 text-[11px] text-foreground font-medium tabular-nums">ETA: {{ t.etaFormatted }}</span>
                 </div>
                 <div class="bg-muted mt-2 h-[3px] w-full overflow-hidden rounded-full">
                   <div class="h-full rounded-full transition-all" :style="{ width: `${t.progress}%`, background: TONE_BG[t.tone] }" />
                 </div>
-                <div class="mt-1 flex items-center justify-between text-muted-foreground text-[11px] tabular-nums font-mono">
+                <div class="mt-1 flex items-center justify-between text-muted-foreground text-[11px] tabular-nums">
                   <span>{{ t.progress }}% ({{ t.travelledNm }} / {{ t.distanceNm }} nm)</span>
                   <span>Rem {{ t.remainingNm }} nm</span>
                 </div>
@@ -557,7 +557,7 @@ const selected = computed(() => {
               <div class="flex items-center justify-between gap-2">
                 <div class="min-w-0">
                   <h2 class="font-semibold text-sm truncate">{{ selected.name }}</h2>
-                  <p class="text-xs text-muted-foreground font-mono">Vessel #{{ selected.vesselId }}</p>
+                  <p class="text-xs text-muted-foreground tabular-nums">Vessel #{{ selected.vesselId }}</p>
                 </div>
                 <button type="button" class="text-muted-foreground hover:text-foreground focus-visible:ring-ring -mr-1.5 rounded-md p-1 outline-none focus-visible:ring-2" aria-label="Close" @click="closeInspector"><X class="size-4" /></button>
               </div>
@@ -566,7 +566,7 @@ const selected = computed(() => {
               <div class="mt-4 rounded-lg border bg-muted/40 p-3.5 space-y-2">
                 <div class="flex items-center justify-between">
                   <span class="text-muted-foreground text-[11px] font-medium uppercase tracking-wider">Estimated Arrival (ETA)</span>
-                  <Badge :variant="scheduleBadgeVariant(selected)" class="text-xs font-mono">
+                  <Badge :variant="scheduleBadgeVariant(selected)" class="text-xs font-medium">
                     {{ scheduleBadgeText(selected) }}
                   </Badge>
                 </div>
@@ -575,7 +575,7 @@ const selected = computed(() => {
                     {{ selected.etaFormatted }}
                   </span>
                 </div>
-                <p v-if="selected.scheduleStatus !== 'moored'" class="text-xs font-mono" :class="selected.varianceHours > 0 ? 'text-warning' : (selected.varianceHours < 0 ? 'text-info' : 'text-success')">
+                <p v-if="selected.scheduleStatus !== 'moored'" class="text-xs font-medium" :class="selected.varianceHours > 0 ? 'text-warning' : (selected.varianceHours < 0 ? 'text-info' : 'text-success')">
                   {{ selected.varianceHours > 0 ? `+${selected.varianceHours}h behind baseline charter ETA` : (selected.varianceHours < 0 ? `${selected.varianceHours}h ahead of baseline charter ETA` : 'On track with baseline charter ETA') }}
                 </p>
               </div>
@@ -592,7 +592,7 @@ const selected = computed(() => {
                 </div>
                 <div>
                   <p class="text-muted-foreground text-[10px] uppercase tracking-wide">Remaining</p>
-                  <p class="mt-0.5 text-sm font-semibold tabular-nums font-mono">{{ selected.remainingNm }} nm</p>
+                  <p class="mt-0.5 text-sm font-semibold tabular-nums">{{ selected.remainingNm }} nm</p>
                 </div>
               </div>
 
@@ -616,7 +616,7 @@ const selected = computed(() => {
                   </div>
                   <Badge
                     :variant="selected.windSpeedBF >= 7 ? 'destructive' : (selected.windSpeedBF >= 6 ? 'warning' : 'outline')"
-                    class="text-[10px] font-mono px-1.5 py-0"
+                    class="text-[10px] font-medium px-1.5 py-0"
                   >
                     BF {{ selected.windSpeedBF }} · {{ selected.weather?.windDescription || 'Moderate' }}
                   </Badge>
@@ -624,12 +624,12 @@ const selected = computed(() => {
 
                 <div class="grid grid-cols-2 gap-2 text-xs">
                   <div class="rounded border border-border/60 bg-background/80 p-2">
-                    <div class="text-[10px] uppercase font-mono text-muted-foreground">Wind Velocity</div>
+                    <div class="text-[10px] uppercase font-semibold tracking-wider text-muted-foreground">Wind Velocity</div>
                     <div class="font-semibold text-foreground mt-0.5">{{ selected.weather?.windSpeedKts || '11 – 16 kts' }}</div>
                     <div class="text-[10px] text-muted-foreground">Beaufort Force {{ selected.windSpeedBF }}</div>
                   </div>
                   <div class="rounded border border-border/60 bg-background/80 p-2">
-                    <div class="text-[10px] uppercase font-mono text-muted-foreground">Est. Wave Height</div>
+                    <div class="text-[10px] uppercase font-semibold tracking-wider text-muted-foreground">Est. Wave Height</div>
                     <div class="font-semibold text-foreground mt-0.5">{{ selected.weather?.waveHeightM || '1.0 – 1.5 m' }}</div>
                     <div class="text-[10px] text-muted-foreground truncate">{{ selected.weather?.seaState || 'Moderate Sea' }}</div>
                   </div>
@@ -652,7 +652,7 @@ const selected = computed(() => {
                 </div>
 
                 <!-- Telemetry Table -->
-                <div class="text-[11px] space-y-1 pt-1 border-t border-border/40 text-muted-foreground font-mono">
+                <div class="text-[11px] space-y-1 pt-1 border-t border-border/40 text-muted-foreground">
                   <div class="flex justify-between">
                     <span>Heading / Course:</span>
                     <span class="text-foreground font-medium">{{ selected.vesselHeading !== undefined ? `${selected.vesselHeading}° (${selected.heading})` : selected.heading }}</span>
@@ -667,11 +667,11 @@ const selected = computed(() => {
                   </div>
                   <div class="flex justify-between">
                     <span>Coordinates:</span>
-                    <span class="font-mono text-foreground">{{ selected.coords[0].toFixed(3) }}°, {{ selected.coords[1].toFixed(3) }}°</span>
+                    <span class="text-foreground tabular-nums">{{ selected.coords[0].toFixed(3) }}°, {{ selected.coords[1].toFixed(3) }}°</span>
                   </div>
                   <div class="flex justify-between">
                     <span>Last Transmission:</span>
-                    <span class="font-mono text-muted-foreground">{{ selected.packetTs }}</span>
+                    <span class="text-muted-foreground tabular-nums">{{ selected.packetTs }}</span>
                   </div>
                 </div>
               </div>
@@ -730,7 +730,7 @@ const selected = computed(() => {
             <div class="min-w-0">
               <div class="flex items-center gap-2">
                 <h2 class="font-semibold text-xs tracking-tight truncate">Fleet Operations Copilot</h2>
-                <Badge variant="outline" class="font-mono text-[9px] px-1.5 py-0 border-primary/40 text-primary">
+                <Badge variant="outline" class="text-[9px] font-semibold px-1.5 py-0 border-primary/40 text-primary">
                   AI Marine
                 </Badge>
               </div>
@@ -772,7 +772,7 @@ const selected = computed(() => {
 
         <!-- Quick Directives Chips -->
         <div class="py-2.5 px-3.5 border-b border-border/60 bg-muted/10 shrink-0">
-          <div class="text-[10px] uppercase font-mono tracking-wider text-muted-foreground font-semibold mb-1.5">
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1.5">
             Quick Directives
           </div>
           <div class="flex flex-wrap gap-1.5">
@@ -780,7 +780,7 @@ const selected = computed(() => {
               v-for="chip in quickDirectives"
               :key="chip.label"
               type="button"
-              class="inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded border border-border/80 bg-background hover:border-primary/50 hover:bg-primary/5 text-foreground transition-all cursor-pointer"
+              class="inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-1 rounded border border-border/80 bg-background hover:border-primary/50 hover:bg-primary/5 text-foreground transition-all cursor-pointer"
               @click="askAgent(chip.query)"
             >
               <component :is="chip.icon" class="size-3 text-primary shrink-0" />
@@ -804,7 +804,7 @@ const selected = computed(() => {
               <div v-else class="rounded-lg border border-border/80 bg-background/90 p-3 space-y-2.5 shadow-xs">
                 <!-- Tool Executions Diagnostic Summary -->
                 <div v-if="msg.tools?.length" class="pb-1">
-                  <details class="group text-[11px] font-mono">
+                  <details class="group text-[11px]">
                     <summary class="inline-flex items-center gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground select-none py-1 px-2 rounded-md bg-muted/40 hover:bg-muted/70 border border-border/50 transition-colors">
                       <span class="text-emerald-500 font-bold">✓</span>
                       <span class="font-medium text-[10px]">{{ msg.tools.length }} diagnostic {{ msg.tools.length === 1 ? 'source' : 'sources' }} verified</span>
@@ -836,7 +836,7 @@ const selected = computed(() => {
                     :key="act.label"
                     variant="outline"
                     size="sm"
-                    class="h-6 text-[11px] font-mono px-2 py-0 border-primary/40 hover:bg-primary/10 text-foreground cursor-pointer gap-1 transition-colors"
+                    class="h-6 text-[11px] font-medium px-2 py-0 border-primary/40 hover:bg-primary/10 text-foreground cursor-pointer gap-1 transition-colors"
                     @click="act.handler()"
                   >
                     <ArrowUpRight class="size-2.5 text-primary shrink-0" />
@@ -847,7 +847,7 @@ const selected = computed(() => {
             </div>
 
             <!-- Processing Spinner -->
-            <div v-if="isAgentProcessing" class="flex items-center gap-2 text-xs text-muted-foreground font-mono p-2.5 rounded border border-border/50 bg-muted/20">
+            <div v-if="isAgentProcessing" class="flex items-center gap-2 text-xs text-muted-foreground p-2.5 rounded border border-border/50 bg-muted/20">
               <RefreshCw class="size-3 text-primary animate-spin" />
               <span>Analyzing fleet telemetry and weather...</span>
             </div>
@@ -862,7 +862,7 @@ const selected = computed(() => {
               <Input
                 v-model="agentInput"
                 placeholder="Ask about ETA delays, weather, or vessel..."
-                class="h-8 pl-8 pr-7 text-xs border-border/80 bg-background font-mono"
+                class="h-8 pl-8 pr-7 text-xs border-border/80 bg-background"
               />
               <button
                 v-if="agentInput"
@@ -882,7 +882,7 @@ const selected = computed(() => {
               <Send class="size-3" />
             </Button>
           </form>
-          <div class="flex items-center justify-between mt-1.5 px-0.5 text-[10px] text-muted-foreground font-mono">
+          <div class="flex items-center justify-between mt-1.5 px-0.5 text-[10px] text-muted-foreground">
             <span>Fleet AI Triage & ETA Forecasts</span>
             <span>Esc to close · ⌘J toggle</span>
           </div>

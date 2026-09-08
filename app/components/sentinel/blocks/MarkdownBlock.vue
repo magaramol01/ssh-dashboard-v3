@@ -23,7 +23,7 @@ function formatInline(str: string): string {
   // Inline code / telemetry
   text = text.replace(/`([^`]+)`/g, '<code class="font-mono text-[10px] bg-muted/80 text-primary px-1 py-0.5 rounded border border-border/50 font-medium">$1</code>')
   // Telemetry values: e.g. "0 rpm", "0 knots", "0 kt", "6 hours", "18:34:21 UTC"
-  text = text.replace(/\b(\d+(?:\.\d+)?\s*(?:rpm|knots|kt|nm|bar|°C|kW|hours|hrs|UTC))\b/gi, '<span class="font-mono text-[11px] font-semibold text-foreground bg-muted/60 px-1 py-0.2 rounded border border-border/40">$1</span>')
+  text = text.replace(/\b(\d+(?:\.\d+)?\s*(?:rpm|knots|kt|nm|bar|°C|kW|hours|hrs|UTC))\b/gi, '<span class="tabular-nums text-[11px] font-semibold text-foreground bg-muted/60 px-1 py-0.5 rounded border border-border/40">$1</span>')
   return text
 }
 
@@ -149,7 +149,7 @@ const parsedSections = computed<ParsedSection[]>(() => {
       <!-- 1. Operational Assessment Banner Header -->
       <div
         v-if="section.type === 'assessment_header'"
-        class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/80 bg-muted/40 p-2.5 font-mono"
+        class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/80 bg-muted/40 p-2.5"
       >
         <div class="flex items-center gap-2 min-w-0">
           <Ship class="size-4 text-primary shrink-0" />
@@ -170,7 +170,7 @@ const parsedSections = computed<ParsedSection[]>(() => {
         v-else-if="section.type === 'conclusion'"
         class="rounded-lg border-l-3 border-l-primary border border-border/70 bg-card p-3 space-y-1.5 shadow-2xs"
       >
-        <div class="flex items-center gap-1.5 text-[11px] font-mono font-semibold uppercase tracking-wider text-primary">
+        <div class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
           <Activity class="size-3.5 shrink-0" />
           <span>{{ section.title }}</span>
         </div>
@@ -182,7 +182,7 @@ const parsedSections = computed<ParsedSection[]>(() => {
         v-else-if="section.type === 'impact'"
         class="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 space-y-2 shadow-2xs"
       >
-        <div class="flex items-center gap-1.5 text-[11px] font-mono font-semibold uppercase tracking-wider text-amber-500">
+        <div class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-500">
           <AlertTriangle class="size-3.5 shrink-0" />
           <span>{{ section.title }}</span>
         </div>
@@ -206,7 +206,7 @@ const parsedSections = computed<ParsedSection[]>(() => {
         v-else-if="section.type === 'evidence'"
         class="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3 space-y-2 shadow-2xs"
       >
-        <div class="flex items-center gap-1.5 text-[11px] font-mono font-semibold uppercase tracking-wider text-blue-500 dark:text-blue-400">
+        <div class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-blue-500 dark:text-blue-400">
           <FileText class="size-3.5 shrink-0" />
           <span>{{ section.title }}</span>
         </div>
@@ -230,7 +230,7 @@ const parsedSections = computed<ParsedSection[]>(() => {
         v-else-if="section.type === 'explanations'"
         class="rounded-lg border border-border/80 bg-muted/20 p-3 space-y-2 shadow-2xs"
       >
-        <div class="flex items-center gap-1.5 text-[11px] font-mono font-semibold uppercase tracking-wider text-muted-foreground">
+        <div class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           <HelpCircle class="size-3.5 shrink-0" />
           <span>{{ section.title }}</span>
         </div>
@@ -254,7 +254,7 @@ const parsedSections = computed<ParsedSection[]>(() => {
         v-else-if="section.type === 'recommendations'"
         class="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-2 shadow-2xs"
       >
-        <div class="flex items-center gap-1.5 text-[11px] font-mono font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+        <div class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
           <ListChecks class="size-3.5 shrink-0" />
           <span>{{ section.title }}</span>
         </div>
@@ -284,7 +284,7 @@ const parsedSections = computed<ParsedSection[]>(() => {
           </div>
           <div
             v-else-if="line.startsWith('## ')"
-            class="font-semibold text-xs text-foreground uppercase tracking-wider font-mono pt-1"
+            class="font-semibold text-xs text-foreground uppercase tracking-wider pt-1"
           >
             {{ line.replace(/^##\s+/, '') }}
           </div>

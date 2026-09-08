@@ -7,7 +7,7 @@ defineProps<{ block: TableBlock }>()
 
 <template>
   <div class="overflow-hidden rounded-md border border-border/60">
-    <p class="border-b border-border/60 bg-muted/30 px-2.5 py-2 text-[10px] font-mono font-semibold uppercase tracking-wider text-muted-foreground">{{ block.title }}</p>
+    <p class="border-b border-border/60 bg-muted/30 px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{{ block.title }}</p>
     <div class="overflow-x-auto">
       <table class="w-full text-left text-[11px]">
         <thead class="bg-muted/20 text-muted-foreground">

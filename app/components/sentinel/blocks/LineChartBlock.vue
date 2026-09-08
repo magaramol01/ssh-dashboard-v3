@@ -8,7 +8,7 @@ defineProps<{ block: LineChartBlock }>()
 
 <template>
   <div class="space-y-2">
-    <p class="text-[10px] font-mono font-semibold uppercase tracking-wider text-muted-foreground">{{ block.title }}</p>
+    <p class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{{ block.title }}</p>
     <ClientOnly>
       <AreaChart :data="block.points.map((point) => ({ x: point.label, y: point.value }))" x-field="x" y-field="y" height="180" />
       <template #fallback><div class="h-[180px] animate-pulse rounded-md bg-muted/40" /></template>
