@@ -807,19 +807,19 @@ const selected = computed(() => {
         aria-label="Fleet Operations Copilot"
       >
         <!-- Copilot Header -->
-        <div class="flex items-center justify-between border-b border-border/80 px-4 py-3 bg-muted/20 shrink-0">
-          <div class="flex items-center gap-2 min-w-0">
+        <div class="flex h-[52px] shrink-0 items-center justify-between border-b border-border px-4 bg-muted/20">
+          <div class="flex items-center gap-2.5 min-w-0">
             <div class="size-7 rounded-md bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
               <Sparkles class="size-4 text-primary" />
             </div>
             <div class="min-w-0">
-              <div class="flex items-center gap-2">
-                <h2 class="font-semibold text-xs tracking-tight truncate">Fleet Operations Copilot</h2>
+              <div class="flex items-center gap-2 leading-none">
+                <h2 class="font-semibold text-xs tracking-tight truncate leading-none">Fleet Operations Copilot</h2>
                 <Badge variant="outline" class="text-[9px] font-semibold px-1.5 py-0 border-primary/40 text-primary">
                   AI Marine
                 </Badge>
               </div>
-              <p class="text-[10px] text-muted-foreground truncate">Live schedule & weather triage</p>
+              <p class="text-[10px] text-muted-foreground truncate leading-none mt-1">Live schedule & weather triage</p>
             </div>
           </div>
 
