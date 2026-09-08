@@ -4,6 +4,33 @@
  * Prefixed `lm-` to avoid collisions.
  * Pills use semantic tokens so they track the theme.
  */
+
+/* Dark mode tiles for Leaflet using CSS hardware-accelerated color filtering.
+   Zero external API key required; transforms standard OpenStreetMap into a sleek dark palette. */
+.dark .leaflet-tile {
+  filter: invert(100%) hue-rotate(180deg) brightness(88%) contrast(110%) grayscale(20%);
+  transition: filter 0.3s ease;
+}
+
+.dark .leaflet-container {
+  background: #0f172a !important;
+}
+
+.dark .leaflet-control-zoom {
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+.dark .leaflet-control-zoom a {
+  background: var(--card) !important;
+  color: var(--foreground) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+.dark .leaflet-control-attribution {
+  background: rgba(15, 23, 42, 0.85) !important;
+  color: #94a3b8 !important;
+}
+
 .lm-leaflet-icon {
   background: transparent;
   border: 0;
@@ -55,7 +82,7 @@
   width: 16px;
   height: 16px;
   border-radius: 9999px;
-  background: #fff;
+  background: var(--card);
   border-width: 2.5px;
   border-style: solid;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.4);
@@ -69,7 +96,7 @@
   width: 11px;
   height: 11px;
   border-radius: 9999px;
-  background: #fff;
+  background: var(--card);
   border-width: 2.5px;
   border-style: solid;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.35);
@@ -87,7 +114,7 @@
   border-radius: 7px;
   background: var(--primary);
   color: var(--primary-foreground);
-  border: 2px solid #fff;
+  border: 2px solid var(--card);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 2px 7px rgba(0, 0, 0, 0.45);
 }
 .lm-hub svg {
@@ -102,7 +129,7 @@
   width: 13px;
   height: 13px;
   border-radius: 4px;
-  background: #fff;
+  background: var(--card);
   border: 2px solid var(--primary);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 1px 3px rgba(0, 0, 0, 0.4);
 }

@@ -1,6 +1,6 @@
-import { watch } from 'vue'
+import { computed, watch } from 'vue'
 
-type Theme = 'light' | 'dark' | 'system'
+export type Theme = 'light' | 'dark' | 'system'
 const COOKIE_KEY = 'uipkge-theme'
 
 // useCookie is Nuxt-auto-imported. The cookie path matters: the server
@@ -19,20 +19,42 @@ export function useTheme() {
     maxAge: 60 * 60 * 24 * 365,
   })
 
-  function setTheme(next: Theme) {
-    theme.value = next
-  }
+  const systemDark = useState<boolean>('theme-sys-dark', () => false)
 
   function apply(next: Theme) {
     if (typeof window === 'undefined') return
-    const isDark = next === 'dark' || (next === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-    document.documentElement.classList.toggle('dark', isDark)
+    const sysMatches = window.matchMedia('(prefers-color-scheme: dark)').matches
+    systemDark.value = sysMatches
+    const isDarkValue = next === 'dark' || (next === 'system' && sysMatches)
+    document.documentElement.classList.toggle('dark', isDarkValue)
   }
+
+  function setTheme(next: Theme) {
+    theme.value = next
+    apply(next)
+  }
+
+  const isDark = computed<boolean>(() => {
+    if (theme.value === 'dark') return true
+    if (theme.value === 'light') return false
+    return systemDark.value
+  })
 
   if (typeof window !== 'undefined') {
     apply(theme.value)
     watch(theme, apply)
+
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    if (media && media.addEventListener) {
+      media.addEventListener('change', (e) => {
+        systemDark.value = e.matches
+        if (theme.value === 'system') {
+          document.documentElement.classList.toggle('dark', e.matches)
+        }
+      })
+    }
   }
 
-  return { theme, setTheme }
+  return { theme, setTheme, isDark }
 }
+

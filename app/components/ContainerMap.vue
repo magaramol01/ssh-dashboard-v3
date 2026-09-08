@@ -8,6 +8,7 @@ const geo = computed(() => containerGeo(props.container))
 const el = ref<HTMLElement | null>(null)
 let L: any = null
 let map: any = null
+let currentTileLayer: any = null
 const layers: any[] = []
 const ROUTE = '#2dd4bf'
 
@@ -38,7 +39,7 @@ onMounted(async () => {
   if (!el.value) return
   const vessel = geo.value.vessel
   map = L.map(el.value, { zoomControl: true, attributionControl: true, scrollWheelZoom: false }).setView([vessel[1], vessel[0]], 2)
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  currentTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   }).addTo(map)
@@ -47,12 +48,22 @@ onMounted(async () => {
 })
 
 watch(geo, draw, { deep: true })
-onBeforeUnmount(() => { layers.splice(0); if (map) { map.remove(); map = null } })
+
+onBeforeUnmount(() => {
+  layers.splice(0)
+  if (currentTileLayer && map) {
+    map.removeLayer(currentTileLayer)
+    currentTileLayer = null
+  }
+  if (map) { map.remove(); map = null }
+})
 </script>
 
 <template><div ref="el" class="size-full" /></template>
 
 <style scoped>
-:deep(.leaflet-container) { background: var(--muted); font-family: var(--font-sans); }
-:deep(.leaflet-control-zoom a) { color: var(--foreground); background: var(--card); border-color: var(--border); }
+:deep(.leaflet-container) { background: var(--background); font-family: var(--font-sans); }
+:deep(.leaflet-control-zoom) { border: 1px solid var(--border) !important; border-radius: 8px !important; overflow: hidden; }
+:deep(.leaflet-control-zoom a) { color: var(--foreground) !important; background: var(--card) !important; border-color: var(--border) !important; }
+:deep(.leaflet-control-attribution) { background: var(--background) !important; color: var(--muted-foreground) !important; font-size: 10px; }
 </style>

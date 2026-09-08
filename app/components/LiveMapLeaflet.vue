@@ -20,10 +20,12 @@ type RouteLayers = {
 const props = defineProps<{ trips: (ResolvedTrip | any)[]; selectedId: string | null }>()
 const emit = defineEmits<{ (e: 'select', id: string): void }>()
 
-const { theme } = useTheme()
+const { theme, isDark } = useTheme()
 const el = ref<HTMLElement | null>(null)
 let L: any = null
 let map: any = null
+let currentTileLayer: any = null
+let themeMutationObserver: MutationObserver | null = null
 const routes = new Map<string, RouteLayers>()
 const networkMarkers: any[] = []
 const itineraryMarkers: any[] = []
@@ -196,8 +198,20 @@ function drawRoutes() {
 
     const marker = L.marker(markerPos, { icon: vesselIcon(color, false), riseOnHover: true }).addTo(map)
     marker.on('click', () => emit('select', id))
-    const speedText = (trip as any).sog !== undefined ? ` · ${(trip as any).sog} kts` : ''
-    marker.bindTooltip(`<b>${name}</b>${speedText}`, { direction: 'top', offset: [0, -18] })
+    let tooltipHtml = `<b>${name}</b>`
+    if ((trip as any).sog !== undefined) {
+      const sched = (trip as any).scheduleStatus
+      const schedLabel =
+        sched === 'on-time'
+          ? '<span style="color:#10b981;font-weight:600">On time</span>'
+          : sched === 'late'
+          ? `<span style="color:#f59e0b;font-weight:600">+${(trip as any).varianceHours}h Late</span>`
+          : sched === 'early'
+          ? `<span style="color:#38bdf8;font-weight:600">${(trip as any).varianceHours}h Early</span>`
+          : '<span style="color:#94a3b8">In port</span>'
+      tooltipHtml += `<br/><span style="font-size:11px">${(trip as any).sog} kts · ${schedLabel}</span>`
+    }
+    marker.bindTooltip(tooltipHtml, { direction: 'top', offset: [0, -18] })
     routes.set(id, { base, travelled: travelledLine, remaining: remainingLine, origin, marker, truck: markerPos, color })
   }
 
@@ -225,29 +239,67 @@ function hover(id: string | null) {
   hoverId.value = id
   applyFocus()
 }
-defineExpose({ hover })
+function invalidateSize() {
+  map?.invalidateSize()
+}
+defineExpose({ hover, invalidateSize })
+
+let resizeObserver: ResizeObserver | null = null
 
 onMounted(async () => {
   L = (await import('leaflet')).default
   if (!el.value) return
   map = L.map(el.value, { zoomControl: false, minZoom: 2, maxZoom: 19, attributionControl: true }).setView([15, 75], 3)
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  currentTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   }).addTo(map)
   L.control.zoom({ position: 'bottomright' }).addTo(map)
   drawRoutes()
   requestAnimationFrame(() => map?.invalidateSize())
+
+  if (typeof ResizeObserver !== 'undefined' && el.value) {
+    resizeObserver = new ResizeObserver(() => {
+      map?.invalidateSize()
+    })
+    resizeObserver.observe(el.value)
+  }
+
+  if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined') {
+    themeMutationObserver = new MutationObserver(async () => {
+      if (!map) return
+      await nextTick()
+      drawRoutes()
+    })
+    themeMutationObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    })
+  }
 })
 
 watch(() => props.selectedId, () => { drawItinerary(); applyFocus(); fitSelected() })
 watch(() => props.trips, drawRoutes, { deep: true })
-watch(theme, () => { if (map) drawRoutes() })
+watch([isDark, theme], async () => {
+  if (map) {
+    await nextTick()
+    drawRoutes()
+  }
+})
 
 onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  themeMutationObserver?.disconnect()
+  themeMutationObserver = null
   clearItinerary()
   networkMarkers.length = 0
   routes.clear()
+  if (currentTileLayer && map) {
+    map.removeLayer(currentTileLayer)
+    currentTileLayer = null
+  }
   if (map) { map.remove(); map = null }
 })
 </script>
@@ -255,6 +307,61 @@ onBeforeUnmount(() => {
 <template><div ref="el" class="size-full" /></template>
 
 <style scoped>
-:deep(.leaflet-container) { background: var(--muted); font-family: var(--font-sans); }
-:deep(.leaflet-pane), :deep(.leaflet-top), :deep(.leaflet-bottom) { z-index: 1; }
+:deep(.leaflet-container) {
+  background: var(--background);
+  font-family: var(--font-sans);
+}
+:deep(.leaflet-pane),
+:deep(.leaflet-top),
+:deep(.leaflet-bottom) {
+  z-index: 1;
+}
+:deep(.leaflet-control-zoom) {
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+}
+:deep(.leaflet-control-zoom a) {
+  color: var(--foreground) !important;
+  background: var(--card) !important;
+  border-bottom: 1px solid var(--border) !important;
+  transition: background-color 0.15s, color 0.15s;
+}
+:deep(.leaflet-control-zoom a:last-child) {
+  border-bottom: none !important;
+}
+:deep(.leaflet-control-zoom a:hover) {
+  background: var(--accent) !important;
+  color: var(--accent-foreground) !important;
+}
+:deep(.leaflet-control-attribution) {
+  background: var(--background) !important;
+  color: var(--muted-foreground) !important;
+  opacity: 0.85;
+  font-size: 10px;
+}
+:deep(.leaflet-control-attribution a) {
+  color: var(--primary) !important;
+}
+:deep(.leaflet-tooltip) {
+  background: var(--popover) !important;
+  color: var(--popover-foreground) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+  border-radius: 6px !important;
+  padding: 6px 10px !important;
+}
+:deep(.leaflet-tooltip-top:before) {
+  border-top-color: var(--border) !important;
+}
+:deep(.leaflet-tooltip-bottom:before) {
+  border-bottom-color: var(--border) !important;
+}
+:deep(.leaflet-tooltip-left:before) {
+  border-left-color: var(--border) !important;
+}
+:deep(.leaflet-tooltip-right:before) {
+  border-right-color: var(--border) !important;
+}
 </style>

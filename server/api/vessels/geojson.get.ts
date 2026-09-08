@@ -1,6 +1,20 @@
 import { defineEventHandler, getCookie, getHeader, getQuery, createError } from 'h3'
 import { getAllVesselsGeoJsonData, type VesselsGeoJsonResponse } from '../../utils/http-adapter'
 
+export interface WeatherDetail {
+  beaufort: number
+  windDescription: string
+  windSpeedKts: string
+  waveHeightM: string
+  seaState: string
+  seaCondition: 'calm' | 'moderate' | 'rough' | 'gale'
+  impactText: string
+  waveDirection: string
+  swellDirection: string
+  currentSpeed: string
+  currentDirection: string
+}
+
 export interface NormalizedVessel {
   id: string
   vesselId: number
@@ -11,6 +25,8 @@ export interface NormalizedVessel {
   originCoords: [number, number] | null
   destCoords: [number, number] | null
   distanceNm: number
+  travelledNm: number
+  remainingNm: number
   progress: number
   packetTs: string
   windSpeedBF: number
@@ -19,8 +35,110 @@ export interface NormalizedVessel {
   currentSpeed: string
   currentDirection: string
   heading: string
+  vesselHeading?: number
+  weather: WeatherDetail
   status: 'in-transit' | 'manoeuvring' | 'moored'
+  scheduleStatus: 'on-time' | 'late' | 'early' | 'moored'
+  varianceHours: number
+  etaHours: number
+  etaIso: string
+  etaFormatted: string
   tone: 'success' | 'warning' | 'info' | 'muted' | 'destructive'
+}
+
+function resolveWeatherInfo(p: any): WeatherDetail {
+  const bf = typeof p.windSpeedBF === 'number' ? p.windSpeedBF : parseInt(p.windSpeedBF || '0', 10) || 0
+
+  let windDescription = 'Calm'
+  let windSpeedKts = '< 1 kts'
+  let waveHeightM = '0 m (0 ft)'
+  let seaState = 'Calm (Glassy)'
+  let seaCondition: 'calm' | 'moderate' | 'rough' | 'gale' = 'calm'
+  let impactText = 'Optimal transit conditions · Nominal resistance'
+
+  if (bf === 1) {
+    windDescription = 'Light Air'
+    windSpeedKts = '1 – 3 kts'
+    waveHeightM = '0.1 m (< 0.5 ft)'
+    seaState = 'Rippled Sea'
+    seaCondition = 'calm'
+    impactText = 'Smooth surface · Favorable navigation'
+  } else if (bf === 2) {
+    windDescription = 'Light Breeze'
+    windSpeedKts = '4 – 6 kts'
+    waveHeightM = '0.2 – 0.3 m (1 ft)'
+    seaState = 'Smooth Wavelets'
+    seaCondition = 'calm'
+    impactText = 'Gentle ripples · Nominal fuel efficiency'
+  } else if (bf === 3) {
+    windDescription = 'Gentle Breeze'
+    windSpeedKts = '7 – 10 kts'
+    waveHeightM = '0.6 – 1.0 m (2 – 3 ft)'
+    seaState = 'Slight Sea'
+    seaCondition = 'calm'
+    impactText = 'Favorable passage · Negligible weather delay'
+  } else if (bf === 4) {
+    windDescription = 'Moderate Breeze'
+    windSpeedKts = '11 – 16 kts'
+    waveHeightM = '1.0 – 1.5 m (3.5 – 5 ft)'
+    seaState = 'Moderate Sea'
+    seaCondition = 'moderate'
+    impactText = 'Fair conditions · Minor pitching & whitecaps'
+  } else if (bf === 5) {
+    windDescription = 'Fresh Breeze'
+    windSpeedKts = '17 – 21 kts'
+    waveHeightM = '2.0 – 2.5 m (6 – 8 ft)'
+    seaState = 'Moderate to Rough'
+    seaCondition = 'moderate'
+    impactText = 'Moderate rolling · Minor speed loss observed'
+  } else if (bf === 6) {
+    windDescription = 'Strong Breeze'
+    windSpeedKts = '22 – 27 kts'
+    waveHeightM = '3.0 – 4.0 m (10 – 13 ft)'
+    seaState = 'Rough Sea'
+    seaCondition = 'rough'
+    impactText = 'Adverse sea state · Leeway drift & engine load increased'
+  } else if (bf === 7) {
+    windDescription = 'Near Gale'
+    windSpeedKts = '28 – 33 kts'
+    waveHeightM = '4.0 – 5.5 m (13 – 18 ft)'
+    seaState = 'Very Rough / High'
+    seaCondition = 'gale'
+    impactText = 'Heavy weather alert · Speed reduction & spray over deck'
+  } else if (bf === 8) {
+    windDescription = 'Gale'
+    windSpeedKts = '34 – 40 kts'
+    waveHeightM = '5.5 – 7.5 m (18 – 25 ft)'
+    seaState = 'High Sea'
+    seaCondition = 'gale'
+    impactText = 'Gale warning · Significant transit delays anticipated'
+  } else if (bf >= 9) {
+    windDescription = 'Severe Gale / Storm'
+    windSpeedKts = '41+ kts'
+    waveHeightM = '7.5+ m (25+ ft)'
+    seaState = 'Heavy to Phenomenal'
+    seaCondition = 'gale'
+    impactText = 'Severe storm hazard · Heading deviation advised'
+  }
+
+  const waveDirection = p.waveDirection && p.waveDirection !== 'NA' ? p.waveDirection : 'Fair'
+  const swellDirection = p.swellDirection && p.swellDirection !== 'NA' ? p.swellDirection : 'Nominal'
+  const currentSpeed = p.currentSpeed && p.currentSpeed !== 'NA' ? p.currentSpeed : 'Normal'
+  const currentDirection = p.currentDirection && p.currentDirection !== 'NA' ? p.currentDirection : 'Normal'
+
+  return {
+    beaufort: bf,
+    windDescription,
+    windSpeedKts,
+    waveHeightM,
+    seaState,
+    seaCondition,
+    impactText,
+    waveDirection,
+    swellDirection,
+    currentSpeed,
+    currentDirection,
+  }
 }
 
 function haversineNm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -78,6 +196,7 @@ export default defineEventHandler(async (event) => {
 
   const ships = response.data.allshipDataGEoJson || []
   const routes = response.data.sourceDestinationPortToPortArray || []
+  const PLANNED_SPEED_KTS = 13.5 // Baseline charter speed
 
   const vessels: NormalizedVessel[] = ships.map((ship) => {
     const p = ship.properties
@@ -124,6 +243,7 @@ export default defineEventHandler(async (event) => {
 
     // Progress along route
     let progress = 0
+    let travelledNm = 0
     if (routeCoords.length > 0 && totalNm > 0) {
       let minDistance = Infinity
       let bestIndex = 0
@@ -134,7 +254,6 @@ export default defineEventHandler(async (event) => {
           bestIndex = i
         }
       }
-      let travelledNm = 0
       for (let i = 1; i <= bestIndex; i++) {
         travelledNm += haversineNm(
           routeCoords[i - 1][0],
@@ -148,8 +267,63 @@ export default defineEventHandler(async (event) => {
       progress = p.sog > 0.5 ? 50 : 0
     }
 
+    const remainingNm = Math.max(0, totalNm - travelledNm)
     const isMoving = p.sog > 0.5
     const isHighWind = p.windSpeedBF >= 7
+
+    // Schedule and ETA calculations
+    let scheduleStatus: 'on-time' | 'late' | 'early' | 'moored' = 'on-time'
+    let varianceHours = 0
+    let etaHours = 0
+
+    if (p.sog <= 0.5) {
+      if (remainingNm <= 30 || progress >= 95) {
+        scheduleStatus = 'moored'
+      } else {
+        scheduleStatus = 'late'
+        varianceHours = 24
+      }
+    } else {
+      etaHours = remainingNm / p.sog
+      const plannedHours = remainingNm / PLANNED_SPEED_KTS
+      varianceHours = etaHours - plannedHours
+
+      if (varianceHours > 3) {
+        scheduleStatus = 'late'
+      } else if (varianceHours < -3) {
+        scheduleStatus = 'early'
+      } else {
+        scheduleStatus = 'on-time'
+      }
+    }
+
+    const etaTimestamp = Date.now() + etaHours * 3600 * 1000
+    const etaDate = new Date(etaTimestamp)
+    const etaFormatted =
+      scheduleStatus === 'moored'
+        ? 'In port'
+        : etaDate.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+            timeZone: 'UTC',
+          }) + ' UTC'
+
+    // Determine visual tone
+    let tone: 'success' | 'warning' | 'info' | 'muted' | 'destructive' = 'success'
+    if (scheduleStatus === 'moored') {
+      tone = 'muted'
+    } else if (isHighWind || varianceHours > 12) {
+      tone = 'destructive'
+    } else if (scheduleStatus === 'late') {
+      tone = 'warning'
+    } else if (scheduleStatus === 'early') {
+      tone = 'info'
+    } else {
+      tone = 'success'
+    }
 
     return {
       id: `VESSEL-${p.vesselId}`,
@@ -161,6 +335,8 @@ export default defineEventHandler(async (event) => {
       originCoords,
       destCoords,
       distanceNm: Math.round(totalNm),
+      travelledNm: Math.round(travelledNm),
+      remainingNm: Math.round(remainingNm),
       progress,
       packetTs: p.packetTs,
       windSpeedBF: p.windSpeedBF,
@@ -169,15 +345,31 @@ export default defineEventHandler(async (event) => {
       currentSpeed: p.currentSpeed,
       currentDirection: p.currentDirection,
       heading: `${p.latDirection || ''}${p.longDirection || ''}`.trim() || 'N',
+      vesselHeading: typeof p.vesselHeading === 'number' ? p.vesselHeading : undefined,
+      weather: resolveWeatherInfo(p),
       status: isMoving ? 'in-transit' : p.sog > 0 ? 'manoeuvring' : 'moored',
-      tone: isHighWind ? 'warning' : isMoving ? 'success' : 'muted',
+      scheduleStatus,
+      varianceHours: Math.round(varianceHours * 10) / 10,
+      etaHours: Math.round(etaHours * 10) / 10,
+      etaIso: etaDate.toISOString(),
+      etaFormatted,
+      tone,
     }
   })
+
+  const scheduleMetrics = {
+    total: vessels.length,
+    onTime: vessels.filter((v) => v.scheduleStatus === 'on-time').length,
+    late: vessels.filter((v) => v.scheduleStatus === 'late').length,
+    early: vessels.filter((v) => v.scheduleStatus === 'early').length,
+    moored: vessels.filter((v) => v.scheduleStatus === 'moored').length,
+  }
 
   return {
     success: true,
     tenant,
     count: vessels.length,
+    scheduleMetrics,
     vessels,
     raw: response.data,
   }
