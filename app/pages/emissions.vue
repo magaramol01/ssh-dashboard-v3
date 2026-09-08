@@ -1884,6 +1884,9 @@ const fuelDonutOption = computed(() => ({
         attainedCii: ciiData?.summary?.attainedCii,
         requiredCii: ciiData?.summary?.requiredCii,
         rating: ciiData?.summary?.attainedRating,
+        rank: ciiData?.benchmark?.vesselRank,
+        totalVessels: ciiData?.benchmark?.fleetTotalVessels,
+        fleetAverageCii: ciiData?.benchmark?.fleetAverageCii,
       }"
       placeholder="Ask about CII rating, speed reduction to reach Grade C, or EU ETS..."
       initial-message="Emissions & CII Copilot ready. Ask questions about vessel compliance, simulate speed reduction scenarios, or choose an advisory directive below."

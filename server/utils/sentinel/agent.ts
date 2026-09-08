@@ -101,10 +101,11 @@ function actionsFor(request: ValidSentinelRequest, references: SentinelReference
         if (val.recommendedScenario && Array.isArray(val.scenarios)) {
           const idx = val.scenarios.findIndex((s: any) => s.reductionPercent === val.recommendedScenario.reductionPercent)
           if (idx >= 0) {
+            const speedText = val.recommendedScenario.speedKnots != null ? ` (${val.recommendedScenario.speedKnots} kts)` : ''
             actions.push({
               type: 'apply-speed-scenario',
               scenarioIndex: idx,
-              label: `Apply -${val.recommendedScenario.reductionPercent}% Speed Cut (${val.recommendedScenario.speedKnots} kts)`,
+              label: `Apply -${val.recommendedScenario.reductionPercent}% Speed Cut${speedText}`,
             })
           }
         }

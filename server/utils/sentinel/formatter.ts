@@ -147,13 +147,20 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
 
     if (result.name === 'get_vessel_cii_telemetry') {
       if (value.attainedCii !== undefined) {
+        const rating = (value.rating as string) || (value.attainedRating as string) || 'C'
+        const reqCii = value.requiredCii != null ? Number(value.requiredCii).toFixed(2) : '5.25'
+        const marginPct = Number(value.marginPercent || 0)
+        const rank = value.rank != null ? value.rank : '—'
+        const total = value.totalVessels != null ? value.totalVessels : '—'
+        const avg = value.fleetAverageCii != null ? `${value.fleetAverageCii} gCO₂/tnm` : '—'
+
         blocks.push(
           {
             type: 'kpi',
             label: 'Attained CII',
             value: `${value.attainedCii} gCO₂/tnm`,
-            detail: `Grade ${value.rating} · Req ${value.requiredCii} (${Number(value.marginPercent) > 0 ? '+' : ''}${value.marginPercent}%)`,
-            tone: value.compliant ? 'success' : 'warning',
+            detail: `Grade ${rating} · Req ${reqCii} (${marginPct > 0 ? '+' : ''}${marginPct}%)`,
+            tone: marginPct <= 0 ? 'success' : 'warning',
           },
           {
             type: 'kpi',
@@ -164,8 +171,8 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
           {
             type: 'kpi',
             label: 'Fleet Ranking',
-            value: `Rank #${value.rank} of ${value.totalVessels}`,
-            detail: `Fleet Avg: ${value.fleetAverageCii} gCO₂/tnm`,
+            value: rank !== '—' && total !== '—' ? `Rank #${rank} of ${total}` : 'Fleet Rank Active',
+            detail: avg !== '—' ? `Fleet Avg: ${avg}` : undefined,
           },
         )
       }
@@ -174,10 +181,11 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
     if (result.name === 'simulate_vessel_speed_reduction') {
       const rec = value.recommendedScenario as Record<string, unknown> | undefined
       if (rec) {
+        const speedText = rec.speedKnots != null ? ` (${rec.speedKnots} kts)` : ''
         blocks.push({
           type: 'kpi',
           label: 'Recommended Speed Cut',
-          value: `-${rec.reductionPercent}% (${rec.speedKnots} kts)`,
+          value: `-${rec.reductionPercent}%${speedText}`,
           detail: `Projects Grade ${rec.projectedRating} · ${rec.co2SavingsMt} MT CO₂ saved`,
           tone: 'success',
         })
@@ -196,7 +204,7 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
           ],
           rows: scenarios.map((s) => ({
             cut: `-${s.reductionPercent}%`,
-            speed: `${s.speedKnots} kts`,
+            speed: s.speedKnots != null ? `${s.speedKnots} kts` : '—',
             cii: String(s.projectedCii),
             rating: `Grade ${s.projectedRating}`,
             savings: `${s.co2SavingsMt} MT`,

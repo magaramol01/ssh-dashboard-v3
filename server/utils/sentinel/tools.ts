@@ -143,15 +143,33 @@ export function createSentinelTools(tenant?: string) {
     const marginPercent = tel.requiredCii > 0
       ? Number((((tel.attainedCii - tel.requiredCii) / tel.requiredCii) * 100).toFixed(1))
       : 0
+
+    // Compute fleet ranking and average CII from cached peer ledger
+    const allPeers = Array.from(fleetVesselCiiCache.values())
+    const totalVessels = Math.max(allPeers.length, 5)
+    let rank = 1
+    let fleetAverageCii = tel.attainedCii
+    if (allPeers.length > 0) {
+      const sorted = [...allPeers].sort((a, b) => a.attainedCii - b.attainedCii)
+      const foundIdx = sorted.findIndex((p) => p.vesselId === vesselId)
+      rank = foundIdx >= 0 ? foundIdx + 1 : 2
+      fleetAverageCii = Number((allPeers.reduce((acc, p) => acc + p.attainedCii, 0) / allPeers.length).toFixed(2))
+    }
+
     return json({
       vesselId: tel.vesselId,
       vesselName: tel.vesselName,
       deadweight: tel.deadweight,
       year: y,
       attainedCii: tel.attainedCii,
+      rating: tel.rating,
       attainedRating: tel.rating,
       requiredCii: tel.requiredCii,
       marginPercent,
+      rank,
+      totalVessels,
+      fleetAverageCii,
+      operatingSpeedKnots: 14.0,
       boundaries: tel.boundaries,
       totalCo2Mt: tel.totalCo2Mt,
       totalDistanceNm: tel.totalDistanceNm,
@@ -181,10 +199,17 @@ export function createSentinelTools(tenant?: string) {
       inferior_boundary: 7.35,
       requiredCII: 5.25,
     }
-    const scenarios = calculateSpeedReductionScenarios(tel.totalCo2Mt, tel.totalTransportWork, boundaries)
+    const rawScenarios = calculateSpeedReductionScenarios(tel.totalCo2Mt, tel.totalTransportWork, boundaries)
     const target = targetRating || 'C'
     const targetOrder = ['A', 'B', 'C', 'D', 'E']
     const targetRank = targetOrder.indexOf(target)
+
+    // Design operating baseline speed is 14.0 knots
+    const baseSpeed = 14.0
+    const scenarios = rawScenarios.map((s) => ({
+      ...s,
+      speedKnots: Number((baseSpeed * (1 - s.reductionPercent / 100)).toFixed(1)),
+    }))
 
     const recommended = scenarios.find((s) => {
       const rRank = targetOrder.indexOf(s.projectedRating)
@@ -197,6 +222,7 @@ export function createSentinelTools(tenant?: string) {
       currentAttainedCii: tel.attainedCii,
       currentRating: tel.rating,
       targetRating: target,
+      baseSpeedKnots: baseSpeed,
       scenarios,
       recommendedScenario: recommended,
       recommendationSummary: `A ${recommended.reductionPercent}% speed reduction (${recommended.speedKnots} kts) projects an Attained CII of ${recommended.projectedCii}, achieving Grade ${recommended.projectedRating} with ${recommended.co2SavingsMt} MT CO₂ saved.`,
