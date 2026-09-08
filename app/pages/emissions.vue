@@ -25,6 +25,7 @@ import {
   BarChart3,
   Users,
   Sparkles,
+  Table2,
 } from 'lucide-vue-next'
 import SentinelCopilotPanel from '@/components/sentinel/SentinelCopilotPanel.vue'
 import { Badge } from '@/components/ui/badge'
@@ -67,6 +68,7 @@ const selectedVoyage = ref<string>('all')
 const selectedVoyageType = ref<string>('all')
 const activeScenarioIndex = ref<number>(1) // Default to -10% speed reduction
 const compareTargetId = ref<string>('fleet') // 'fleet' or another vesselId string
+const benchmarkViewMode = ref<'chart' | 'matrix'>('chart')
 const isCopilotOpen = ref<boolean>(false)
 const isCopilotFullscreen = ref<boolean>(false)
 const copilotPanelRef = ref<any>(null)
@@ -329,14 +331,54 @@ const peerChartData = computed(() => {
   }))
 })
 
-// Peer comparison chart options with threshold benchmark lines
+const ratingGradeColors: Record<string, string> = {
+  A: '#2563eb', // Blue
+  B: '#059669', // Emerald
+  C: '#84cc16', // Lime
+  D: '#f59e0b', // Amber
+  E: '#e11d48', // Rose
+}
+
+const vesselPercentile = computed(() => {
+  if (!ciiData.value?.benchmark) return 0
+  const rank = ciiData.value.benchmark.vesselRank
+  const total = ciiData.value.benchmark.fleetTotalVessels
+  if (!total) return 0
+  return Math.round(((total - rank + 1) / total) * 100)
+})
+
+// Peer comparison chart options with threshold benchmark lines and calm neutral palette
 const peerChartOption = computed(() => {
   if (!ciiData.value?.benchmark) return {}
   const fleetAvg = ciiData.value.benchmark.fleetAverageCii
   const req = ciiData.value.summary.requiredCii
+  const currentCii = ciiData.value.summary.attainedCii
 
   return {
-    grid: { left: 8, right: 16, top: 24, bottom: 24, containLabel: true },
+    grid: { left: 8, right: 16, top: 28, bottom: 24, containLabel: true },
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: 'rgba(15, 23, 42, 0.94)',
+      borderColor: 'rgba(255, 255, 255, 0.1)',
+      textStyle: { color: '#f8fafc', fontSize: 11 },
+      formatter: (params: any) => {
+        const peer = ciiData.value?.benchmark.peers[params.dataIndex]
+        if (!peer) return ''
+        const isCurrent = peer.isCurrentVessel ? ' <span style="color:#0ea5e9;font-weight:bold">(Active Ship)</span>' : ''
+        const isTarget = !peer.isCurrentVessel && String(peer.vesselId) === compareTargetId.value ? ' <span style="color:#6366f1;font-weight:bold">(Target)</span>' : ''
+        const diff = Number((peer.attainedCii - currentCii).toFixed(2))
+        const diffPct = Number((((peer.attainedCii - currentCii) / currentCii) * 100).toFixed(1))
+        const deltaText = diff === 0
+          ? 'Active Vessel Baseline'
+          : diff > 0
+            ? `+${diff} (${diffPct}% higher intensity)`
+            : `${diff} (${Math.abs(diffPct)}% cleaner)`
+        return `<div style="font-weight:600;margin-bottom:3px;color:#fff">${peer.vesselName}${isCurrent}${isTarget}</div>
+          <div>Attained CII: <b>${peer.attainedCii.toFixed(2)}</b> (Grade <b>${peer.rating}</b>)</div>
+          <div>Deadweight: <b>${peer.deadweight.toLocaleString()} MT</b></div>
+          <div style="margin-top:3px;color:#94a3b8;border-top:1px solid rgba(255,255,255,0.1);padding-top:2px;">Delta vs Active: <b>${deltaText}</b></div>`
+      },
+    },
     yAxis: {
       name: 'gCO₂/(MT·NM)',
       nameTextStyle: { fontSize: 10, color: '#888' },
@@ -346,10 +388,14 @@ const peerChartOption = computed(() => {
         itemStyle: {
           color: (params: any) => {
             const peer = ciiData.value?.benchmark.peers[params.dataIndex]
-            if (peer?.isCurrentVessel) {
-              return 'var(--primary, #0ea5e9)'
+            if (!peer) return 'rgba(148, 163, 184, 0.28)'
+            if (peer.isCurrentVessel) {
+              return '#0ea5e9' // Primary blue for active vessel
             }
-            return 'rgba(148, 163, 184, 0.45)'
+            if (String(peer.vesselId) === compareTargetId.value) {
+              return '#6366f1' // Indigo accent for comparator vessel
+            }
+            return 'rgba(148, 163, 184, 0.28)' // Calm neutral slate for all fleet peers
           },
           borderRadius: [4, 4, 0, 0],
         },
@@ -359,14 +405,14 @@ const peerChartOption = computed(() => {
             {
               yAxis: fleetAvg,
               name: 'Fleet Avg',
-              lineStyle: { color: '#38bdf8', type: 'dashed', width: 2 },
-              label: { formatter: `Fleet Avg: ${fleetAvg.toFixed(2)}`, position: 'insideEndTop', fontSize: 10 },
+              lineStyle: { color: 'rgba(148, 163, 184, 0.8)', type: 'dashed', width: 1.5 },
+              label: { formatter: `Fleet Avg: ${fleetAvg.toFixed(2)}`, position: 'insideEndTop', fontSize: 10, color: '#94a3b8' },
             },
             {
               yAxis: req,
               name: 'IMO Limit',
-              lineStyle: { color: '#f43f5e', type: 'dotted', width: 2 },
-              label: { formatter: `IMO Cap: ${req.toFixed(2)}`, position: 'insideStartTop', fontSize: 10 },
+              lineStyle: { color: 'rgba(239, 68, 68, 0.75)', type: 'dotted', width: 1.5 },
+              label: { formatter: `IMO Limit: ${req.toFixed(2)}`, position: 'insideStartTop', fontSize: 10, color: '#ef4444' },
             },
           ],
         },
@@ -998,90 +1044,256 @@ const fuelDonutOption = computed(() => ({
 
       <!-- Vessel Comparison Section: Selected Vessel vs Fleet / Sister Ships -->
       <Card class="shadow-xs">
-        <CardHeader class="pb-3">
-          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <CardHeader class="pb-3 border-b border-border/40">
+          <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
             <div>
-              <CardTitle class="text-base font-semibold flex items-center gap-2">
-                <BarChart3 class="size-4 text-primary" />
-                Vessel Performance Benchmarking (vs Fleet & Peers)
-              </CardTitle>
-              <CardDescription class="text-xs">
-                Compare <span class="font-semibold text-foreground">{{ ciiData.vessel.vesselName }}</span> against the fleet average and sister vessels
-              </CardDescription>
-            </div>
-            <Badge variant="outline" class="text-[11px] w-fit font-medium">
-              Rank #{{ ciiData.benchmark.vesselRank }} of {{ ciiData.benchmark.fleetTotalVessels }}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent class="space-y-6">
-          <div class="grid gap-6 lg:grid-cols-12 items-center">
-            <!-- Left: Side-by-Side Target Comparison Card (4 cols) -->
-            <div class="lg:col-span-4 bg-muted/20 border rounded-xl p-4 space-y-4">
-              <div class="flex items-center justify-between border-b pb-2">
-                <div class="space-y-0.5">
-                  <span class="text-[10px] uppercase font-bold text-muted-foreground">Benchmark Comparison</span>
-                  <p class="text-xs font-semibold text-foreground">
-                    {{ ciiData.vessel.vesselName }} vs. {{ comparisonData?.name }}
-                  </p>
-                </div>
-                <Badge
-                  :variant="comparisonData?.isBetter ? 'default' : 'destructive'"
-                  class="text-[10px] font-semibold"
-                >
-                  {{ comparisonData?.diffPct && comparisonData.diffPct <= 0 ? `${Math.abs(comparisonData.diffPct)}% Better` : `${comparisonData?.diffPct}% Higher` }}
+              <div class="flex items-center gap-2">
+                <CardTitle class="text-base font-semibold flex items-center gap-2">
+                  <BarChart3 class="size-4 text-primary" />
+                  Vessel Performance Benchmarking
+                </CardTitle>
+                <Badge variant="outline" class="text-[10px] font-mono border-border text-muted-foreground">
+                  Rank #{{ ciiData.benchmark.vesselRank }} of {{ ciiData.benchmark.fleetTotalVessels }} (Top {{ vesselPercentile }}%)
                 </Badge>
               </div>
-
-              <div class="grid grid-cols-2 gap-3 text-xs">
-                <div class="space-y-1 bg-card p-2.5 rounded-lg border">
-                  <span class="text-[10px] text-muted-foreground block truncate">{{ ciiData.vessel.vesselName }}</span>
-                  <div class="text-lg font-bold tabular-nums text-foreground">
-                    {{ ciiData.summary.attainedCii.toFixed(2) }}
-                  </div>
-                  <Badge :class="currentRatingInfo.badge" class="text-[9px] py-0 px-1">
-                    Rating {{ ciiData.summary.attainedRating }}
-                  </Badge>
-                </div>
-
-                <div class="space-y-1 bg-card p-2.5 rounded-lg border">
-                  <span class="text-[10px] text-muted-foreground block truncate">{{ comparisonData?.name }}</span>
-                  <div class="text-lg font-bold tabular-nums text-muted-foreground">
-                    {{ comparisonData?.attainedCii.toFixed(2) }}
-                  </div>
-                  <Badge variant="outline" class="text-[9px] py-0 px-1 border-border">
-                    {{ comparisonData?.ratingGrade ? `Rating ${comparisonData.ratingGrade}` : 'Average' }}
-                  </Badge>
-                </div>
-              </div>
-
-              <p class="text-[11px] text-muted-foreground leading-relaxed">
-                {{ comparisonData?.description }}. This vessel holds rank <strong>#{{ ciiData.benchmark.vesselRank }}</strong> among {{ ciiData.benchmark.fleetTotalVessels }} operational fleet vessels.
-              </p>
+              <CardDescription class="text-xs mt-0.5">
+                Benchmark <span class="font-medium text-foreground">{{ ciiData.vessel.vesselName }}</span> against fleet distribution and sister vessels
+              </CardDescription>
             </div>
 
-            <!-- Right: Peer Comparison Bar Chart (8 cols) -->
-            <div class="lg:col-span-8">
-              <div class="flex items-center justify-between text-xs text-muted-foreground pb-2">
-                <span class="font-medium">Fleet Peer Ranking (Attained CII - Lower is Cleaner)</span>
-                <span class="text-[11px] flex items-center gap-2">
-                  <span class="size-2 rounded-full bg-primary" /> Highlighted: Selected Ship
-                </span>
+            <!-- Header Controls: View Toggle -->
+            <div class="flex items-center gap-2.5">
+
+              <!-- View Mode Toggle Buttons -->
+              <div class="flex items-center rounded-lg border border-border/60 bg-muted/30 p-0.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  :class="[
+                    'h-7 px-2.5 text-xs gap-1.5 cursor-pointer font-medium transition-colors',
+                    benchmarkViewMode === 'chart' ? 'bg-card text-foreground shadow-xs font-semibold' : 'text-muted-foreground hover:text-foreground'
+                  ]"
+                  @click="benchmarkViewMode = 'chart'"
+                >
+                  <BarChart3 class="size-3.5" />
+                  <span class="hidden sm:inline">Chart</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  :class="[
+                    'h-7 px-2.5 text-xs gap-1.5 cursor-pointer font-medium transition-colors',
+                    benchmarkViewMode === 'matrix' ? 'bg-card text-foreground shadow-xs font-semibold' : 'text-muted-foreground hover:text-foreground'
+                  ]"
+                  @click="benchmarkViewMode = 'matrix'"
+                >
+                  <Table2 class="size-3.5" />
+                  <span class="hidden sm:inline">Peer Matrix</span>
+                </Button>
               </div>
-              <ClientOnly>
-                <BarChart
-                  :data="peerChartData"
-                  x-field="vessel"
-                  y-field="Attained CII"
-                  height="220"
-                  :option="peerChartOption"
-                />
-                <template #fallback>
-                  <div class="h-[220px] animate-pulse rounded-lg bg-muted/40 flex items-center justify-center text-xs text-muted-foreground">
-                    Rendering peer comparison chart...
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent class="p-5 space-y-6">
+          <div class="grid gap-6 lg:grid-cols-12 items-stretch">
+            <!-- Left: Side-by-Side Target Comparison Card (4 cols) -->
+            <div class="lg:col-span-4 rounded-xl border border-border/60 bg-muted/15 p-4 sm:p-5 flex flex-col justify-between gap-4">
+              <div class="space-y-4">
+                <div class="flex items-center justify-between gap-2">
+                  <div>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Head-to-Head Delta</span>
+                    <div class="text-xs font-medium text-foreground truncate max-w-[200px]">
+                      vs. {{ comparisonData?.name }}
+                    </div>
                   </div>
-                </template>
-              </ClientOnly>
+                  <Badge
+                    variant="outline"
+                    class="text-[10px] font-medium"
+                    :class="comparisonData?.isBetter ? 'border-emerald-500/30 text-emerald-500 bg-emerald-500/5' : 'border-amber-500/30 text-amber-500 bg-amber-500/5'"
+                  >
+                    {{ comparisonData?.diffPct && comparisonData.diffPct <= 0 ? `${Math.abs(comparisonData.diffPct)}% Cleaner` : `+${comparisonData?.diffPct}% Intensity` }}
+                  </Badge>
+                </div>
+
+                <!-- Side-by-side metric display -->
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="rounded-lg border border-border/50 bg-card p-3 space-y-1">
+                    <div class="flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span class="truncate font-medium">{{ ciiData.vessel.vesselName }}</span>
+                      <span class="size-1.5 rounded-full bg-primary" />
+                    </div>
+                    <div class="text-2xl font-bold tracking-tight text-foreground tabular-nums">
+                      {{ ciiData.summary.attainedCii.toFixed(2) }}
+                    </div>
+                    <div class="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <span class="font-semibold text-foreground">Grade {{ ciiData.summary.attainedRating }}</span>
+                      <span>•</span>
+                      <span>{{ formatNumber(ciiData.vessel.deadweight, 0) }} DWT</span>
+                    </div>
+                  </div>
+
+                  <div class="rounded-lg border border-border/50 bg-card p-3 space-y-1">
+                    <div class="flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span class="truncate font-medium">{{ comparisonData?.name }}</span>
+                      <span class="size-1.5 rounded-full" :class="compareTargetId === 'fleet' ? 'bg-muted-foreground' : 'bg-indigo-500'" />
+                    </div>
+                    <div class="text-2xl font-bold tracking-tight text-muted-foreground tabular-nums">
+                      {{ comparisonData?.attainedCii.toFixed(2) }}
+                    </div>
+                    <div class="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <span class="font-semibold text-foreground">{{ comparisonData?.ratingGrade ? `Grade ${comparisonData.ratingGrade}` : 'Benchmark' }}</span>
+                      <span>•</span>
+                      <span>Target</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Variance Details -->
+                <div class="text-xs space-y-1 pt-1">
+                  <div class="flex items-center justify-between text-[11px]">
+                    <span class="text-muted-foreground">Intensity Gap</span>
+                    <span
+                      class="font-mono font-semibold"
+                      :class="comparisonData?.isBetter ? 'text-emerald-500' : 'text-amber-500'"
+                    >
+                      {{ comparisonData?.diffCii && comparisonData.diffCii > 0 ? '+' : '' }}{{ comparisonData?.diffCii }} gCO₂/(MT·NM)
+                    </span>
+                  </div>
+                  <p class="text-[11px] text-muted-foreground leading-relaxed pt-0.5">
+                    {{ comparisonData?.description }}.
+                  </p>
+                </div>
+              </div>
+
+              <!-- Ask Copilot CTA -->
+              <Button
+                variant="outline"
+                size="sm"
+                class="w-full text-xs gap-1.5 h-8 border-border text-foreground hover:bg-muted/50 cursor-pointer font-medium"
+                @click="askCopilotPrompt(`Compare ${ciiData?.vessel.vesselName} against ${comparisonData?.name}. Analyze the efficiency gap, rating variance, and suggest operational adjustments.`)"
+              >
+                <Sparkles class="size-3.5 text-primary" />
+                <span>Ask Copilot to Audit Delta</span>
+              </Button>
+            </div>
+
+            <!-- Right: Peer Comparison Bar Chart OR Peer Matrix Table (8 cols) -->
+            <div class="lg:col-span-8 flex flex-col justify-between">
+              <!-- Bar Chart View -->
+              <div v-if="benchmarkViewMode === 'chart'" class="space-y-2">
+                <div class="flex flex-wrap items-center justify-between text-xs text-muted-foreground pb-1 gap-2">
+                  <span class="font-medium text-[11px]">Fleet Carbon Intensity Distribution</span>
+                  <div class="flex items-center gap-3.5 text-[11px]">
+                    <span class="inline-flex items-center gap-1.5 text-foreground font-medium">
+                      <span class="size-2 rounded-full bg-primary" /> Active Vessel
+                    </span>
+                    <span v-if="compareTargetId !== 'fleet'" class="inline-flex items-center gap-1.5 text-indigo-500 font-medium">
+                      <span class="size-2 rounded-full bg-indigo-500" /> Target
+                    </span>
+                    <span class="inline-flex items-center gap-1.5 text-muted-foreground">
+                      <span class="w-3 h-0.5 border-b border-dashed border-muted-foreground" /> Fleet Avg
+                    </span>
+                    <span class="inline-flex items-center gap-1.5 text-destructive font-medium">
+                      <span class="w-3 h-0.5 border-b border-dotted border-destructive" /> IMO Limit
+                    </span>
+                  </div>
+                </div>
+                <ClientOnly>
+                  <BarChart
+                    :data="peerChartData"
+                    x-field="vessel"
+                    y-field="Attained CII"
+                    height="260"
+                    :option="peerChartOption"
+                  />
+                  <template #fallback>
+                    <div class="h-[260px] animate-pulse rounded-lg bg-muted/40 flex items-center justify-center text-xs text-muted-foreground">
+                      Rendering peer comparison chart...
+                    </div>
+                  </template>
+                </ClientOnly>
+              </div>
+
+              <!-- Peer Matrix Table View -->
+              <div v-else class="border rounded-xl overflow-hidden">
+                <div class="max-h-[280px] overflow-y-auto">
+                  <Table>
+                    <TableHeader class="sticky top-0 bg-muted/80 backdrop-blur-xs z-10">
+                      <TableRow class="hover:bg-transparent text-[11px]">
+                        <TableHead class="w-12 font-semibold">Rank</TableHead>
+                        <TableHead class="font-semibold">Vessel Name</TableHead>
+                        <TableHead class="text-right font-semibold">DWT (MT)</TableHead>
+                        <TableHead class="text-right font-semibold">Attained CII</TableHead>
+                        <TableHead class="text-center font-semibold">Rating</TableHead>
+                        <TableHead class="text-right font-semibold">Delta vs Active</TableHead>
+                        <TableHead class="text-right font-semibold w-24">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow
+                        v-for="(peer, pIdx) in ciiData.benchmark.peers"
+                        :key="peer.vesselId"
+                        :class="[
+                          'text-xs transition-colors',
+                          peer.isCurrentVessel ? 'bg-primary/10 font-semibold hover:bg-primary/15' : 'hover:bg-muted/40'
+                        ]"
+                      >
+                        <TableCell class="py-2 font-mono text-muted-foreground">
+                          #{{ pIdx + 1 }}
+                        </TableCell>
+                        <TableCell class="py-2 font-medium">
+                          <div class="flex items-center gap-1.5">
+                            <span
+                              class="size-2 rounded-full shrink-0"
+                              :class="peer.isCurrentVessel ? 'bg-primary' : 'bg-muted-foreground/40'"
+                            />
+                            <span class="truncate">{{ peer.vesselName }}</span>
+                            <Badge v-if="peer.isCurrentVessel" variant="outline" class="text-[9px] px-1 py-0 border-primary/50 text-primary">
+                              Active
+                            </Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell class="text-right tabular-nums py-2 text-muted-foreground">
+                          {{ formatNumber(peer.deadweight, 0) }}
+                        </TableCell>
+                        <TableCell class="text-right tabular-nums py-2 font-semibold">
+                          {{ peer.attainedCii.toFixed(2) }}
+                        </TableCell>
+                        <TableCell class="text-center py-2">
+                          <Badge
+                            variant="outline"
+                            class="text-[9px] px-1.5 py-0 font-semibold border-border"
+                          >
+                            {{ peer.rating }}
+                          </Badge>
+                        </TableCell>
+                        <TableCell class="text-right tabular-nums py-2">
+                          <span
+                            v-if="!peer.isCurrentVessel"
+                            :class="peer.attainedCii <= ciiData.summary.attainedCii ? 'text-emerald-500 font-medium' : 'text-amber-500 font-medium'"
+                          >
+                            {{ (peer.attainedCii - ciiData.summary.attainedCii) > 0 ? '+' : '' }}{{ (peer.attainedCii - ciiData.summary.attainedCii).toFixed(2) }}
+                          </span>
+                          <span v-else class="text-muted-foreground">—</span>
+                        </TableCell>
+                        <TableCell class="text-right py-2">
+                          <Button
+                            v-if="!peer.isCurrentVessel"
+                            variant="ghost"
+                            size="sm"
+                            class="h-6 px-2 text-[10px] cursor-pointer"
+                            :class="String(peer.vesselId) === compareTargetId ? 'bg-primary/10 text-primary font-semibold' : ''"
+                            @click="compareTargetId = String(peer.vesselId)"
+                          >
+                            {{ String(peer.vesselId) === compareTargetId ? 'Comparing' : 'Compare' }}
+                          </Button>
+                          <span v-else class="text-[10px] text-primary font-medium">Selected</span>
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>

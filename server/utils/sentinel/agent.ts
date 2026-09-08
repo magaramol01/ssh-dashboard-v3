@@ -144,8 +144,19 @@ export async function runSentinelConversation(request: ValidSentinelRequest, ten
     : new AIMessage(message.content))
   if (request.context) messages.push(new HumanMessage(`Use these operator-selected IDs to narrow the investigation: ${JSON.stringify(request.context)}`))
 
-  const result = await graph.invoke({ messages }, { recursionLimit: 8 })
-  const rawMessages = Array.isArray(result.messages) ? result.messages as Array<Record<string, any>> : []
+  let rawMessages: Array<Record<string, any>> = []
+  try {
+    const result = await graph.invoke({ messages }, { recursionLimit: 20 })
+    rawMessages = Array.isArray(result.messages) ? result.messages as Array<Record<string, any>> : []
+  } catch (err: unknown) {
+    const stateMessages = (err as any)?.state?.messages
+    if (Array.isArray(stateMessages) && stateMessages.length) {
+      console.warn('Sentinel reached recursion limit; recovering partial tool results')
+      rawMessages = stateMessages as Array<Record<string, any>>
+    } else {
+      throw err
+    }
+  }
   const calls = new Map<string, { name: string; args: Record<string, unknown> }>()
   const toolResults: SentinelToolResult[] = []
   const activity: SentinelActivity[] = []
