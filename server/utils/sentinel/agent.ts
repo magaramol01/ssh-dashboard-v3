@@ -78,15 +78,39 @@ function referencesFromResult(name: string, raw: string): SentinelReference[] {
         if (vessel.vessel_id !== undefined) references.push({ kind: 'vessel', id: String(vessel.vessel_id), label: String(vessel.vessel_name || `Vessel ${vessel.vessel_id}`) })
       }
     }
+    if (name === 'get_vessel_cii_telemetry' && value.vesselId !== undefined) {
+      references.unshift({ kind: 'vessel', id: String(value.vesselId), label: String(value.vesselName || `Vessel ${value.vesselId}`) })
+      references.push({ kind: 'telemetry', id: `cii-${value.vesselId}`, label: `CII ${value.rating || ''} (${value.attainedCii || ''} gCO₂/tnm)`.trim() })
+    }
+    if (name === 'simulate_vessel_speed_reduction' && value.vesselId !== undefined) {
+      references.unshift({ kind: 'vessel', id: String(value.vesselId), label: String(value.vesselName || `Vessel ${value.vesselId}`) })
+    }
     return references
   } catch {
     return []
   }
 }
 
-function actionsFor(request: ValidSentinelRequest, references: SentinelReference[]): SentinelAction[] {
+function actionsFor(request: ValidSentinelRequest, references: SentinelReference[], toolResults: SentinelToolResult[] = []): SentinelAction[] {
   const latest = [...request.messages].reverse().find((message) => message.role === 'user')?.content.toLowerCase() || ''
   const actions: SentinelAction[] = []
+  for (const tr of toolResults) {
+    if (tr.name === 'simulate_vessel_speed_reduction') {
+      try {
+        const val = JSON.parse(tr.raw)
+        if (val.recommendedScenario && Array.isArray(val.scenarios)) {
+          const idx = val.scenarios.findIndex((s: any) => s.reductionPercent === val.recommendedScenario.reductionPercent)
+          if (idx >= 0) {
+            actions.push({
+              type: 'apply-speed-scenario',
+              scenarioIndex: idx,
+              label: `Apply -${val.recommendedScenario.reductionPercent}% Speed Cut (${val.recommendedScenario.speedKnots} kts)`,
+            })
+          }
+        }
+      } catch {}
+    }
+  }
   if (latest.includes('critical')) actions.push({ type: 'filter-alerts', severity: 'critical', label: 'Show critical alerts' })
   else if (latest.includes('warning')) actions.push({ type: 'filter-alerts', severity: 'warning', label: 'Show warnings' })
   if (request.context?.vesselId) actions.push({ type: 'focus-vessel', vesselId: request.context.vesselId, label: 'Focus this vessel' })
@@ -145,5 +169,5 @@ export async function runSentinelConversation(request: ValidSentinelRequest, ten
   const finalMessage = [...rawMessages].reverse().find((message) => message.type === 'ai' && !message.tool_calls?.length)
   const text = textContent(finalMessage?.content) || 'I could not produce an evidence-backed answer from the available marine data.'
   const uniqueReferences = [...new Map(references.map((reference) => [`${reference.kind}:${reference.id}`, reference])).values()].slice(0, 20)
-  return { text, toolResults, activity, references: uniqueReferences, actions: actionsFor(request, uniqueReferences) }
+  return { text, toolResults, activity, references: uniqueReferences, actions: actionsFor(request, uniqueReferences, toolResults) }
 }

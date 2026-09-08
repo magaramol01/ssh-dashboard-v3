@@ -145,6 +145,66 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
       }
     }
 
+    if (result.name === 'get_vessel_cii_telemetry') {
+      if (value.attainedCii !== undefined) {
+        blocks.push(
+          {
+            type: 'kpi',
+            label: 'Attained CII',
+            value: `${value.attainedCii} gCO₂/tnm`,
+            detail: `Grade ${value.rating} · Req ${value.requiredCii} (${Number(value.marginPercent) > 0 ? '+' : ''}${value.marginPercent}%)`,
+            tone: value.compliant ? 'success' : 'warning',
+          },
+          {
+            type: 'kpi',
+            label: 'Total CO₂ Emitted',
+            value: `${value.totalCo2Mt} MT`,
+            detail: `EU ETS: €${Number(value.euEtsCostEur || 0).toLocaleString()}`,
+          },
+          {
+            type: 'kpi',
+            label: 'Fleet Ranking',
+            value: `Rank #${value.rank} of ${value.totalVessels}`,
+            detail: `Fleet Avg: ${value.fleetAverageCii} gCO₂/tnm`,
+          },
+        )
+      }
+    }
+
+    if (result.name === 'simulate_vessel_speed_reduction') {
+      const rec = value.recommendedScenario as Record<string, unknown> | undefined
+      if (rec) {
+        blocks.push({
+          type: 'kpi',
+          label: 'Recommended Speed Cut',
+          value: `-${rec.reductionPercent}% (${rec.speedKnots} kts)`,
+          detail: `Projects Grade ${rec.projectedRating} · ${rec.co2SavingsMt} MT CO₂ saved`,
+          tone: 'success',
+        })
+      }
+      const scenarios = Array.isArray(value.scenarios) ? value.scenarios as Array<Record<string, unknown>> : []
+      if (scenarios.length) {
+        blocks.push({
+          type: 'table',
+          title: 'Speed Reduction Hydrodynamic Scenarios',
+          columns: [
+            { key: 'cut', label: 'Speed Cut' },
+            { key: 'speed', label: 'Speed' },
+            { key: 'cii', label: 'Projected CII' },
+            { key: 'rating', label: 'Rating' },
+            { key: 'savings', label: 'CO₂ Saved' },
+          ],
+          rows: scenarios.map((s) => ({
+            cut: `-${s.reductionPercent}%`,
+            speed: `${s.speedKnots} kts`,
+            cii: String(s.projectedCii),
+            rating: `Grade ${s.projectedRating}`,
+            savings: `${s.co2SavingsMt} MT`,
+          })),
+        })
+      }
+    }
+
     const points = Array.isArray(value.points) ? value.points
       .filter((point): point is { label: string; value: number } => Boolean(point && typeof point === 'object' && typeof point.label === 'string' && typeof point.value === 'number' && Number.isFinite(point.value)))
       .slice(0, 100) : []

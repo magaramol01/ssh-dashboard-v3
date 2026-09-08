@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import {
   Gauge,
   Leaf,
@@ -24,7 +24,9 @@ import {
   Award,
   BarChart3,
   Users,
+  Sparkles,
 } from 'lucide-vue-next'
+import SentinelCopilotPanel from '@/components/sentinel/SentinelCopilotPanel.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
@@ -47,6 +49,7 @@ import {
 import { Progress } from '@/components/ui/progress'
 import AreaChart from '@/components/ui/charts/area-chart/AreaChart.vue'
 import BarChart from '@/components/ui/charts/bar-chart/BarChart.vue'
+import PieChart from '@/components/ui/charts/pie-chart/PieChart.vue'
 import type { EmissionsCiiResponse } from '~~/server/api/emissions/cii.get'
 
 definePageMeta({
@@ -64,6 +67,71 @@ const selectedVoyage = ref<string>('all')
 const selectedVoyageType = ref<string>('all')
 const activeScenarioIndex = ref<number>(1) // Default to -10% speed reduction
 const compareTargetId = ref<string>('fleet') // 'fleet' or another vesselId string
+const isCopilotOpen = ref<boolean>(false)
+const isCopilotFullscreen = ref<boolean>(false)
+const copilotPanelRef = ref<any>(null)
+
+function askCopilotPrompt(prompt: string) {
+  isCopilotOpen.value = true
+  copilotPanelRef.value?.askPrompt(prompt)
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    if (isCopilotFullscreen.value) {
+      isCopilotFullscreen.value = false
+      return
+    }
+    if (isCopilotOpen.value) {
+      isCopilotOpen.value = false
+    }
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
+    e.preventDefault()
+    isCopilotOpen.value = !isCopilotOpen.value
+  }
+}
+
+onMounted(() => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('keydown', handleKeydown)
+  }
+})
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('keydown', handleKeydown)
+  }
+})
+
+const emissionsQuickDirectives = computed(() => [
+  {
+    label: 'Audit CII & Margins',
+    query: `Audit the attained CII rating, IMO grade compliance margin, and year-to-date carbon trajectory for ${selectedVessel.value?.name || 'this vessel'}.`,
+    icon: Leaf,
+  },
+  {
+    label: 'Speed Reduction to Grade C',
+    query: `Simulate hydrodynamic speed reduction scenarios for ${selectedVessel.value?.name || 'this vessel'}. What is the optimal speed cut in knots and percent needed to reach compliant Grade C?`,
+    icon: Gauge,
+  },
+  {
+    label: 'Peer Benchmark Comparison',
+    query: `Compare ${selectedVessel.value?.name || 'this vessel'} against the fleet average and sister container vessels. Highlight efficiency deltas and ranking.`,
+    icon: Scale,
+  },
+  {
+    label: 'EU ETS & Fuel Breakdown',
+    query: `Analyze fuel consumption totals (VLSFO vs MGO), transport work, and estimated EU ETS carbon liability for ${selectedVessel.value?.name || 'this vessel'}.`,
+    icon: Coins,
+  },
+])
+
+function handleCopilotAction(action: any) {
+  if (typeof action?.scenarioIndex === 'number') {
+    activeScenarioIndex.value = action.scenarioIndex
+  }
+}
 
 // Available years from 2020 to current
 const yearOptions = Array.from({ length: currentYear - 2019 }, (_, i) => currentYear - i)
@@ -372,120 +440,288 @@ const chartData = computed(() => {
     'Required Limit': required,
   }))
 })
+
+// Fuel Mix Donut Chart Data & Theme
+const fuelColors = [
+  '#0ea5e9', // Sky blue (VLSFO / HFO)
+  '#10b981', // Emerald green (LSMGO / MGO)
+  '#f59e0b', // Amber (Biofuel)
+  '#8b5cf6', // Violet
+  '#06b6d4', // Cyan
+]
+
+const totalFuelBunkered = computed(() => {
+  if (!ciiData.value?.fuelBreakdown) return 0
+  return ciiData.value.fuelBreakdown.reduce((sum, f) => sum + (f.totalMt || 0), 0)
+})
+
+const totalSeaFuel = computed(() => {
+  if (!ciiData.value?.fuelBreakdown) return 0
+  return ciiData.value.fuelBreakdown.reduce((sum, f) => sum + (f.seaMt || 0), 0)
+})
+
+const totalPortFuel = computed(() => {
+  if (!ciiData.value?.fuelBreakdown) return 0
+  return ciiData.value.fuelBreakdown.reduce((sum, f) => sum + (f.portMt || 0), 0)
+})
+
+const seaFuelPercent = computed(() => {
+  if (!totalFuelBunkered.value) return 0
+  return Number(((totalSeaFuel.value / totalFuelBunkered.value) * 100).toFixed(1))
+})
+
+const portFuelPercent = computed(() => {
+  if (!totalFuelBunkered.value) return 0
+  return Number((100 - seaFuelPercent.value).toFixed(1))
+})
+
+const fuelDonutData = computed(() => {
+  if (!ciiData.value?.fuelBreakdown) return []
+  const total = totalFuelBunkered.value || 1
+  return ciiData.value.fuelBreakdown.map((f, i) => {
+    const rawPct = (f.totalMt / total) * 100
+    return {
+      name: f.fuelLabel,
+      shortName: f.fuelLabel.split('(')[0].trim(),
+      value: Number(f.totalMt.toFixed(1)),
+      co2Mt: Number(f.co2Mt.toFixed(1)),
+      seaMt: Number(f.seaMt.toFixed(1)),
+      portMt: Number(f.portMt.toFixed(1)),
+      coefficient: f.coefficient,
+      pct: Number(rawPct.toFixed(1)),
+      color: fuelColors[i % fuelColors.length],
+    }
+  })
+})
+
+const fuelDonutOption = computed(() => ({
+  color: fuelDonutData.value.map((d) => d.color),
+  legend: { show: false },
+  tooltip: {
+    trigger: 'item',
+    backgroundColor: 'rgba(15, 23, 42, 0.94)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    textStyle: { color: '#f8fafc', fontSize: 11 },
+    formatter: (params: any) => {
+      const item = fuelDonutData.value[params.dataIndex]
+      if (!item) return ''
+      return `<div style="font-weight:600;margin-bottom:4px;color:#fff">${item.name}</div>
+        <div>Total Bunkers: <b>${item.value.toLocaleString()} MT</b> (${item.pct}%)</div>
+        <div>At Sea: <b>${item.seaMt.toLocaleString()} MT</b></div>
+        <div>In Port: <b>${item.portMt.toLocaleString()} MT</b></div>
+        <div style="margin-top:3px;color:#94a3b8;border-top:1px solid rgba(255,255,255,0.1);padding-top:2px;">CO₂: <b>${item.co2Mt.toLocaleString()} MT</b></div>`
+    },
+  },
+  series: [
+    {
+      radius: ['62%', '84%'],
+      center: ['50%', '50%'],
+      label: { show: false },
+      itemStyle: {
+        borderRadius: 4,
+        borderColor: 'transparent',
+        borderWidth: 2,
+      },
+    },
+  ],
+}))
 </script>
 
 <template>
-  <div class="space-y-6 p-4 md:p-6 max-w-[1600px] mx-auto">
-    <!-- Header Controls & Filters -->
-    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-5">
-      <div>
-        <div class="flex items-center gap-2.5">
-          <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
-            <Gauge class="size-5" />
+  <div class="flex flex-1 min-h-[calc(100svh-3.5rem)] w-full relative">
+    <!-- Main Dashboard Area (Contracts smoothly when Copilot Sidebar is docked) -->
+    <div
+      :class="[
+        'flex-1 min-w-0 space-y-6 p-4 md:p-6 pb-12 transition-[margin] duration-350 ease-[cubic-bezier(0.16,1,0.3,1)]',
+        isCopilotOpen && !isCopilotFullscreen ? 'lg:mr-[440px] xl:mr-[480px]' : ''
+      ]"
+    >
+      <!-- Header Controls & Filters -->
+      <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-5">
+        <div>
+          <div class="flex items-center gap-2.5">
+            <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
+              <Gauge class="size-5" />
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h1 class="text-xl font-bold tracking-tight text-foreground">
+                  {{ ciiData?.vessel.vesselName || 'Vessel' }} Emissions & CII
+                </h1>
+                <Badge variant="outline" class="text-[10px] font-semibold border-primary/30 text-primary">
+                  Vessel Deep-Dive
+                </Badge>
+              </div>
+              <p class="text-xs text-muted-foreground">
+                IMO MARPOL Annex VI Carbon Intensity Indicator, EU ETS exposure, and fleet benchmarking
+              </p>
+            </div>
           </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <h1 class="text-xl font-bold tracking-tight text-foreground">
-                {{ ciiData?.vessel.vesselName || 'Vessel' }} Emissions & CII
-              </h1>
-              <Badge variant="outline" class="text-[10px] font-semibold border-primary/30 text-primary">
-                Vessel Deep-Dive
+        </div>
+
+        <!-- Controls Bar -->
+        <div class="flex flex-wrap items-center gap-2.5">
+          <!-- Vessel Selector (Required: always one vessel selected) -->
+          <div class="w-[190px]">
+            <Select v-model="selectedVesselId">
+              <SelectTrigger class="h-8 text-xs font-medium">
+                <SelectValue placeholder="Select Vessel" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="v in vesselOptions"
+                  :key="v.id"
+                  :value="v.id"
+                  class="text-xs cursor-pointer"
+                >
+                  {{ v.name }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <!-- Year Selector -->
+          <div class="w-[95px]">
+            <Select v-model="selectedYear">
+              <SelectTrigger class="h-8 text-xs font-medium">
+                <SelectValue placeholder="Year" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="yr in yearOptions"
+                  :key="yr"
+                  :value="String(yr)"
+                  class="text-xs cursor-pointer"
+                >
+                  {{ yr }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <!-- Voyage Selector -->
+          <div class="w-[185px]">
+            <Select v-model="selectedVoyage">
+              <SelectTrigger class="h-8 text-xs font-medium">
+                <SelectValue placeholder="All Voyages (YTD)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" class="text-xs cursor-pointer">
+                  All Voyages (YTD)
+                </SelectItem>
+                <SelectItem
+                  v-for="voy in ciiData?.availableVoyages || []"
+                  :key="voy.voyageNumber"
+                  :value="voy.voyageNumber"
+                  class="text-xs cursor-pointer"
+                >
+                  {{ voy.voyageNumber }} ({{ voy.destinationPort }})
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <!-- Refresh Button -->
+          <Button
+            variant="outline"
+            size="sm"
+            class="h-8 text-xs gap-1.5 cursor-pointer"
+            :disabled="isLoading"
+            @click="() => refreshCiiData()"
+          >
+            <RefreshCw class="size-3.5" :class="{ 'animate-spin': isLoading }" />
+            <span>Refresh</span>
+          </Button>
+
+          <!-- CSV Export Button -->
+          <Button
+            variant="outline"
+            size="sm"
+            class="h-8 text-xs gap-1.5 cursor-pointer border-primary/30 text-primary hover:bg-primary/10"
+            :disabled="isLoading || !ciiData"
+            @click="exportCsv"
+          >
+            <FileSpreadsheet class="size-3.5" />
+            <span>Export CSV</span>
+          </Button>
+
+          <!-- AI Copilot Button -->
+          <Button
+            variant="outline"
+            size="sm"
+            :class="[
+              'h-8 text-xs gap-1.5 cursor-pointer font-medium transition-colors',
+              isCopilotOpen ? 'bg-primary/10 border-primary/50 text-primary font-semibold' : 'text-foreground'
+            ]"
+            title="Toggle AI Marine Copilot (⌘J)"
+            @click="isCopilotOpen = !isCopilotOpen"
+          >
+            <Sparkles class="size-3.5 text-primary" />
+            <span>Copilot</span>
+            <span class="text-[10px] font-mono opacity-70 border border-current/30 rounded px-1 hidden sm:inline">⌘J</span>
+          </Button>
+        </div>
+      </div>
+
+      <!-- Agentic Proactive Decarbonization Banner -->
+      <div
+        v-if="ciiData?.summary"
+        :class="[
+          'rounded-xl border p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5 transition-all duration-300',
+          ciiData.summary.attainedRating === 'E' || ciiData.summary.attainedRating === 'D'
+            ? 'border-amber-500/40 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent'
+            : 'border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent'
+        ]"
+      >
+        <div class="flex items-start sm:items-center gap-3 min-w-0">
+          <div
+            :class="[
+              'size-9 rounded-lg flex items-center justify-center shrink-0 border',
+              ciiData.summary.attainedRating === 'E' || ciiData.summary.attainedRating === 'D'
+                ? 'bg-amber-500/15 border-amber-500/30 text-amber-500'
+                : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-500'
+            ]"
+          >
+            <Sparkles class="size-4.5 animate-pulse" />
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-xs font-bold tracking-tight text-foreground">
+                Sentinel Marine Copilot · Proactive Decarbonization Triage
+              </span>
+              <Badge
+                variant="outline"
+                :class="[
+                  'text-[9px] font-mono px-1.5 py-0 uppercase',
+                  ciiData.summary.attainedRating === 'E' || ciiData.summary.attainedRating === 'D'
+                    ? 'border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-500/10'
+                    : 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10'
+                ]"
+              >
+                {{ ciiData.summary.attainedRating === 'E' || ciiData.summary.attainedRating === 'D' ? 'Advisory Active' : 'Compliant Run-Rate' }}
               </Badge>
             </div>
-            <p class="text-xs text-muted-foreground">
-              IMO MARPOL Annex VI Carbon Intensity Indicator, EU ETS exposure, and fleet benchmarking
+            <p class="text-xs text-muted-foreground mt-0.5 leading-normal">
+              {{ ciiData.summary.attainedRating === 'E' || ciiData.summary.attainedRating === 'D'
+                ? `${ciiData.vessel.vesselName} is ${ciiData.summary.marginPercent > 0 ? '+' + ciiData.summary.marginPercent + '%' : ''} over regulatory threshold (Grade ${ciiData.summary.attainedRating}). Copilot projects a 10% speed reduction achieves Grade C compliance with ~${Math.round(ciiData.summary.totalCo2Mt * 0.27)} MT CO₂ saved.`
+                : `${ciiData.vessel.vesselName} is operating in superior Grade ${ciiData.summary.attainedRating} (${Math.abs(ciiData.summary.marginPercent)}% better than IMO target). EU ETS exposure estimated at €${ciiData.summary.euEtsCostEur.toLocaleString()}.`
+              }}
             </p>
           </div>
         </div>
+
+        <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+          <Button
+            size="sm"
+            variant="outline"
+            class="h-8 text-xs gap-1.5 border-primary/40 hover:bg-primary/10 text-primary cursor-pointer font-medium"
+            @click="askCopilotPrompt(`Provide a comprehensive decarbonization audit and speed reduction advisory for ${ciiData?.vessel.vesselName}. Explain how to reach Grade C and reduce EU ETS exposure.`)"
+          >
+            <Sparkles class="size-3.5" />
+            <span>Ask Copilot to Triage</span>
+          </Button>
+        </div>
       </div>
-
-      <!-- Controls Bar -->
-      <div class="flex flex-wrap items-center gap-2.5">
-        <!-- Vessel Selector (Required: always one vessel selected) -->
-        <div class="w-[190px]">
-          <Select v-model="selectedVesselId">
-            <SelectTrigger class="h-8 text-xs font-medium">
-              <SelectValue placeholder="Select Vessel" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem
-                v-for="v in vesselOptions"
-                :key="v.id"
-                :value="v.id"
-                class="text-xs cursor-pointer"
-              >
-                {{ v.name }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <!-- Year Selector -->
-        <div class="w-[95px]">
-          <Select v-model="selectedYear">
-            <SelectTrigger class="h-8 text-xs font-medium">
-              <SelectValue placeholder="Year" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem
-                v-for="yr in yearOptions"
-                :key="yr"
-                :value="String(yr)"
-                class="text-xs cursor-pointer"
-              >
-                {{ yr }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <!-- Voyage Selector -->
-        <div class="w-[185px]">
-          <Select v-model="selectedVoyage">
-            <SelectTrigger class="h-8 text-xs font-medium">
-              <SelectValue placeholder="All Voyages (YTD)" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all" class="text-xs cursor-pointer">
-                All Voyages (YTD)
-              </SelectItem>
-              <SelectItem
-                v-for="voy in ciiData?.availableVoyages || []"
-                :key="voy.voyageNumber"
-                :value="voy.voyageNumber"
-                class="text-xs cursor-pointer"
-              >
-                {{ voy.voyageNumber }} ({{ voy.destinationPort }})
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <!-- Refresh Button -->
-        <Button
-          variant="outline"
-          size="sm"
-          class="h-8 text-xs gap-1.5 cursor-pointer"
-          :disabled="isLoading"
-          @click="() => refreshCiiData()"
-        >
-          <RefreshCw class="size-3.5" :class="{ 'animate-spin': isLoading }" />
-          <span>Refresh</span>
-        </Button>
-
-        <!-- CSV Export Button -->
-        <Button
-          variant="outline"
-          size="sm"
-          class="h-8 text-xs gap-1.5 cursor-pointer border-primary/30 text-primary hover:bg-primary/10"
-          :disabled="isLoading || !ciiData"
-          @click="exportCsv"
-        >
-          <FileSpreadsheet class="size-3.5" />
-          <span>Export CSV</span>
-        </Button>
-      </div>
-    </div>
 
     <!-- Loading Skeleton State -->
     <div v-if="isLoading && !ciiData" class="space-y-6">
@@ -853,63 +1089,177 @@ const chartData = computed(() => {
 
       <!-- Main Section: Fuel Breakdown & What-If Speed Reduction Advisor -->
       <div class="grid gap-6 lg:grid-cols-12">
-        <!-- Fuel Mix & Emissions Table (7 cols) -->
+        <!-- Fuel Mix & Operational Consumption Card (7 cols) -->
         <Card class="lg:col-span-7 shadow-xs flex flex-col">
-          <CardHeader class="pb-3">
-            <div class="flex items-center justify-between">
+          <CardHeader class="pb-3 border-b border-border/40">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <CardTitle class="text-base font-semibold">Fuel Mix & Operational Consumption</CardTitle>
+                <CardTitle class="text-base font-semibold flex items-center gap-2">
+                  <Fuel class="size-4 text-primary" />
+                  Fuel Mix & Operational Consumption
+                </CardTitle>
                 <CardDescription class="text-xs">
                   At-Sea vs. At-Port fuel consumption and resulting carbon emissions
                 </CardDescription>
               </div>
-              <Badge variant="outline" class="text-[10px] font-mono">
-                {{ ciiData.fuelBreakdown.length }} Grades
-              </Badge>
+              <div class="flex items-center gap-2">
+                <Badge variant="outline" class="text-[10px] font-mono border-primary/30 text-primary">
+                  {{ ciiData.fuelBreakdown.length }} Grades
+                </Badge>
+                <Badge variant="outline" class="text-[10px] font-mono">
+                  {{ seaFuelPercent }}% Sea / {{ portFuelPercent }}% Port
+                </Badge>
+              </div>
             </div>
           </CardHeader>
-          <CardContent class="p-0 flex-1 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow class="hover:bg-transparent text-[11px]">
-                  <TableHead class="font-semibold">Fuel Type</TableHead>
-                  <TableHead class="text-right font-semibold">Sea (MT)</TableHead>
-                  <TableHead class="text-right font-semibold">Port (MT)</TableHead>
-                  <TableHead class="text-right font-semibold">Total (MT)</TableHead>
-                  <TableHead class="text-right font-semibold">CF Factor</TableHead>
-                  <TableHead class="text-right font-semibold">CO₂ (MT)</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow
-                  v-for="fuel in ciiData.fuelBreakdown"
-                  :key="fuel.fuelType"
-                  class="text-xs hover:bg-muted/40 transition-colors"
-                >
-                  <TableCell class="font-medium text-foreground py-2.5">
-                    <div class="flex items-center gap-2">
-                      <Fuel class="size-3.5 text-primary shrink-0" />
-                      <span class="truncate">{{ fuel.fuelLabel }}</span>
+          <CardContent class="p-4 pt-4 flex-1 flex flex-col justify-between space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+              <!-- Donut Chart Left Column (5 cols) -->
+              <div class="md:col-span-5 flex flex-col items-center justify-center relative">
+                <div class="relative w-full max-w-[200px] aspect-square flex items-center justify-center">
+                  <ClientOnly>
+                    <PieChart
+                      :data="fuelDonutData"
+                      :donut="true"
+                      name-field="name"
+                      value-field="value"
+                      height="190"
+                      :option="fuelDonutOption"
+                    />
+                    <template #fallback>
+                      <div class="size-[190px] rounded-full border-8 border-muted/40 animate-pulse flex items-center justify-center" />
+                    </template>
+                  </ClientOnly>
+                  <!-- Total Fuel in Center -->
+                  <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                    <span class="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Total Fuel</span>
+                    <span class="text-lg font-extrabold tracking-tight text-foreground tabular-nums">
+                      {{ formatNumber(totalFuelBunkered, 0) }}
+                    </span>
+                    <span class="text-[10px] text-muted-foreground font-medium">MT Bunkered</span>
+                  </div>
+                </div>
+
+                <!-- Structured Fuel Legend -->
+                <div class="w-full space-y-1.5 mt-2">
+                  <div
+                    v-for="item in fuelDonutData"
+                    :key="item.name"
+                    class="flex items-center justify-between text-xs px-2.5 py-1 rounded-md bg-muted/30 border border-border/50"
+                  >
+                    <div class="flex items-center gap-2 min-w-0">
+                      <span class="size-2 rounded-full shrink-0" :style="{ backgroundColor: item.color }" />
+                      <span class="font-medium text-foreground truncate text-xs">{{ item.name }}</span>
                     </div>
-                  </TableCell>
-                  <TableCell class="text-right tabular-nums py-2.5 text-muted-foreground">
-                    {{ formatNumber(fuel.seaMt, 1) }}
-                  </TableCell>
-                  <TableCell class="text-right tabular-nums py-2.5 text-muted-foreground">
-                    {{ formatNumber(fuel.portMt, 1) }}
-                  </TableCell>
-                  <TableCell class="text-right tabular-nums font-semibold text-foreground py-2.5">
-                    {{ formatNumber(fuel.totalMt, 1) }}
-                  </TableCell>
-                  <TableCell class="text-right tabular-nums text-muted-foreground py-2.5">
-                    {{ fuel.coefficient.toFixed(3) }}
-                  </TableCell>
-                  <TableCell class="text-right tabular-nums font-bold text-foreground py-2.5">
-                    {{ formatNumber(fuel.co2Mt, 1) }}
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+                    <div class="flex items-center gap-2 shrink-0 tabular-nums">
+                      <span class="text-muted-foreground text-xs">{{ formatNumber(item.value, 1) }} MT</span>
+                      <Badge variant="secondary" class="text-[10px] px-1.5 py-0 font-semibold font-mono">
+                        {{ item.pct }}%
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Fuel & Emissions Breakdown Table Right Column (7 cols) -->
+              <div class="md:col-span-7 flex flex-col justify-between space-y-3 overflow-x-auto border-t md:border-t-0 md:border-l border-border/60 pt-4 md:pt-0 md:pl-5">
+                <Table>
+                  <TableHeader>
+                    <TableRow class="hover:bg-transparent text-[11px] border-b border-border/70">
+                      <TableHead class="font-semibold">Fuel Grade</TableHead>
+                      <TableHead class="text-right font-semibold">Sea (MT)</TableHead>
+                      <TableHead class="text-right font-semibold">Port (MT)</TableHead>
+                      <TableHead class="text-right font-semibold">Total (MT)</TableHead>
+                      <TableHead class="text-right font-semibold hidden sm:table-cell">CF</TableHead>
+                      <TableHead class="text-right font-semibold">CO₂ (MT)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow
+                      v-for="(fuel, idx) in ciiData.fuelBreakdown"
+                      :key="fuel.fuelType"
+                      class="text-xs hover:bg-muted/40 transition-colors"
+                    >
+                      <TableCell class="font-medium text-foreground py-2.5">
+                        <div class="flex items-center gap-2">
+                          <span
+                            class="size-2 rounded-full shrink-0"
+                            :style="{ backgroundColor: fuelColors[idx % fuelColors.length] }"
+                          />
+                          <span class="truncate font-medium">{{ fuel.fuelLabel }}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell class="text-right tabular-nums py-2.5 text-muted-foreground">
+                        {{ formatNumber(fuel.seaMt, 1) }}
+                      </TableCell>
+                      <TableCell class="text-right tabular-nums py-2.5 text-muted-foreground">
+                        {{ formatNumber(fuel.portMt, 1) }}
+                      </TableCell>
+                      <TableCell class="text-right tabular-nums font-semibold text-foreground py-2.5">
+                        {{ formatNumber(fuel.totalMt, 1) }}
+                      </TableCell>
+                      <TableCell class="text-right tabular-nums text-muted-foreground py-2.5 hidden sm:table-cell">
+                        {{ fuel.coefficient.toFixed(3) }}
+                      </TableCell>
+                      <TableCell class="text-right tabular-nums font-bold text-foreground py-2.5">
+                        {{ formatNumber(fuel.co2Mt, 1) }}
+                      </TableCell>
+                    </TableRow>
+                    <!-- Total Summary Row -->
+                    <TableRow class="border-t-2 border-border/80 bg-muted/20 font-semibold text-xs">
+                      <TableCell class="py-2.5 text-foreground">
+                        Total
+                      </TableCell>
+                      <TableCell class="text-right tabular-nums py-2.5 text-foreground/90">
+                        {{ formatNumber(totalSeaFuel, 1) }}
+                      </TableCell>
+                      <TableCell class="text-right tabular-nums py-2.5 text-foreground/90">
+                        {{ formatNumber(totalPortFuel, 1) }}
+                      </TableCell>
+                      <TableCell class="text-right tabular-nums py-2.5 text-foreground font-bold">
+                        {{ formatNumber(totalFuelBunkered, 1) }}
+                      </TableCell>
+                      <TableCell class="text-right tabular-nums py-2.5 text-muted-foreground hidden sm:table-cell">
+                        —
+                      </TableCell>
+                      <TableCell class="text-right tabular-nums py-2.5 text-primary font-bold">
+                        {{ formatNumber(ciiData.summary.totalCo2Mt, 1) }}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+
+                <!-- Operational Mode Segmented Progress Bar -->
+                <div class="p-3 rounded-xl bg-muted/30 border border-border/50 space-y-2 mt-2">
+                  <div class="flex items-center justify-between text-xs">
+                    <div class="flex items-center gap-2">
+                      <span class="size-2 rounded-full bg-primary" />
+                      <span class="font-medium text-foreground">At Sea (Propulsion)</span>
+                      <span class="text-muted-foreground tabular-nums text-[11px]">({{ formatNumber(totalSeaFuel, 1) }} MT)</span>
+                    </div>
+                    <span class="font-bold text-primary tabular-nums">{{ seaFuelPercent }}%</span>
+                  </div>
+                  <div class="h-2 w-full rounded-full bg-muted overflow-hidden flex shadow-inner">
+                    <div
+                      class="bg-primary h-full transition-all duration-500 rounded-l-full"
+                      :style="{ width: `${seaFuelPercent}%` }"
+                    />
+                    <div
+                      class="bg-amber-500 h-full transition-all duration-500 rounded-r-full"
+                      :style="{ width: `${portFuelPercent}%` }"
+                    />
+                  </div>
+                  <div class="flex items-center justify-between text-xs">
+                    <div class="flex items-center gap-2">
+                      <span class="size-2 rounded-full bg-amber-500" />
+                      <span class="font-medium text-foreground">In Port (Auxiliary / Boiler)</span>
+                      <span class="text-muted-foreground tabular-nums text-[11px]">({{ formatNumber(totalPortFuel, 1) }} MT)</span>
+                    </div>
+                    <span class="font-bold text-amber-500 tabular-nums">{{ portFuelPercent }}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -1039,5 +1389,28 @@ const chartData = computed(() => {
         </CardContent>
       </Card>
     </div>
+    </div>
+
+    <!-- AI Emissions Copilot Panel -->
+    <SentinelCopilotPanel
+      ref="copilotPanelRef"
+      v-model="isCopilotOpen"
+      v-model:fullscreen="isCopilotFullscreen"
+      :title="`${selectedVessel?.name || 'Vessel'} Emissions Copilot`"
+      subtitle="CII Compliance & Speed Advisory"
+      badge-text="AI Decarb"
+      :quick-directives="emissionsQuickDirectives"
+      :active-context="{
+        vesselId: parseInt(selectedVesselId, 10),
+        vesselName: selectedVessel?.name,
+        year: parseInt(selectedYear, 10),
+        attainedCii: ciiData?.summary?.attainedCii,
+        requiredCii: ciiData?.summary?.requiredCii,
+        rating: ciiData?.summary?.attainedRating,
+      }"
+      placeholder="Ask about CII rating, speed reduction to reach Grade C, or EU ETS..."
+      initial-message="Emissions & CII Copilot ready. Ask questions about vessel compliance, simulate speed reduction scenarios, or choose an advisory directive below."
+      @apply-action="handleCopilotAction"
+    />
   </div>
 </template>

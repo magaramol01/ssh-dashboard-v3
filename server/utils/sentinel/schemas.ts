@@ -8,7 +8,12 @@ export const sentinelRequestSchema = z.object({
   context: z.object({
     alertId: z.number().int().positive().optional(),
     vesselId: z.number().int().positive().optional(),
-  }).strict().optional(),
+    year: z.number().int().positive().optional(),
+    vesselName: z.string().trim().max(120).nullable().optional(),
+    attainedCii: z.number().nullable().optional(),
+    requiredCii: z.number().nullable().optional(),
+    rating: z.string().trim().max(10).nullable().optional(),
+  }).passthrough().optional(),
 }).strict().superRefine((value, ctx) => {
   const total = value.messages.reduce((sum, message) => sum + message.content.length, 0)
   if (total > 12_000) {
@@ -88,6 +93,11 @@ export const sentinelResponseSchema = z.object({
     z.object({
       type: z.literal('focus-vessel'),
       vesselId: z.number().int().positive(),
+      label: z.string().min(1).max(100),
+    }).strict(),
+    z.object({
+      type: z.literal('apply-speed-scenario'),
+      scenarioIndex: z.number().int().min(0).max(10),
       label: z.string().min(1).max(100),
     }).strict(),
   ])).max(5),

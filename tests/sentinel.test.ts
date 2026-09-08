@@ -49,3 +49,30 @@ test('accepts line-chart and bar-chart blocks in Sentinel response', () => {
   })
   assert.equal(result.success, true)
 })
+
+test('accepts emissions context and apply-speed-scenario action', () => {
+  const reqResult = sentinelRequestSchema.safeParse({
+    messages: [{ role: 'user', content: 'Audit CII for ALS Ceres' }],
+    context: {
+      vesselId: 1,
+      vesselName: 'ALS Ceres',
+      year: 2026,
+      attainedCii: 6.18,
+      requiredCii: 7.5,
+      rating: 'B',
+    },
+  })
+  assert.equal(reqResult.success, true)
+
+  const respResult = sentinelResponseSchema.safeParse({
+    message: { role: 'agent', content: 'CII audit completed.' },
+    blocks: [
+      { type: 'markdown', text: 'CII audit completed.' },
+      { type: 'kpi', label: 'Attained CII', value: '6.18 gCO₂/tnm', tone: 'success' },
+    ],
+    activity: [],
+    references: [{ kind: 'vessel', id: '1', label: 'ALS Ceres' }],
+    actions: [{ type: 'apply-speed-scenario', scenarioIndex: 1, label: 'Apply -10% Speed Cut' }],
+  })
+  assert.equal(respResult.success, true)
+})

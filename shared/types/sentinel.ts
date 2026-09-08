@@ -2,7 +2,16 @@ export type SentinelRole = 'user' | 'assistant'
 
 export type SentinelChatRequest = {
   messages: Array<{ role: SentinelRole; content: string }>
-  context?: { alertId?: number; vesselId?: number }
+  context?: {
+    alertId?: number
+    vesselId?: number
+    year?: number
+    vesselName?: string
+    attainedCii?: number
+    requiredCii?: number
+    rating?: string
+    [key: string]: unknown
+  }
 }
 
 export type SentinelActivity = {
@@ -20,6 +29,7 @@ export type SentinelReference = {
 export type SentinelAction =
   | { type: 'filter-alerts'; severity?: 'critical' | 'warning' | 'all'; search?: string; label: string }
   | { type: 'focus-vessel'; vesselId: number; label: string }
+  | { type: 'apply-speed-scenario'; scenarioIndex: number; label: string }
 
 export type SentinelBlock =
   | { type: 'markdown'; text: string }
