@@ -26,9 +26,14 @@ import {
   Users,
   Sparkles,
   Table2,
+  Layers,
 } from 'lucide-vue-next'
 import SentinelCopilotPanel from '@/components/sentinel/SentinelCopilotPanel.vue'
 import CiiImprovementPlanCard from '@/components/emissions/CiiImprovementPlanCard.vue'
+import WeatherImpactCard from '@/components/emissions/widgets/WeatherImpactCard.vue'
+import HullPropulsionCard from '@/components/emissions/widgets/HullPropulsionCard.vue'
+import EngineSfocCard from '@/components/emissions/widgets/EngineSfocCard.vue'
+import OperationalProfileCard from '@/components/emissions/widgets/OperationalProfileCard.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
@@ -1497,6 +1502,31 @@ const fuelDonutOption = computed(() => ({
             </div>
           </CardContent>
         </Card>
+
+      <!-- Environmental & Technical Performance Intelligence (2x2 Grid) -->
+      <div v-if="ciiData?.performanceWidgets" class="space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 class="text-base font-semibold text-foreground flex items-center gap-2">
+              <Layers class="size-4 text-primary" />
+              Environmental & Technical Performance Intelligence
+            </h3>
+            <p class="text-xs text-muted-foreground mt-0.5">
+              High-resolution diagnostics across adverse weather, hull biofouling, engine combustion, and operational profile
+            </p>
+          </div>
+          <Badge variant="outline" class="text-[10px] font-mono border-border text-muted-foreground self-start sm:self-auto">
+            4-Pillar Telemetry
+          </Badge>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <WeatherImpactCard :weather="ciiData.performanceWidgets.weather" />
+          <HullPropulsionCard :propulsion="ciiData.performanceWidgets.propulsion" />
+          <EngineSfocCard :engine="ciiData.performanceWidgets.engine" />
+          <OperationalProfileCard :operations="ciiData.performanceWidgets.operations" />
+        </div>
+      </div>
 
       <!-- Chronological Monthly Trend Chart -->
       <Card class="shadow-xs">
