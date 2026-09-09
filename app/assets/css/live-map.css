@@ -5,13 +5,13 @@
  * Pills use semantic tokens so they track the theme.
  */
 
-/* Basemap tiles are natively dark (CartoDB Dark Matter) requiring no color inversion filter. */
+/* Basemap tiles are natively dark (Esri World Dark Gray Base) requiring no color inversion filter. */
 .dark .leaflet-tile {
   transition: opacity 0.2s ease;
 }
 
 .dark .leaflet-container {
-  background: #090d16 !important;
+  background: #242424 !important;
 }
 
 .dark .leaflet-control-zoom {
