@@ -155,6 +155,14 @@ function haversineNm(lat1: number, lon1: number, lat2: number, lon2: number): nu
   return 2 * R * Math.asin(Math.sqrt(a))
 }
 
+function degreesToCompass(deg?: number | string | null): string {
+  if (deg === undefined || deg === null || deg === '' || isNaN(Number(deg))) return ''
+  const val = Number(deg)
+  const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
+  const index = Math.round(((val % 360) + 360) % 360 / 22.5) % 16
+  return directions[index] || 'N'
+}
+
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const tenant = (
@@ -203,8 +211,39 @@ export default defineEventHandler(async (event) => {
 
   const vessels: NormalizedVessel[] = ships.map((ship) => {
     const p = ship.properties
-    const vesselLat = parseFloat(p.lat)
-    const vesselLng = parseFloat(p.long)
+
+    // GeoJSON coordinates are [longitude, latitude].
+    // Fall back to properties lat / long if geometry is missing.
+    let rawLat = 0
+    let rawLng = 0
+
+    if (Array.isArray(ship.geometry?.coordinates) && ship.geometry.coordinates.length >= 2) {
+      rawLng = Number(ship.geometry.coordinates[0])
+      rawLat = Number(ship.geometry.coordinates[1])
+    } else {
+      rawLat = parseFloat(p.lat) || 0
+      rawLng = parseFloat(p.long) || 0
+    }
+
+    let vesselLat = rawLat
+    let vesselLng = rawLng
+
+    // Marine NMEA / AIS telemetry specifies unsigned lat/long with latDirection ('N'/'S') and longDirection ('E'/'W').
+    // Invert sign for Southern and Western hemispheres.
+    const latDir = (p.latDirection || '').toString().trim().toUpperCase()
+    if (latDir === 'S') {
+      vesselLat = -Math.abs(vesselLat)
+    } else if (latDir === 'N') {
+      vesselLat = Math.abs(vesselLat)
+    }
+
+    const longDir = (p.longDirection || '').toString().trim().toUpperCase()
+    if (longDir === 'W') {
+      vesselLng = -Math.abs(vesselLng)
+    } else if (longDir === 'E') {
+      vesselLng = Math.abs(vesselLng)
+    }
+
     const routeObj = routes.find((r) => r.vesselId === p.vesselId)
 
     let routeCoords: [number, number][] = []
@@ -347,7 +386,7 @@ export default defineEventHandler(async (event) => {
       swellDirection: p.swellDirection,
       currentSpeed: p.currentSpeed,
       currentDirection: p.currentDirection,
-      heading: `${p.latDirection || ''}${p.longDirection || ''}`.trim() || 'N',
+      heading: degreesToCompass(p.vesselHeading ?? p.cog) || `${p.latDirection || ''}${p.longDirection || ''}`.trim() || 'N',
       vesselHeading: typeof p.vesselHeading === 'number' ? p.vesselHeading : undefined,
       weather: resolveWeatherInfo(p),
       status: isMoving ? 'in-transit' : p.sog > 0 ? 'manoeuvring' : 'moored',
