@@ -115,11 +115,12 @@ function facilityIcon(type: 'warehouse' | 'dc', label: string, code: string) {
 
 function pointIcon(kind: 'origin' | 'stop' | 'destination', color: string, label: string) {
   if (kind === 'destination') {
-    return icon(`<div class="lm-marker lm-marker-pin"><span class="lm-label">Destination · ${label}</span><svg class="lm-pin" viewBox="0 0 24 30" width="22" height="30" style="color:${color}"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="currentColor" stroke="#fff" stroke-width="1.5"/><circle cx="12" cy="9" r="2.3" fill="#fff"/></svg></div>`, [130, 38], [65, 38])
+    const text = label && label !== 'Destination Port' && label !== 'Destination' ? label : 'Destination'
+    return icon(`<div class="lm-marker lm-marker-pin"><span class="lm-label">${text}</span><svg class="lm-pin" viewBox="0 0 24 30" width="22" height="30" style="color:${color}"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="currentColor" stroke="#fff" stroke-width="1.5"/><circle cx="12" cy="9" r="2.3" fill="#fff"/></svg></div>`, [130, 38], [65, 38])
   }
   const dot = kind === 'origin' ? 'lm-node' : 'lm-stop'
-  const labelText = kind === 'origin' ? `Origin · ${label}` : label
-  return icon(`<div class="lm-marker"><span class="lm-label ${kind === 'stop' ? 'lm-label-sm' : ''}">${labelText}</span><span class="${dot}" style="border-color:${color}">${kind === 'origin' ? `<span class="lm-node-dot" style="background:${color}"></span>` : ''}</span></div>`, [130, 28], [65, 14])
+  const text = label && label !== 'Origin Port' && label !== 'Origin' ? label : (kind === 'origin' ? 'Origin' : label)
+  return icon(`<div class="lm-marker"><span class="lm-label ${kind === 'stop' ? 'lm-label-sm' : ''}">${text}</span><span class="${dot}" style="border-color:${color}">${kind === 'origin' ? `<span class="lm-node-dot" style="background:${color}"></span>` : ''}</span></div>`, [130, 28], [65, 14])
 }
 
 function clearItinerary() {
@@ -136,8 +137,8 @@ function drawItinerary() {
   if (route.length > 0) {
     const first = trip.originCoords || route[0]
     const last = trip.destCoords || route[route.length - 1]
-    const originLabel = trip.origin || (trip.vesselId ? 'Origin Port' : trip.shipment?.origin) || 'Origin'
-    const destLabel = trip.destination || (trip.vesselId ? 'Destination Port' : trip.shipment?.destination) || 'Destination'
+    const originLabel = trip.origin || (trip.vesselId ? 'Origin' : trip.shipment?.origin) || 'Origin'
+    const destLabel = trip.destination || (trip.vesselId ? 'Destination' : trip.shipment?.destination) || 'Destination'
     if (first) {
       itineraryMarkers.push(L.marker(first, { icon: pointIcon('origin', color, originLabel), interactive: false }).addTo(map))
     }
@@ -246,15 +247,29 @@ defineExpose({ hover, invalidateSize })
 
 let resizeObserver: ResizeObserver | null = null
 
+function updateTileLayer() {
+  if (!map || !L) return
+  if (currentTileLayer) {
+    map.removeLayer(currentTileLayer)
+    currentTileLayer = null
+  }
+  const tileUrl = isDark.value
+    ? 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}{r}.png'
+    : 'https://{s}.basemaps.cartocdn.com/rastertiles/light_nolabels/{z}/{x}/{y}{r}.png'
+
+  currentTileLayer = L.tileLayer(tileUrl, {
+    maxZoom: 19,
+    subdomains: 'abcd',
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+  }).addTo(map)
+}
+
 onMounted(async () => {
   L = (await import('leaflet')).default
   if (!el.value) return
   map = L.map(el.value, { zoomControl: false, minZoom: 2, maxZoom: 19, attributionControl: true }).setView([15, 75], 3)
-  currentTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  }).addTo(map)
+  updateTileLayer()
   L.control.zoom({ position: 'bottomright' }).addTo(map)
   drawRoutes()
   requestAnimationFrame(() => map?.invalidateSize())
@@ -269,6 +284,7 @@ onMounted(async () => {
   if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined') {
     themeMutationObserver = new MutationObserver(async () => {
       if (!map) return
+      updateTileLayer()
       await nextTick()
       drawRoutes()
     })
@@ -283,6 +299,7 @@ watch(() => props.selectedId, () => { drawItinerary(); applyFocus(); fitSelected
 watch(() => props.trips, drawRoutes, { deep: true })
 watch([isDark, theme], async () => {
   if (map) {
+    updateTileLayer()
     await nextTick()
     drawRoutes()
   }

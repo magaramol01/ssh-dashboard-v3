@@ -5,15 +5,13 @@
  * Pills use semantic tokens so they track the theme.
  */
 
-/* Dark mode tiles for Leaflet using CSS hardware-accelerated color filtering.
-   Zero external API key required; transforms standard OpenStreetMap into a sleek dark palette. */
+/* Basemap tiles are natively dark (CartoDB Dark Matter) requiring no color inversion filter. */
 .dark .leaflet-tile {
-  filter: invert(100%) hue-rotate(180deg) brightness(88%) contrast(110%) grayscale(20%);
-  transition: filter 0.3s ease;
+  transition: opacity 0.2s ease;
 }
 
 .dark .leaflet-container {
-  background: #0f172a !important;
+  background: #090d16 !important;
 }
 
 .dark .leaflet-control-zoom {

@@ -54,19 +54,36 @@ function draw() {
   map.fitBounds(props.coords, { padding: [46, 46], maxZoom: 11, animate: false })
 }
 
+const { isDark } = useTheme()
+
+function updateTileLayer() {
+  if (!map || !L) return
+  if (currentTileLayer) {
+    map.removeLayer(currentTileLayer)
+    currentTileLayer = null
+  }
+  const tileUrl = isDark.value
+    ? 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}{r}.png'
+    : 'https://{s}.basemaps.cartocdn.com/rastertiles/light_nolabels/{z}/{x}/{y}{r}.png'
+
+  currentTileLayer = L.tileLayer(tileUrl, {
+    maxZoom: 19,
+    subdomains: 'abcd',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+  }).addTo(map)
+}
+
 onMounted(async () => {
   L = (await import('leaflet')).default
   if (!el.value) return
   map = L.map(el.value, { zoomControl: true, attributionControl: true, scrollWheelZoom: false }).setView(vehicle.value, 6)
-  currentTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  }).addTo(map)
+  updateTileLayer()
   draw()
   requestAnimationFrame(() => map?.invalidateSize())
 })
 
 watch(() => [props.coords, props.stops, props.progress, props.delivered], draw, { deep: true })
+watch(isDark, () => updateTileLayer())
 
 onBeforeUnmount(() => {
   layers.splice(0)
