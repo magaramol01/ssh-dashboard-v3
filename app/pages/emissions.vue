@@ -897,7 +897,7 @@ const fuelDonutOption = computed(() => ({
       ]"
     >
       <!-- Header Controls & Filters -->
-      <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-5">
+      <div class="sticky top-14 z-20 -mx-4 md:-mx-6 -mt-4 md:-mt-6 px-4 md:px-6 py-3.5 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border shadow-xs flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <div class="flex items-center gap-2.5">
             <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
