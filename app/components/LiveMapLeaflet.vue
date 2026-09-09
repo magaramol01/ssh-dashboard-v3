@@ -155,6 +155,8 @@ function applyFocus() {
   if (!map) return
   const focus = props.selectedId ?? hoverId.value
   routes.forEach((route, id) => {
+    const isSelected = props.selectedId === id
+    const isHovered = hoverId.value === id
     const focused = id === focus
     const dim = focus !== null && !focused
     const opacity = dim ? 0.2 : 1
@@ -164,7 +166,14 @@ function applyFocus() {
     if (route.origin) route.origin.setStyle({ opacity, fillOpacity: opacity })
     route.marker.setOpacity(dim ? 0.35 : 1)
     route.marker.setZIndexOffset(focused ? 1000 : 0)
-    route.marker.setIcon(vesselIcon(route.color, props.selectedId === id))
+    route.marker.setIcon(vesselIcon(route.color, isSelected))
+
+    if (isSelected || isHovered) {
+      route.marker.openTooltip()
+    } else {
+      route.marker.closeTooltip()
+    }
+
     const tooltip = route.marker.getTooltip()
     const tooltipEl = tooltip?.getElement()
     if (tooltipEl) {
@@ -211,7 +220,15 @@ function drawRoutes() {
     }
 
     const marker = L.marker(markerPos, { icon: vesselIcon(color, false), riseOnHover: true }).addTo(map)
-    marker.on('click', () => emit('select', id))
+    marker.on('click', () => {
+      emit('select', id)
+      marker.openTooltip()
+    })
+    marker.on('mouseout', () => {
+      if (props.selectedId !== id && hoverId.value !== id) {
+        marker.closeTooltip()
+      }
+    })
     let tooltipHtml = `<b>${name}</b>`
     if ((trip as any).sog !== undefined) {
       const sched = (trip as any).scheduleStatus
@@ -226,7 +243,7 @@ function drawRoutes() {
       tooltipHtml += `<br/><span style="font-size:11px">${(trip as any).sog} kts · ${schedLabel}</span>`
     }
     marker.bindTooltip(tooltipHtml, {
-      permanent: true,
+      permanent: false,
       direction: 'top',
       offset: [0, -18],
     })
