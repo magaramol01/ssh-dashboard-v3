@@ -165,10 +165,18 @@ function applyFocus() {
     route.marker.setOpacity(dim ? 0.35 : 1)
     route.marker.setZIndexOffset(focused ? 1000 : 0)
     route.marker.setIcon(vesselIcon(route.color, props.selectedId === id))
-    if (focused) {
-      route.marker.openTooltip()
-    } else {
-      route.marker.closeTooltip()
+    const tooltip = route.marker.getTooltip()
+    const tooltipEl = tooltip?.getElement()
+    if (tooltipEl) {
+      tooltipEl.style.opacity = dim ? '0.35' : '1'
+      tooltipEl.style.zIndex = focused ? '1000' : 'auto'
+      if (focused) {
+        tooltipEl.style.borderColor = 'var(--primary, #0e6e69)'
+        tooltipEl.style.boxShadow = '0 0 0 2px var(--primary, #0e6e69), 0 4px 12px rgba(0,0,0,0.25)'
+      } else {
+        tooltipEl.style.borderColor = 'rgba(0, 0, 0, 0.08)'
+        tooltipEl.style.boxShadow = '0 3px 10px rgba(0, 0, 0, 0.18)'
+      }
     }
   })
 }
@@ -205,10 +213,15 @@ function drawRoutes() {
     const marker = L.marker(markerPos, { icon: vesselIcon(color, false), riseOnHover: true }).addTo(map)
     marker.on('click', () => emit('select', id))
     marker.bindTooltip(name, {
+      permanent: true,
       direction: 'top',
       offset: [0, -18],
       className: 'vessel-tooltip',
     })
+    const tooltip = marker.getTooltip()
+    if (tooltip) {
+      tooltip.on('click', () => emit('select', id))
+    }
     routes.set(id, { base, travelled: travelledLine, remaining: remainingLine, origin, marker, truck: markerPos, color })
   }
 
