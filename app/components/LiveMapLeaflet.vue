@@ -174,8 +174,8 @@ function applyFocus() {
         tooltipEl.style.borderColor = 'var(--primary, #0e6e69)'
         tooltipEl.style.boxShadow = '0 0 0 2px var(--primary, #0e6e69), 0 4px 12px rgba(0,0,0,0.25)'
       } else {
-        tooltipEl.style.borderColor = 'rgba(0, 0, 0, 0.08)'
-        tooltipEl.style.boxShadow = '0 3px 10px rgba(0, 0, 0, 0.18)'
+        tooltipEl.style.borderColor = 'var(--border)'
+        tooltipEl.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.25)'
       }
     }
   })
@@ -212,11 +212,23 @@ function drawRoutes() {
 
     const marker = L.marker(markerPos, { icon: vesselIcon(color, false), riseOnHover: true }).addTo(map)
     marker.on('click', () => emit('select', id))
-    marker.bindTooltip(name, {
+    let tooltipHtml = `<b>${name}</b>`
+    if ((trip as any).sog !== undefined) {
+      const sched = (trip as any).scheduleStatus
+      const schedLabel =
+        sched === 'on-time'
+          ? '<span style="color:#10b981;font-weight:600">On time</span>'
+          : sched === 'late'
+          ? `<span style="color:#f59e0b;font-weight:600">+${(trip as any).varianceHours}h Late</span>`
+          : sched === 'early'
+          ? `<span style="color:#38bdf8;font-weight:600">${(trip as any).varianceHours}h Early</span>`
+          : '<span style="color:#94a3b8">In port</span>'
+      tooltipHtml += `<br/><span style="font-size:11px">${(trip as any).sog} kts · ${schedLabel}</span>`
+    }
+    marker.bindTooltip(tooltipHtml, {
       permanent: true,
       direction: 'top',
       offset: [0, -18],
-      className: 'vessel-tooltip',
     })
     const tooltip = marker.getTooltip()
     if (tooltip) {
@@ -368,29 +380,27 @@ onBeforeUnmount(() => {
 :deep(.leaflet-control-attribution a) {
   color: var(--primary) !important;
 }
-:deep(.vessel-tooltip),
 :deep(.leaflet-tooltip) {
-  background: #ffffff !important;
-  color: #0f172a !important;
-  border: 1px solid rgba(0, 0, 0, 0.08) !important;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18) !important;
+  background: var(--popover) !important;
+  color: var(--popover-foreground) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
   border-radius: 6px !important;
-  padding: 4px 10px !important;
-  font-size: 12px !important;
-  font-weight: 500 !important;
-  line-height: 1.3 !important;
-  white-space: nowrap !important;
+  padding: 6px 10px !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  user-select: none !important;
 }
 :deep(.leaflet-tooltip-top:before) {
-  border-top-color: #ffffff !important;
+  border-top-color: var(--border) !important;
 }
 :deep(.leaflet-tooltip-bottom:before) {
-  border-bottom-color: #ffffff !important;
+  border-bottom-color: var(--border) !important;
 }
 :deep(.leaflet-tooltip-left:before) {
-  border-left-color: #ffffff !important;
+  border-left-color: var(--border) !important;
 }
 :deep(.leaflet-tooltip-right:before) {
-  border-right-color: #ffffff !important;
+  border-right-color: var(--border) !important;
 }
 </style>
