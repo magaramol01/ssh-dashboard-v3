@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Flame, ShieldCheck, AlertTriangle } from 'lucide-vue-next'
+import { Flame } from 'lucide-vue-next'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { BarChart as EChartsBarChart } from 'echarts/charts'
@@ -61,7 +61,7 @@ const stats = computed(() => {
 const overallStatus = computed(() => {
   if (stats.value.max > 350) return { label: 'ALARM', color: 'text-rose-400 bg-rose-500/15 border-rose-500/30' }
   if (stats.value.max >= 330) return { label: 'ELEVATED', color: 'text-amber-400 bg-amber-500/15 border-amber-500/30' }
-  return { label: 'NOMINAL', color: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30' }
+  return { label: 'NOMINAL', color: 'text-slate-300 bg-slate-800/80 border-slate-700/50' }
 })
 
 const chartOption = computed(() => {
@@ -70,7 +70,7 @@ const chartOption = computed(() => {
     value: c.temp,
     itemStyle: {
       color: getCylinderStatusColor(c.temp),
-      borderRadius: [4, 4, 0, 0],
+      borderRadius: [3, 3, 0, 0],
     },
   }))
 
@@ -86,8 +86,8 @@ const chartOption = computed(() => {
     },
     tooltip: {
       trigger: 'item',
-      backgroundColor: '#17181f',
-      borderColor: '#262833',
+      backgroundColor: '#121318',
+      borderColor: '#1e2029',
       borderWidth: 1,
       padding: [8, 12],
       textStyle: { color: '#f8fafc', fontSize: 11 },
@@ -108,7 +108,7 @@ const chartOption = computed(() => {
     xAxis: {
       type: 'category',
       data: xLabels,
-      axisLine: { lineStyle: { color: '#262833' } },
+      axisLine: { lineStyle: { color: '#1e2029' } },
       axisLabel: { color: '#94a3b8', fontSize: 10, fontWeight: 500 },
       axisTick: { show: false },
     },
@@ -119,7 +119,7 @@ const chartOption = computed(() => {
       max: 360,
       nameTextStyle: { color: '#64748b', fontSize: 9 },
       axisLabel: { color: '#64748b', fontSize: 9 },
-      splitLine: { lineStyle: { color: '#1e2029', type: 'dashed' } },
+      splitLine: { lineStyle: { color: '#1a1c24', type: 'dashed' } },
     },
     series: [
       {
@@ -132,7 +132,7 @@ const chartOption = computed(() => {
           data: [
             {
               yAxis: avgTemp,
-              lineStyle: { color: '#38bdf8', type: 'dashed', width: 1.5 },
+              lineStyle: { color: '#38bdf8', type: 'dashed', width: 1.5, opacity: 0.7 },
               label: {
                 show: true,
                 position: 'end',
@@ -151,11 +151,11 @@ const chartOption = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col rounded-xl bg-[#17181f] border border-[#262833] p-3.5 shadow-sm">
+  <div class="flex flex-col rounded-xl bg-[#121318] border border-[#1e2029] p-3.5 shadow-sm">
     <!-- Header -->
-    <div class="flex flex-wrap items-center justify-between gap-2 pb-2 mb-1 border-b border-[#262833]/60">
+    <div class="flex flex-wrap items-center justify-between gap-2 pb-2 mb-1 border-b border-[#1e2029]">
       <div class="flex items-center gap-2">
-        <Flame class="h-4 w-4 text-amber-400" />
+        <Flame class="h-4 w-4 text-sky-400" />
         <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200">
           ME Cylinder Exhaust Temps
         </h3>
@@ -165,7 +165,7 @@ const chartOption = computed(() => {
       <div class="flex items-center gap-2">
         <span
           :class="[
-            'px-2 py-0.5 text-[10px] font-bold tracking-wider rounded-md border',
+            'px-2 py-0.5 text-[10px] font-mono tracking-wider rounded-md border',
             overallStatus.color
           ]"
         >
@@ -175,18 +175,18 @@ const chartOption = computed(() => {
     </div>
 
     <!-- Quick Stats Strip -->
-    <div class="grid grid-cols-3 gap-2 py-1 px-2 mb-1 rounded-lg bg-[#101116] border border-[#262833]/60 text-center text-[11px]">
+    <div class="grid grid-cols-3 gap-2 py-1 px-2 mb-1 rounded-lg bg-[#0e0f13] border border-[#1e2029] text-center text-[11px]">
       <div>
         <div class="text-[9px] uppercase tracking-wider text-slate-500">Average</div>
-        <div class="font-mono font-bold text-sky-400">{{ stats.avg }} °C</div>
+        <div class="font-mono font-bold text-slate-200">{{ stats.avg }} °C</div>
       </div>
       <div>
         <div class="text-[9px] uppercase tracking-wider text-slate-500">Max Temp</div>
-        <div class="font-mono font-bold text-amber-300">{{ stats.max }} °C</div>
+        <div class="font-mono font-bold text-slate-200">{{ stats.max }} °C</div>
       </div>
       <div>
         <div class="text-[9px] uppercase tracking-wider text-slate-500">Spread (Δ)</div>
-        <div class="font-mono font-bold text-slate-300">{{ stats.spread }} °C</div>
+        <div class="font-mono font-bold text-slate-400">{{ stats.spread }} °C</div>
       </div>
     </div>
 

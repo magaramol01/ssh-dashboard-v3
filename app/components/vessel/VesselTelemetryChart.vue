@@ -36,36 +36,36 @@ const baselinePower = [8200, 8350, 8500, 8420, 8750, 8900, 8550, 8300, 8450, 868
 const baselineScavenge = [1.82, 1.85, 1.88, 1.86, 1.92, 1.95, 1.89, 1.84, 1.87, 1.91, 1.88, 1.85, 1.87]
 const baselineExhaust = [318, 320, 322, 321, 326, 328, 323, 319, 321, 325, 322, 320, 321]
 
-// Live stat badges computed from current mode
+// Live stat callouts
 const currentStats = computed(() => {
   switch (activeMode.value) {
     case 'speed_fuel':
       return {
         val1: `${baselineSpeed[baselineSpeed.length - 1]} kn`,
-        label1: 'Speed (SOG)',
-        val2: `${baselineFuel[baselineFuel.length - 1]} t/day`,
-        label2: 'Fuel Cons.',
+        label1: 'SOG',
+        val2: `${baselineFuel[baselineFuel.length - 1]} t/d`,
+        label2: 'Fuel',
       }
     case 'power':
       return {
         val1: `${baselinePower[baselinePower.length - 1]} kW`,
         label1: 'Live Power',
         val2: `${Math.max(...baselinePower)} kW`,
-        label2: '24h Peak',
+        label2: 'Peak',
       }
     case 'scavenge':
       return {
         val1: `${baselineScavenge[baselineScavenge.length - 1]} bar`,
-        label1: 'Rec. Press',
+        label1: 'Receiver',
         val2: '1.88 bar',
-        label2: '24h Avg',
+        label2: 'Avg',
       }
     case 'exhaust':
       return {
         val1: `${baselineExhaust[baselineExhaust.length - 1]} °C`,
-        label1: 'Avg Exh Temp',
+        label1: 'Avg Exh',
         val2: `${Math.max(...baselineExhaust)} °C`,
-        label2: '24h Peak',
+        label2: 'Peak',
       }
   }
 })
@@ -74,23 +74,23 @@ const chartOption = computed(() => {
   const isDual = activeMode.value === 'speed_fuel'
 
   const grid = {
-    left: 45,
-    right: isDual ? 45 : 20,
+    left: 42,
+    right: isDual ? 42 : 18,
     top: 25,
     bottom: 25,
   }
 
   const tooltip = {
     trigger: 'axis',
-    backgroundColor: '#17181f',
-    borderColor: '#262833',
+    backgroundColor: '#121318',
+    borderColor: '#1e2029',
     borderWidth: 1,
     padding: [8, 12],
     textStyle: { color: '#f8fafc', fontSize: 11 },
     axisPointer: {
       type: 'cross',
-      lineStyle: { color: '#475569', type: 'dashed' },
-      crossStyle: { color: '#475569' },
+      lineStyle: { color: '#334155', type: 'dashed' },
+      crossStyle: { color: '#334155' },
     },
   }
 
@@ -98,7 +98,7 @@ const chartOption = computed(() => {
     type: 'category',
     data: timelineHours,
     boundaryGap: false,
-    axisLine: { lineStyle: { color: '#262833' } },
+    axisLine: { lineStyle: { color: '#1e2029' } },
     axisLabel: { color: '#64748b', fontSize: 10 },
     axisTick: { show: false },
   }
@@ -113,7 +113,7 @@ const chartOption = computed(() => {
         top: 0,
         right: 10,
         itemWidth: 12,
-        itemHeight: 6,
+        itemHeight: 4,
         textStyle: { color: '#94a3b8', fontSize: 10 },
       },
       xAxis,
@@ -125,7 +125,7 @@ const chartOption = computed(() => {
           max: 18,
           nameTextStyle: { color: '#64748b', fontSize: 9, align: 'right' },
           axisLabel: { color: '#64748b', fontSize: 9 },
-          splitLine: { lineStyle: { color: '#1e2029', type: 'dashed' } },
+          splitLine: { lineStyle: { color: '#1a1c24', type: 'dashed' } },
         },
         {
           type: 'value',
@@ -144,7 +144,7 @@ const chartOption = computed(() => {
           yAxisIndex: 0,
           smooth: true,
           symbol: 'none',
-          lineStyle: { color: '#0284c7', width: 2 },
+          lineStyle: { color: '#38bdf8', width: 1.8 },
           areaStyle: {
             color: {
               type: 'linear',
@@ -153,8 +153,8 @@ const chartOption = computed(() => {
               x2: 0,
               y2: 1,
               colorStops: [
-                { offset: 0, color: 'rgba(2, 132, 199, 0.25)' },
-                { offset: 1, color: 'rgba(2, 132, 199, 0.0)' },
+                { offset: 0, color: 'rgba(56, 189, 248, 0.08)' },
+                { offset: 1, color: 'rgba(56, 189, 248, 0.0)' },
               ],
             },
           },
@@ -166,7 +166,7 @@ const chartOption = computed(() => {
           yAxisIndex: 1,
           smooth: true,
           symbol: 'none',
-          lineStyle: { color: '#10b981', width: 2 },
+          lineStyle: { color: '#94a3b8', width: 1.5, type: 'dashed' },
           areaStyle: {
             color: {
               type: 'linear',
@@ -175,8 +175,8 @@ const chartOption = computed(() => {
               x2: 0,
               y2: 1,
               colorStops: [
-                { offset: 0, color: 'rgba(16, 185, 129, 0.2)' },
-                { offset: 1, color: 'rgba(16, 185, 129, 0.0)' },
+                { offset: 0, color: 'rgba(148, 163, 184, 0.04)' },
+                { offset: 1, color: 'rgba(148, 163, 184, 0.0)' },
               ],
             },
           },
@@ -186,89 +186,15 @@ const chartOption = computed(() => {
     }
   }
 
-  if (activeMode.value === 'power') {
-    return {
-      backgroundColor: 'transparent',
-      grid,
-      tooltip,
-      xAxis,
-      yAxis: {
-        type: 'value',
-        name: 'kW',
-        min: 6000,
-        max: 10000,
-        nameTextStyle: { color: '#64748b', fontSize: 9 },
-        axisLabel: { color: '#64748b', fontSize: 9 },
-        splitLine: { lineStyle: { color: '#1e2029', type: 'dashed' } },
-      },
-      series: [
-        {
-          name: 'Shaft Power (kW)',
-          type: 'line',
-          smooth: true,
-          symbol: 'none',
-          lineStyle: { color: '#8b5cf6', width: 2 },
-          areaStyle: {
-            color: {
-              type: 'linear',
-              x: 0,
-              y: 0,
-              x2: 0,
-              y2: 1,
-              colorStops: [
-                { offset: 0, color: 'rgba(139, 92, 246, 0.25)' },
-                { offset: 1, color: 'rgba(139, 92, 246, 0.0)' },
-              ],
-            },
-          },
-          data: baselinePower,
-        },
-      ],
-    }
+  // Single parameter modes
+  const modeConfigs = {
+    power: { name: 'Shaft Power (kW)', min: 6000, max: 10000, unit: 'kW', data: baselinePower },
+    scavenge: { name: 'Scavenge Air (bar)', min: 1.5, max: 2.2, unit: 'bar', data: baselineScavenge },
+    exhaust: { name: 'Exhaust Temp (°C)', min: 300, max: 350, unit: '°C', data: baselineExhaust },
   }
 
-  if (activeMode.value === 'scavenge') {
-    return {
-      backgroundColor: 'transparent',
-      grid,
-      tooltip,
-      xAxis,
-      yAxis: {
-        type: 'value',
-        name: 'bar',
-        min: 1.5,
-        max: 2.2,
-        nameTextStyle: { color: '#64748b', fontSize: 9 },
-        axisLabel: { color: '#64748b', fontSize: 9 },
-        splitLine: { lineStyle: { color: '#1e2029', type: 'dashed' } },
-      },
-      series: [
-        {
-          name: 'Scavenge Air (bar)',
-          type: 'line',
-          smooth: true,
-          symbol: 'none',
-          lineStyle: { color: '#f59e0b', width: 2 },
-          areaStyle: {
-            color: {
-              type: 'linear',
-              x: 0,
-              y: 0,
-              x2: 0,
-              y2: 1,
-              colorStops: [
-                { offset: 0, color: 'rgba(245, 158, 11, 0.25)' },
-                { offset: 1, color: 'rgba(245, 158, 11, 0.0)' },
-              ],
-            },
-          },
-          data: baselineScavenge,
-        },
-      ],
-    }
-  }
+  const cfg = modeConfigs[activeMode.value]
 
-  // exhaust
   return {
     backgroundColor: 'transparent',
     grid,
@@ -276,20 +202,20 @@ const chartOption = computed(() => {
     xAxis,
     yAxis: {
       type: 'value',
-      name: '°C',
-      min: 300,
-      max: 350,
+      name: cfg.unit,
+      min: cfg.min,
+      max: cfg.max,
       nameTextStyle: { color: '#64748b', fontSize: 9 },
       axisLabel: { color: '#64748b', fontSize: 9 },
-      splitLine: { lineStyle: { color: '#1e2029', type: 'dashed' } },
+      splitLine: { lineStyle: { color: '#1a1c24', type: 'dashed' } },
     },
     series: [
       {
-        name: 'Exhaust Temp (°C)',
+        name: cfg.name,
         type: 'line',
         smooth: true,
         symbol: 'none',
-        lineStyle: { color: '#f43f5e', width: 2 },
+        lineStyle: { color: '#38bdf8', width: 1.8 },
         areaStyle: {
           color: {
             type: 'linear',
@@ -298,12 +224,12 @@ const chartOption = computed(() => {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(244, 63, 94, 0.25)' },
-              { offset: 1, color: 'rgba(244, 63, 94, 0.0)' },
+              { offset: 0, color: 'rgba(56, 189, 248, 0.08)' },
+              { offset: 1, color: 'rgba(56, 189, 248, 0.0)' },
             ],
           },
         },
-        data: baselineExhaust,
+        data: cfg.data,
       },
     ],
   }
@@ -311,9 +237,9 @@ const chartOption = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col rounded-xl bg-[#17181f] border border-[#262833] p-3.5 shadow-sm">
+  <div class="flex flex-col rounded-xl bg-[#121318] border border-[#1e2029] p-3.5 shadow-sm">
     <!-- Header -->
-    <div class="flex flex-wrap items-center justify-between gap-2 pb-2 mb-1 border-b border-[#262833]/60">
+    <div class="flex flex-wrap items-center justify-between gap-2 pb-2 mb-1 border-b border-[#1e2029]">
       <div class="flex items-center gap-2">
         <Activity class="h-4 w-4 text-sky-400" />
         <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200">
@@ -322,16 +248,16 @@ const chartOption = computed(() => {
       </div>
 
       <!-- Quick Switcher Pills -->
-      <div class="flex items-center gap-1 bg-[#101116] p-0.5 rounded-lg border border-[#262833]">
+      <div class="flex items-center gap-1 bg-[#0a0b0e] p-0.5 rounded-lg border border-[#1e2029]">
         <button
           v-for="m in modes"
           :key="m.key"
           @click="activeMode = m.key"
           :class="[
-            'px-2.5 py-1 text-[11px] font-medium rounded-md transition-all flex items-center gap-1.5',
+            'px-2.5 py-1 text-[10px] font-semibold rounded-md transition-all flex items-center gap-1.5',
             activeMode === m.key
-              ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+              ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200'
           ]"
         >
           <component :is="m.icon" class="h-3 w-3" />
@@ -344,7 +270,7 @@ const chartOption = computed(() => {
     <div class="flex items-center justify-end gap-4 py-1 text-[11px]">
       <div class="flex items-center gap-1.5">
         <span class="text-slate-500">{{ currentStats.label1 }}:</span>
-        <span class="font-mono font-bold text-slate-200">{{ currentStats.val1 }}</span>
+        <span class="font-mono font-bold text-slate-100">{{ currentStats.val1 }}</span>
       </div>
       <div class="flex items-center gap-1.5">
         <span class="text-slate-500">{{ currentStats.label2 }}:</span>
