@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
  * Vessel Dashboard — Executive Operations Center (SmartShip Hub)
- * Built from scratch with KPI summary strip, Leaflet high-def voyage map,
- * radial telemetry cockpit, and multi-graph analytics suite.
+ * Built with tactical monochromatic palette, KPI summary strip,
+ * high-definition voyage map, radial telemetry cockpit, and multi-graph analytics suite.
  */
 import { ref } from 'vue'
 import VesselHeaderBar from '~/components/vessel/VesselHeaderBar.vue'
@@ -25,9 +25,9 @@ function toggleAlarms() {
 </script>
 
 <template>
-  <div class="flex min-h-[calc(100vh-3.5rem)] w-full flex-col bg-[#0d0e12] text-slate-200 font-sans overflow-x-hidden">
+  <div class="flex min-h-[calc(100vh-3.5rem)] w-full flex-col bg-[#0a0b0e] text-slate-200 font-sans overflow-x-hidden">
     <!-- Top Vessel Filter & Status Header Bar -->
-    <div class="sticky top-0 z-30 bg-[#121318]/90 backdrop-blur-md px-3.5 py-2 border-b border-[#262833]">
+    <div class="sticky top-0 z-30 bg-[#0e0f13]/90 backdrop-blur-md px-3.5 py-2 border-b border-[#1e2029]">
       <VesselHeaderBar />
     </div>
 

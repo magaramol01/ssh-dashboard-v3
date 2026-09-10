@@ -248,13 +248,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="relative h-full min-h-[390px] w-full overflow-hidden rounded bg-[#1e1f23] border border-[#2a2b2f] shadow-md">
+  <div class="relative h-full min-h-[390px] w-full overflow-hidden rounded bg-[#121318] border border-[#1e2029] shadow-md">
     <!-- Floating Voyage Banner Header -->
-    <div class="absolute top-2.5 left-2.5 right-2.5 z-[1000] rounded border border-[#383a42] bg-[#1e1f23]/92 px-4 py-2 backdrop-blur-md shadow-xl">
+    <div class="absolute top-2.5 left-2.5 right-2.5 z-[1000] rounded border border-[#1e2029] bg-[#121318]/92 px-4 py-2 backdrop-blur-md shadow-xl">
       <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 text-center">
         <!-- Vsl. Name -->
         <div class="flex flex-col items-center">
-          <span class="text-[9px] font-semibold uppercase tracking-wider text-[#8e8e8e]">Vsl. Name</span>
+          <span class="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Vsl. Name</span>
           <span class="truncate text-xs font-bold text-white font-mono" :title="mrvInfo.vesselName">
             {{ mrvInfo.vesselName }}
           </span>
@@ -262,25 +262,25 @@ onBeforeUnmount(() => {
 
         <!-- Voy. No. -->
         <div class="flex flex-col items-center">
-          <span class="text-[9px] font-semibold uppercase tracking-wider text-[#8e8e8e]">Voy. No.</span>
+          <span class="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Voy. No.</span>
           <span class="text-xs font-bold text-white font-mono">{{ mrvInfo.voyageNo }}</span>
         </div>
 
         <!-- Source Port -->
         <div class="flex flex-col items-center">
-          <span class="text-[9px] font-semibold uppercase tracking-wider text-[#8e8e8e]">Source Port</span>
-          <span class="text-xs font-bold text-[#10b981] font-mono">{{ mrvInfo.sourcePort }}</span>
+          <span class="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Source Port</span>
+          <span class="text-xs font-bold text-sky-400 font-mono">{{ mrvInfo.sourcePort }}</span>
         </div>
 
         <!-- Dest. Port -->
         <div class="flex flex-col items-center">
-          <span class="text-[9px] font-semibold uppercase tracking-wider text-[#8e8e8e]">Dest. Port</span>
-          <span class="text-xs font-bold text-[#ef4444] font-mono">{{ mrvInfo.destPort }}</span>
+          <span class="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Dest. Port</span>
+          <span class="text-xs font-bold text-slate-200 font-mono">{{ mrvInfo.destPort }}</span>
         </div>
 
         <!-- ETA -->
         <div class="flex flex-col items-center">
-          <span class="text-[9px] font-semibold uppercase tracking-wider text-[#8e8e8e]">ETA</span>
+          <span class="text-[9px] font-semibold uppercase tracking-wider text-slate-400">ETA</span>
           <span class="truncate text-xs font-bold text-white font-mono" :title="mrvInfo.eta">
             {{ mrvInfo.eta }}
           </span>
@@ -288,15 +288,15 @@ onBeforeUnmount(() => {
 
         <!-- Dist. TR / DTG -->
         <div class="flex flex-col items-center">
-          <span class="text-[9px] font-semibold uppercase tracking-wider text-[#8e8e8e]">Dist. TR / DTG</span>
+          <span class="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Dist. TR / DTG</span>
           <span class="text-xs font-bold text-white font-mono">
-            {{ mrvInfo.distTR }} <span class="text-[#8e8e8e]">/</span> {{ mrvInfo.distDTG }}
+            {{ mrvInfo.distTR }} <span class="text-slate-400">/</span> {{ mrvInfo.distDTG }}
           </span>
         </div>
 
         <!-- Vsl. TZone -->
         <div class="flex flex-col items-center">
-          <span class="text-[9px] font-semibold uppercase tracking-wider text-[#8e8e8e]">Vsl. TZone</span>
+          <span class="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Vsl. TZone</span>
           <span class="text-xs font-bold text-white font-mono">{{ mrvInfo.timezone }}</span>
         </div>
       </div>
@@ -308,7 +308,7 @@ onBeforeUnmount(() => {
     <!-- Skeleton loader overlay -->
     <div
       v-if="isMapLoading"
-      class="absolute inset-0 z-[1001] flex items-center justify-center bg-[#1e1f23]/70 backdrop-blur-sm"
+      class="absolute inset-0 z-[1001] flex items-center justify-center bg-[#121318]/70 backdrop-blur-sm"
     >
       <div class="flex items-center gap-2 text-xs text-[#33b5e5] animate-pulse">
         <span>Loading map telemetry...</span>
