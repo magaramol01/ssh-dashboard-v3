@@ -3,42 +3,37 @@ import { ref, computed } from 'vue'
 import {
   Bell,
   Globe,
-  BellOff,
   Settings,
   Search,
   ChevronRight,
   ChevronLeft,
-  AlertTriangle,
-  CheckCircle2,
-  X,
 } from 'lucide-vue-next'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from '@/components/ui/dialog'
 import { useVesselDashboard, type RHSPanelFlag } from '~/composables/useVesselDashboard'
 
-const { rhsFlags, updateRHSFlags, dashboardState } = useVesselDashboard()
+const { rhsFlags, updateRHSFlags } = useVesselDashboard()
 
 const isExpanded = ref<boolean>(true)
 const searchQuery = ref<string>('')
 const activeTab = ref<'alarms' | 'alerts' | 'muted'>('alarms')
 const isSettingsOpen = ref<boolean>(false)
 
-// Sample live alarms derived from state or screenshot baseline
+// Baseline real alarms matching SmartShip production screenshot
 const alarmItems = [
-  { id: 'ALM-1', code: 'W-01', title: 'ME JCW INLET PRESS LOW', level: 'warning', time: '05:42:10', acknowledged: false },
-  { id: 'ALM-2', code: 'A-04', title: 'DG3 RPM SENSOR DISCONNECTED', level: 'destructive', time: '05:38:22', acknowledged: false },
-  { id: 'ALM-3', code: 'W-09', title: 'ME SCAV AIR TEMP ELEVATED', level: 'warning', time: '05:30:15', acknowledged: true },
-  { id: 'ALM-4', code: 'A-12', title: 'TC EXH GAS OUTLET HI TEMP', level: 'destructive', time: '05:15:00', acknowledged: false },
-  { id: 'ALM-5', code: 'I-02', title: 'AUTO UNLOADER IN OPERATION', level: 'info', time: '04:58:30', acknowledged: true },
-  { id: 'ALM-6', code: 'W-03', title: 'DG1 HT FW LOW LEVEL', level: 'warning', time: '04:42:19', acknowledged: false },
+  { id: 'ALM-1', code: 'W-01', title: 'ME JCW INLET PRESS LOW', level: 'warning', time: '05:42:10' },
+  { id: 'ALM-2', code: 'A-04', title: 'DG3 RPM SENSOR DISCONNECTED', level: 'destructive', time: '05:38:22' },
+  { id: 'ALM-3', code: 'W-09', title: 'ME SCAV AIR TEMP ELEVATED', level: 'warning', time: '05:30:15' },
+  { id: 'ALM-4', code: 'A-12', title: 'TC EXH GAS OUTLET HI TEMP', level: 'destructive', time: '05:15:00' },
+  { id: 'ALM-5', code: 'I-02', title: 'AUTO UNLOADER IN OPERATION', level: 'info', time: '04:58:30' },
+  { id: 'ALM-6', code: 'W-03', title: 'DG1 HT FW LOW LEVEL', level: 'warning', time: '04:42:19' },
+  { id: 'ALM-7', code: 'W-05', title: 'ME SCAV AIR RECEIVER TEMP HIGH', level: 'warning', time: '04:20:11' },
+  { id: 'ALM-8', code: 'A-02', title: 'TC SPEED SENSOR DISCONNECTED', level: 'destructive', time: '03:55:40' },
+  { id: 'ALM-9', code: 'I-01', title: 'AUX BLOWER #1 STARTED', level: 'info', time: '03:12:05' },
 ]
 
 const filteredAlarms = computed(() => {
@@ -83,14 +78,14 @@ async function saveSettings() {
 
 <template>
   <aside
-    class="flex flex-col border-l border-border/40 bg-card/85 backdrop-blur-md transition-all duration-300 relative z-20"
-    :class="isExpanded ? 'w-80 md:w-88' : 'w-12'"
+    class="flex flex-col bg-[#1e1f23] border-l border-[#2a2b2f] transition-all duration-200 relative z-20 shrink-0 select-none shadow-xl"
+    :class="isExpanded ? 'w-72 lg:w-80' : 'w-10'"
   >
-    <!-- Top Header Bar -->
-    <div class="flex h-12 items-center justify-between border-b border-border/40 px-3">
+    <!-- Top Header Bar with Toggle & Search -->
+    <div class="flex h-10 items-center justify-between border-b border-[#282a2e] px-2.5">
       <button
         type="button"
-        class="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+        class="rounded p-1 text-[#8e8e8e] hover:bg-[#282a2f] hover:text-white transition-colors"
         :title="isExpanded ? 'Collapse Drawer' : 'Expand Drawer'"
         @click="isExpanded = !isExpanded"
       >
@@ -99,42 +94,43 @@ async function saveSettings() {
       </button>
 
       <template v-if="isExpanded">
-        <h2 class="text-xs font-bold tracking-wider text-foreground uppercase">
-          Alarm
+        <h2 class="text-xs font-bold uppercase tracking-wider text-white">
+          ALARM
         </h2>
-        <div class="relative w-40">
-          <Search class="absolute left-2 top-2 size-3 text-muted-foreground" />
+        <div class="relative w-36">
+          <Search class="absolute left-2 top-1.5 size-3 text-[#8e8e8e]" />
           <input
             v-model="searchQuery"
             placeholder="Search"
-            class="h-7 w-full rounded border border-border/50 bg-background/80 pl-7 pr-2 text-[11px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            class="h-6 w-full rounded border border-[#2e3035] bg-[#17181b] pl-6 pr-2 text-[10px] text-[#d8d9da] placeholder:text-[#8e8e8e] focus:outline-none focus:border-[#33b5e5]"
           />
         </div>
       </template>
     </div>
 
+    <!-- Expanded Drawer Content -->
     <template v-if="isExpanded">
-      <!-- Tabs & Badges Strip -->
-      <div class="flex items-center justify-between border-b border-border/30 bg-background/40 px-3 py-2 text-xs">
+      <!-- Tabs Strip with Icons & Badges -->
+      <div class="flex items-center justify-between border-b border-[#282a2e] bg-[#17181b] px-3 py-1.5 text-xs">
         <button
           type="button"
-          class="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          class="rounded p-1 text-[#8e8e8e] hover:bg-[#282a2f] hover:text-white transition-colors"
           title="RSH Panel Settings"
           @click="openSettings"
         >
           <Settings class="size-3.5" />
         </button>
 
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-3">
           <!-- Alerts Bell -->
           <button
             type="button"
-            class="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
-            :class="{ 'text-foreground font-bold': activeTab === 'alerts' }"
+            class="flex items-center gap-1 text-[#8e8e8e] hover:text-white transition-colors"
+            :class="{ 'text-[#33b5e5] font-bold': activeTab === 'alerts' }"
             @click="activeTab = 'alerts'"
           >
             <Bell class="size-3.5" />
-            <span class="flex size-4 items-center justify-center rounded-full bg-amber-500/90 text-[10px] font-bold text-black">
+            <span class="flex size-4 items-center justify-center rounded-full bg-[#f59e0b] text-[9px] font-bold text-black">
               {{ counts.alerts }}
             </span>
           </button>
@@ -142,12 +138,12 @@ async function saveSettings() {
           <!-- Alarms Globe -->
           <button
             type="button"
-            class="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
-            :class="{ 'text-foreground font-bold': activeTab === 'alarms' }"
+            class="flex items-center gap-1 text-[#8e8e8e] hover:text-white transition-colors"
+            :class="{ 'text-[#33b5e5] font-bold': activeTab === 'alarms' }"
             @click="activeTab = 'alarms'"
           >
             <Globe class="size-3.5" />
-            <span class="flex size-4 items-center justify-center rounded-full bg-amber-500/90 text-[10px] font-bold text-black">
+            <span class="flex size-4 items-center justify-center rounded-full bg-[#ff631c] text-[9px] font-bold text-white">
               {{ counts.alarms }}
             </span>
           </button>
@@ -155,94 +151,107 @@ async function saveSettings() {
           <!-- Muted Alarms -->
           <button
             type="button"
-            class="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
-            :class="{ 'text-foreground font-bold': activeTab === 'muted' }"
+            class="flex items-center gap-1 text-[#8e8e8e] hover:text-white transition-colors"
+            :class="{ 'text-[#33b5e5] font-bold': activeTab === 'muted' }"
             @click="activeTab = 'muted'"
           >
-            <BellOff class="size-3.5" />
-            <span class="flex size-4 items-center justify-center rounded-full bg-amber-500/90 text-[10px] font-bold text-black">
+            <span class="text-[11px] font-bold">🔕</span>
+            <span class="flex size-4 items-center justify-center rounded-full bg-[#f59e0b] text-[9px] font-bold text-black">
               {{ counts.muted }}
             </span>
           </button>
         </div>
       </div>
 
-      <!-- Alarms List Container -->
-      <div class="flex-1 overflow-y-auto p-3 space-y-2">
+      <!-- Alarms List -->
+      <div class="flex-1 overflow-y-auto divide-y divide-[#242529] p-1">
         <div
           v-for="item in filteredAlarms"
           :key="item.id"
-          class="rounded border border-border/30 bg-background/50 p-2.5 text-xs transition-colors hover:border-border/60"
+          class="flex items-center justify-between gap-2 px-2.5 py-2 transition-colors hover:bg-[#25272c] rounded cursor-pointer"
         >
-          <div class="flex items-start justify-between gap-2">
-            <div class="flex items-center gap-1.5">
-              <span
-                class="size-1.5 rounded-full"
-                :class="item.level === 'destructive' ? 'bg-destructive animate-ping' : item.level === 'warning' ? 'bg-warning' : 'bg-info'"
-              />
-              <span class="font-mono font-bold text-foreground">{{ item.code }}</span>
+          <!-- Left Status Indicator & Description -->
+          <div class="flex items-center gap-2 min-w-0">
+            <!-- Colored Status Dot -->
+            <span
+              class="size-2 shrink-0 rounded-full"
+              :class="{
+                'bg-[#ef4444] shadow-[0_0_6px_#ef4444]': item.level === 'destructive',
+                'bg-[#f59e0b] shadow-[0_0_6px_#f59e0b]': item.level === 'warning',
+                'bg-[#3b82f6] shadow-[0_0_6px_#3b82f6]': item.level === 'info',
+              }"
+            />
+            <div class="flex flex-col min-w-0">
+              <span class="truncate text-[11px] font-semibold text-[#d8d9da]">
+                <b class="text-white">{{ item.code }}</b> {{ item.title }}
+              </span>
             </div>
-            <span class="font-mono text-[10px] text-muted-foreground">{{ item.time }}</span>
           </div>
-          <p class="mt-1 font-medium text-[11px] leading-tight text-foreground/90">
-            {{ item.title }}
-          </p>
-        </div>
 
-        <div v-if="!filteredAlarms.length" class="p-4 text-center text-xs text-muted-foreground">
-          No alarms found matching criteria.
+          <!-- Right Timestamp -->
+          <span class="shrink-0 font-mono text-[10px] text-[#8e8e8e]">
+            {{ item.time }}
+          </span>
         </div>
       </div>
     </template>
 
     <!-- Collapsed Vertical Rail -->
     <template v-else>
-      <div class="flex flex-col items-center gap-4 py-4 text-muted-foreground">
-        <button type="button" @click="openSettings">
-          <Settings class="size-4" />
-        </button>
-        <div class="flex flex-col items-center gap-1">
-          <Globe class="size-4 text-amber-500" />
-          <span class="text-[10px] font-bold text-foreground">14</span>
-        </div>
+      <div class="flex flex-col items-center gap-4 py-4 text-[#8e8e8e]">
+        <Globe class="size-4 text-[#ff631c]" />
+        <span class="flex size-4 items-center justify-center rounded-full bg-[#ff631c] text-[9px] font-bold text-white">
+          {{ counts.alarms }}
+        </span>
       </div>
     </template>
 
-    <!-- Settings Dialog for Panel Selection -->
+    <!-- RSH Panel Settings Dialog -->
     <Dialog v-model:open="isSettingsOpen">
-      <DialogContent class="max-w-md border-border/60 bg-popover text-foreground">
+      <DialogContent class="border-[#2e3035] bg-[#1e1f23] text-[#d8d9da] sm:max-w-md">
         <DialogHeader>
-          <DialogTitle class="text-base font-bold">RSH Panel Settings</DialogTitle>
-          <DialogDescription class="text-xs text-muted-foreground">
-            Select up to 2 panels to display in the Right-Hand Side drawer.
-          </DialogDescription>
+          <DialogTitle class="text-sm font-bold text-white">RSH Panel Settings</DialogTitle>
         </DialogHeader>
 
-        <div class="space-y-3 py-3 text-xs">
-          <div
-            v-for="panel in draftFlags"
-            :key="panel.id"
-            class="flex items-center justify-between rounded border border-border/40 p-2.5"
-          >
-            <span class="font-medium capitalize">
-              {{ panel.typename === 'widget_4' ? 'Alarms' : panel.typename === 'widget_5' ? 'Alerts' : panel.typename === 'widget_6' ? 'Digital Alarm' : panel.typename === 'widget_7' ? 'Navigation Alert' : 'Charter Party' }}
-            </span>
-            <input
-              type="checkbox"
-              :checked="panel.status"
-              class="size-4 rounded border-border accent-primary cursor-pointer"
-              @change="toggleDraftFlag(panel.typename)"
-            />
+        <div class="space-y-3 py-3">
+          <p class="text-xs text-[#8e8e8e]">
+            Choose up to 2 telemetry & alert panels to display on the right-hand panel rail.
+          </p>
+
+          <div class="space-y-2">
+            <div
+              v-for="flag in draftFlags"
+              :key="flag.typename"
+              class="flex items-center justify-between rounded border border-[#2a2b2f] bg-[#17181b] p-2.5"
+            >
+              <span class="text-xs font-medium text-white capitalize">
+                {{ flag.typename.replace('widget_', 'Telemetry Widget ') }}
+              </span>
+              <input
+                type="checkbox"
+                :checked="flag.status"
+                class="size-4 accent-[#33b5e5] rounded cursor-pointer"
+                @change="toggleDraftFlag(flag.typename)"
+              />
+            </div>
           </div>
         </div>
 
-        <div class="flex justify-end gap-2 pt-2">
-          <Button variant="outline" size="sm" @click="isSettingsOpen = false">
+        <div class="flex justify-end gap-2 border-t border-[#282a2e] pt-3">
+          <button
+            type="button"
+            class="rounded border border-[#2e3035] px-3 py-1.5 text-xs text-[#8e8e8e] hover:text-white"
+            @click="isSettingsOpen = false"
+          >
             Cancel
-          </Button>
-          <Button size="sm" @click="saveSettings">
-            Save Settings
-          </Button>
+          </button>
+          <button
+            type="button"
+            class="rounded bg-[#33b5e5] px-4 py-1.5 text-xs font-bold text-black hover:bg-[#33b5e5]/90"
+            @click="saveSettings"
+          >
+            Save Changes
+          </button>
         </div>
       </DialogContent>
     </Dialog>

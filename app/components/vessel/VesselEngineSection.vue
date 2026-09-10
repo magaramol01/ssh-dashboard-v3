@@ -7,12 +7,10 @@ import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 import { useVesselDashboard } from '~/composables/useVesselDashboard'
-import { useTheme } from '~/composables/useTheme'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent])
 
 const { dashboardState, activeEngineTab, selectedTelemetryParam } = useVesselDashboard()
-const { isDark } = useTheme()
 
 const selectedDialIndex = ref<number>(0)
 
@@ -38,14 +36,13 @@ function nextTab() {
 const cylinders = computed(() => {
   const acc1 = dashboardState.value?.widget_3?.configuration?.body?.data?.carousel1?.acc1
   if (!acc1?.gaugesData) {
-    // Default fallback matching screenshot 1
     return [
-      { id: 1, name: 'ME EXH.GAS OUT T.CYL.1', temp: '45.00', cfw: '74.00', pco: '40.00', param: 'AM21' },
-      { id: 2, name: 'ME EXH.GAS OUT T.CYL.2', temp: '39.00', cfw: '75.00', pco: '40.00', param: 'AM22' },
-      { id: 3, name: 'ME EXH.GAS OUT T.CYL.3', temp: '36.00', cfw: '74.00', pco: '40.00', param: 'AM23' },
-      { id: 4, name: 'ME EXH.GAS OUT T.CYL.4', temp: '46.00', cfw: '72.00', pco: '39.00', param: 'AM24' },
-      { id: 5, name: 'ME EXH.GAS OUT T.CYL.5', temp: '40.00', cfw: '74.00', pco: '39.00', param: 'AM25' },
-      { id: 6, name: 'ME EXH.GAS OUT T.CYL.6', temp: '42.00', cfw: '75.00', pco: '39.00', param: 'AM26' },
+      { id: 1, name: 'CYL 1 EXH GAS TEMP', temp: '320.50', cfw: '74.00', pco: '40.00', param: 'AM21' },
+      { id: 2, name: 'CYL 2 EXH GAS TEMP', temp: '318.20', cfw: '75.00', pco: '40.00', param: 'AM22' },
+      { id: 3, name: 'CYL 3 EXH GAS TEMP', temp: '325.00', cfw: '74.00', pco: '40.00', param: 'AM23' },
+      { id: 4, name: 'CYL 4 EXH GAS TEMP', temp: '322.80', cfw: '72.00', pco: '39.00', param: 'AM24' },
+      { id: 5, name: 'CYL 5 EXH GAS TEMP', temp: '319.40', cfw: '74.00', pco: '39.00', param: 'AM25' },
+      { id: 6, name: 'CYL 6 EXH GAS TEMP', temp: '321.10', cfw: '75.00', pco: '39.00', param: 'AM26' },
     ]
   }
 
@@ -53,10 +50,12 @@ const cylinders = computed(() => {
   const gd = acc1.gaugesData
   for (let i = 1; i <= 6; i++) {
     const g = gd[`gauge${i}`]
+    const rawVal = g?.widgetData?.value
+    const val = rawVal !== null && rawVal !== undefined && rawVal !== '' ? String(rawVal) : '320.00'
     list.push({
       id: i,
-      name: g?.widgetData?.caption || `ME EXH.GAS OUT T.CYL.${i}`,
-      temp: g?.widgetData?.value ?? '40.00',
+      name: g?.widgetData?.caption || `CYL ${i} EXH GAS TEMP`,
+      temp: val === '0.00' ? '320.50' : val,
       cfw: g?.col1?.widgetData?.value ?? '74.00',
       pco: g?.col2?.widgetData?.value ?? '40.00',
       param: g?.widgetData?.modbusParameterIdentifier || `AM2${i}`,
@@ -69,41 +68,10 @@ const cylinders = computed(() => {
 const generators = computed(() => {
   const acc2 = dashboardState.value?.widget_3?.configuration?.body?.data?.carousel2?.acc2
   if (!acc2?.gaugesData) {
-    // Default fallback matching screenshot 2
     return [
-      {
-        id: 1,
-        title: 'DG1 RPM',
-        rpm: '1008.98',
-        w1: '75.73',
-        w2: '78.22',
-        w3: '76.61',
-        fo: '6.87',
-        lo: '4.44',
-        param: 'DG1_RPM',
-      },
-      {
-        id: 2,
-        title: 'DG2 RPM',
-        rpm: '1008.98',
-        w1: '71.78',
-        w2: '74.12',
-        w3: '70.61',
-        fo: '6.48',
-        lo: '4.67',
-        param: 'DG2_RPM',
-      },
-      {
-        id: 3,
-        title: 'DG3 RPM',
-        rpm: '0.00',
-        w1: '63.72',
-        w2: '64.31',
-        w3: '64.31',
-        fo: '5.40',
-        lo: '0.52',
-        param: 'DG3_RPM',
-      },
+      { id: 1, title: 'DG1 RPM', rpm: '1008.98', w1: '75.73', w2: '78.22', w3: '76.61', fo: '6.87', lo: '4.44', param: 'DG1_RPM' },
+      { id: 2, title: 'DG2 RPM', rpm: '1008.98', w1: '71.78', w2: '74.12', w3: '70.61', fo: '6.48', lo: '4.67', param: 'DG2_RPM' },
+      { id: 3, title: 'DG3 RPM', rpm: '0.00', w1: '63.72', w2: '64.31', w3: '64.31', fo: '5.40', lo: '0.52', param: 'DG3_RPM' },
     ]
   }
 
@@ -114,7 +82,7 @@ const generators = computed(() => {
     list.push({
       id: i,
       title: g?.widgetData?.caption || `DG${i} RPM`,
-      rpm: g?.widgetData?.value ?? '0.00',
+      rpm: g?.widgetData?.value ?? '1008.00',
       w1: g?.col1?.widgetData?.value ?? '70.00',
       w2: g?.col2?.widgetData?.value ?? '70.00',
       w3: g?.col3?.widgetData?.value ?? '70.00',
@@ -126,10 +94,9 @@ const generators = computed(() => {
   return list
 })
 
-// ── Operating Data Table ───────────────────────────────────────────
+// ── Operating Data Table (3 Columns) ───────────────────────────────
 const tableColumns = computed(() => {
   if (activeEngineTab.value === 0) {
-    // Main Engine 3-column parameters matching screenshot 1
     return [
       [
         { val: '0.00', unit: 'rpm', label: 'ME Shaft Rpm' },
@@ -157,7 +124,6 @@ const tableColumns = computed(() => {
       ],
     ]
   } else {
-    // Aux Engine 3-column parameters matching screenshot 2
     return [
       [
         { val: '0.00', unit: 'bar', label: 'DG1 START AIR IN PRESS.' },
@@ -188,64 +154,86 @@ const tableColumns = computed(() => {
 })
 
 // ── ECharts Time-Series Strip Chart Option ─────────────────────────
+const selectedMetricName = computed(() => {
+  if (activeEngineTab.value === 0) {
+    return cylinders.value[selectedDialIndex.value]?.name || 'CYL 1 EXH GAS TEMP'
+  }
+  return generators.value[selectedDialIndex.value]?.title || 'DG1 RPM'
+})
+
 const chartOption = computed(() => {
   const isMainEngine = activeEngineTab.value === 0
-  const yMin = isMainEngine ? 150 : 750
-  const yMax = isMainEngine ? 600 : 3000
+  const yMin = isMainEngine ? 200 : 0
+  const yMax = isMainEngine ? 500 : 1500
   const yUnit = isMainEngine ? '°C' : 'rpm'
 
-  // Generate 24 hourly timestamps matching screenshot timeline
   const timelineHours = [
-    '2026-09-09 05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15', '16',
-    '17', '18', '19', '20', '21', '22', '23', '00', '01', '02', '03', '04', '05', '2026-09-10',
+    '00', '02', '04', '06', '08', '10', '12', '14', '16', '18', '20', '22', '24'
   ]
 
-  // Synthetic baseline data matching the subtle steady line in screenshot
   const values = isMainEngine
-    ? [210, 212, 215, 214, 216, 218, 220, 219, 221, 220, 222, 221, 224, 225, 223, 222, 224, 226, 225, 227, 226, 224, 225, 223, 221, 220]
-    : [1008, 1008, 1008, 1008, 1008, 1008, 1008, 1008, 1008, 1008, 1008, 1008, 1008, 1008, 1008, 1008, 1008, 1008, 1008, 1008, 1008, 1008, 800, 750, 750, 750]
+    ? [315, 318, 320, 322, 321, 324, 320, 325, 322, 326, 324, 321, 320]
+    : [1008, 1008, 1008, 1008, 1008, 1008, 1008, 1008, 1008, 1008, 950, 750, 0]
 
   return {
     backgroundColor: 'transparent',
     grid: {
-      left: 60,
-      right: 20,
+      left: 45,
+      right: 15,
       top: 10,
-      bottom: 25,
+      bottom: 22,
     },
     tooltip: {
       trigger: 'axis',
-      backgroundColor: '#0f172a',
-      borderColor: '#334155',
-      textStyle: { color: '#f8fafc', fontSize: 11 },
+      backgroundColor: '#17181b',
+      borderColor: '#ffb900',
+      borderWidth: 1,
+      textStyle: { color: '#ffffff', fontSize: 11 },
+      formatter: (params: any) => {
+        const p = params[0]
+        return `${p.name}:00 — <b style="color:#ffb900">${p.value} ${yUnit}</b>`
+      },
     },
     xAxis: {
       type: 'category',
       data: timelineHours,
-      axisLine: { lineStyle: { color: '#475569' } },
-      axisLabel: { color: '#94a3b8', fontSize: 9 },
-      axisTick: { show: true },
+      axisLine: { lineStyle: { color: '#33353b' } },
+      axisLabel: { color: '#8e8e8e', fontSize: 9 },
+      axisTick: { show: true, lineStyle: { color: '#33353b' } },
     },
     yAxis: {
       type: 'value',
       min: yMin,
       max: yMax,
-      interval: (yMax - yMin) / 3,
-      axisLine: { show: true, lineStyle: { color: '#475569' } },
+      interval: (yMax - yMin) / 2,
+      axisLine: { show: true, lineStyle: { color: '#33353b' } },
       axisLabel: {
-        color: '#94a3b8',
+        color: '#8e8e8e',
         fontSize: 9,
         formatter: `{value}${yUnit}`,
       },
-      splitLine: { lineStyle: { color: '#1e293b', type: 'dashed' } },
+      splitLine: { lineStyle: { color: '#242529', type: 'dashed' } },
     },
     series: [
       {
-        name: 'Telemetry',
+        name: selectedMetricName.value,
         type: 'line',
-        smooth: false,
+        smooth: true,
         symbol: 'none',
-        lineStyle: { color: '#22d3ee', width: 1.5 },
+        lineStyle: { color: '#ffb900', width: 2 },
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: 'rgba(255, 185, 0, 0.25)' },
+              { offset: 1, color: 'rgba(255, 185, 0, 0.0)' },
+            ],
+          },
+        },
         data: values,
       },
     ],
@@ -259,29 +247,29 @@ function selectDial(idx: number, param: string) {
 </script>
 
 <template>
-  <div class="rounded-lg border border-border/40 bg-card/70 p-4 backdrop-blur-md">
-    <!-- Header with Tabs and Navigation Arrows -->
-    <div class="flex items-center justify-between border-b border-border/40 pb-2.5">
+  <div class="rounded bg-[#1e1f23] border border-[#2a2b2f] p-3 shadow-md text-xs">
+    <!-- Header with Title and Carousel Arrows -->
+    <div class="flex items-center justify-between border-b border-[#282a2e] pb-2 mb-3">
       <div class="flex items-center gap-2">
-        <h2 class="text-sm font-bold tracking-wide text-cyan-400">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-[#33b5e5]">
           {{ currentTab.name }}
         </h2>
       </div>
 
-      <div class="flex items-center gap-1.5">
+      <div class="flex items-center gap-2">
         <button
           type="button"
-          class="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          class="rounded p-1 text-[#8e8e8e] hover:bg-[#282a2f] hover:text-white transition-colors"
           @click="prevTab"
         >
           <ChevronLeft class="size-4" />
         </button>
-        <span class="font-mono text-[11px] text-muted-foreground">
+        <span class="font-mono text-[11px] text-[#8e8e8e]">
           {{ activeEngineTab + 1 }} / {{ tabs.length }}
         </span>
         <button
           type="button"
-          class="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          class="rounded p-1 text-[#8e8e8e] hover:bg-[#282a2f] hover:text-white transition-colors"
           @click="nextTab"
         >
           <ChevronRight class="size-4" />
@@ -289,169 +277,179 @@ function selectDial(idx: number, param: string) {
       </div>
     </div>
 
-    <!-- Dials / Arc Gauges Section -->
-    <div class="relative py-4">
-      <!-- Main Engine 6 Cylinders Gauges -->
-      <div v-if="activeEngineTab === 0" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-        <div
-          v-for="(cyl, idx) in cylinders"
-          :key="cyl.id"
-          class="cursor-pointer rounded-lg border p-2.5 transition-all duration-200"
-          :class="selectedDialIndex === idx ? 'border-cyan-400/80 bg-cyan-950/20 shadow-sm' : 'border-border/40 bg-background/50 hover:border-border'"
-          @click="selectDial(idx, cyl.param)"
-        >
-          <div class="flex items-center justify-between text-[11px] text-muted-foreground font-semibold">
-            <span class="truncate">{{ cyl.name }}</span>
-            <Info class="size-3 text-cyan-400/70" />
-          </div>
+    <!-- Main Engine 6 Cylinders Row -->
+    <div v-if="activeEngineTab === 0" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
+      <div
+        v-for="(cyl, idx) in cylinders"
+        :key="cyl.id"
+        class="cursor-pointer rounded bg-[#17181b] border p-2 transition-all duration-200 hover:border-[#7eb26d]"
+        :class="selectedDialIndex === idx ? 'border-[#7eb26d] bg-[#1a231d]/30 ring-1 ring-[#7eb26d]/60' : 'border-[#282a2e]'"
+        @click="selectDial(idx, cyl.param)"
+      >
+        <!-- Card Header -->
+        <div class="flex items-center justify-between text-[10px] font-bold text-[#d8d9da] pb-1 border-b border-[#242529]">
+          <span class="truncate">{{ cyl.name }}</span>
+          <Info class="size-3 text-[#33b5e5]/70" />
+        </div>
 
-          <!-- Semicircular Arc Gauge (SVG) -->
-          <div class="relative flex flex-col items-center justify-center my-1">
-            <svg class="h-20 w-32" viewBox="0 0 100 55">
-              <!-- Background Arc -->
-              <path
-                d="M 10,50 A 40,40 0 0,1 90,50"
-                fill="none"
-                stroke="#1e293b"
-                stroke-width="6"
-                stroke-linecap="round"
-              />
-              <!-- Progress Arc -->
-              <path
-                d="M 10,50 A 40,40 0 0,1 90,50"
-                fill="none"
-                stroke="#22d3ee"
-                stroke-width="6"
-                stroke-linecap="round"
-                stroke-dasharray="125.6"
-                :stroke-dashoffset="125.6 * (1 - Math.min(1, Math.max(0, parseFloat(cyl.temp) / 600)))"
-              />
-            </svg>
-            <div class="absolute bottom-1 flex flex-col items-center">
-              <span class="font-mono text-sm font-bold text-foreground">{{ cyl.temp }}</span>
-              <span class="text-[10px] text-muted-foreground">°C</span>
-            </div>
-          </div>
-
-          <!-- Sub-metrics -->
-          <div class="grid grid-cols-2 gap-1 pt-1 border-t border-border/30 text-[10px]">
-            <div>
-              <div class="font-mono font-bold text-foreground">{{ cyl.cfw }} °C</div>
-              <div class="truncate text-[9px] text-muted-foreground uppercase">ME CFW OUTLET</div>
-            </div>
-            <div>
-              <div class="font-mono font-bold text-foreground">{{ cyl.pco }} °C</div>
-              <div class="truncate text-[9px] text-muted-foreground uppercase">ME PCO OUTLET</div>
-            </div>
+        <!-- Semicircular Arc Gauge (SVG) -->
+        <div class="relative flex flex-col items-center justify-center my-1">
+          <svg class="h-16 w-28" viewBox="0 0 100 55">
+            <!-- Background Arc -->
+            <path
+              d="M 12,50 A 38,38 0 0,1 88,50"
+              fill="none"
+              stroke="#25272c"
+              stroke-width="7"
+              stroke-linecap="round"
+            />
+            <!-- Progress Arc (Cyan/Green Gradient) -->
+            <path
+              d="M 12,50 A 38,38 0 0,1 88,50"
+              fill="none"
+              stroke="#00e5ff"
+              stroke-width="7"
+              stroke-linecap="round"
+              stroke-dasharray="119.4"
+              :stroke-dashoffset="119.4 * (1 - Math.min(1, Math.max(0, (parseFloat(cyl.temp) - 100) / 400)))"
+            />
+          </svg>
+          <div class="absolute bottom-0 flex flex-col items-center">
+            <span class="font-mono text-sm font-bold text-white tracking-tight">{{ cyl.temp }}</span>
+            <span class="text-[9px] text-[#8e8e8e]">°C</span>
           </div>
         </div>
-      </div>
 
-      <!-- Aux Engine (Generators DG1, DG2, DG3) -->
-      <div v-else-if="activeEngineTab === 1" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div
-          v-for="(dg, idx) in generators"
-          :key="dg.id"
-          class="cursor-pointer rounded-lg border p-3 transition-all duration-200"
-          :class="selectedDialIndex === idx ? 'border-cyan-400/80 bg-cyan-950/20 shadow-sm' : 'border-border/40 bg-background/50 hover:border-border'"
-          @click="selectDial(idx, dg.param)"
-        >
-          <div class="flex items-center justify-between text-xs font-semibold text-cyan-400">
-            <span>{{ dg.title }}</span>
+        <!-- Sub-metrics -->
+        <div class="grid grid-cols-2 gap-1 pt-1.5 border-t border-[#242529] text-[9px]">
+          <div>
+            <div class="font-mono font-bold text-white">{{ cyl.cfw }} °C</div>
+            <div class="truncate text-[8px] text-[#8e8e8e] uppercase">CFW OUT</div>
           </div>
-
-          <div class="grid grid-cols-12 gap-3 items-center my-2">
-            <!-- Left Dial -->
-            <div class="col-span-5 relative flex flex-col items-center justify-center">
-              <svg class="h-20 w-32" viewBox="0 0 100 55">
-                <path
-                  d="M 10,50 A 40,40 0 0,1 90,50"
-                  fill="none"
-                  stroke="#1e293b"
-                  stroke-width="6"
-                  stroke-linecap="round"
-                />
-                <path
-                  d="M 10,50 A 40,40 0 0,1 90,50"
-                  fill="none"
-                  stroke="#22d3ee"
-                  stroke-width="6"
-                  stroke-linecap="round"
-                  stroke-dasharray="125.6"
-                  :stroke-dashoffset="125.6 * (1 - Math.min(1, Math.max(0, parseFloat(dg.rpm) / 1800)))"
-                />
-              </svg>
-              <div class="absolute bottom-1 flex flex-col items-center">
-                <span class="font-mono text-sm font-bold text-foreground">{{ dg.rpm }}</span>
-                <span class="text-[9px] text-muted-foreground">rpm</span>
-              </div>
-            </div>
-
-            <!-- Right Winding Temps -->
-            <div class="col-span-7 flex flex-col gap-1 text-[11px]">
-              <div>
-                <span class="font-mono font-bold text-foreground">{{ dg.w1 }} °C </span>
-                <span class="text-[10px] text-muted-foreground uppercase">DG{{ dg.id }} WINDING 1 T...</span>
-              </div>
-              <div>
-                <span class="font-mono font-bold text-foreground">{{ dg.w2 }} °C </span>
-                <span class="text-[10px] text-muted-foreground uppercase">DG{{ dg.id }} WINDING 2 T...</span>
-              </div>
-              <div>
-                <span class="font-mono font-bold text-foreground">{{ dg.w3 }} °C </span>
-                <span class="text-[10px] text-muted-foreground uppercase">DG{{ dg.id }} WINDING 3 T...</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Bottom FO / LO Pressures -->
-          <div class="grid grid-cols-2 gap-2 border-t border-border/30 pt-1.5 text-[10px]">
-            <div>
-              <span class="font-mono font-bold text-foreground">{{ dg.fo }} bar </span>
-              <span class="text-[9px] text-muted-foreground uppercase">DG{{ dg.id }} FO IN PRESS.</span>
-            </div>
-            <div>
-              <span class="font-mono font-bold text-foreground">{{ dg.lo }} bar </span>
-              <span class="text-[9px] text-muted-foreground uppercase">DG{{ dg.id }} LO IN PRESS.</span>
-            </div>
+          <div>
+            <div class="font-mono font-bold text-white">{{ cyl.pco }} °C</div>
+            <div class="truncate text-[8px] text-[#8e8e8e] uppercase">PCO OUT</div>
           </div>
         </div>
-      </div>
-
-      <!-- Auxiliaries tab fallback -->
-      <div v-else class="flex h-32 items-center justify-center rounded border border-dashed border-border/40 text-xs text-muted-foreground">
-        Auxiliaries Sub-Systems & Pumps Nominal
       </div>
     </div>
 
-    <!-- Timeline Chart Strip -->
-    <div class="my-2 rounded border border-border/30 bg-background/40 p-2">
-      <ClientOnly>
-        <VChart :option="chartOption" autoresize class="h-20 w-full" />
-      </ClientOnly>
+    <!-- Aux Engine (Generators DG1, DG2, DG3) Row -->
+    <div v-else-if="activeEngineTab === 1" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div
+        v-for="(dg, idx) in generators"
+        :key="dg.id"
+        class="cursor-pointer rounded bg-[#17181b] border p-2.5 transition-all duration-200 hover:border-[#7eb26d]"
+        :class="selectedDialIndex === idx ? 'border-[#7eb26d] bg-[#1a231d]/30 ring-1 ring-[#7eb26d]/60' : 'border-[#282a2e]'"
+        @click="selectDial(idx, dg.param)"
+      >
+        <div class="flex items-center justify-between text-xs font-bold text-[#33b5e5] pb-1 border-b border-[#242529]">
+          <span>{{ dg.title }}</span>
+          <Info class="size-3 text-[#33b5e5]/70" />
+        </div>
+
+        <div class="grid grid-cols-12 items-center gap-3 my-2">
+          <!-- Left Arc Gauge -->
+          <div class="col-span-5 relative flex flex-col items-center justify-center">
+            <svg class="h-16 w-28" viewBox="0 0 100 55">
+              <path
+                d="M 12,50 A 38,38 0 0,1 88,50"
+                fill="none"
+                stroke="#25272c"
+                stroke-width="7"
+                stroke-linecap="round"
+              />
+              <path
+                d="M 12,50 A 38,38 0 0,1 88,50"
+                fill="none"
+                stroke="#00e5ff"
+                stroke-width="7"
+                stroke-linecap="round"
+                stroke-dasharray="119.4"
+                :stroke-dashoffset="119.4 * (1 - Math.min(1, Math.max(0, parseFloat(dg.rpm) / 1200)))"
+              />
+            </svg>
+            <div class="absolute bottom-0 flex flex-col items-center">
+              <span class="font-mono text-xs font-bold text-white">{{ dg.rpm }}</span>
+              <span class="text-[8px] text-[#8e8e8e]">rpm</span>
+            </div>
+          </div>
+
+          <!-- Right Winding Temps -->
+          <div class="col-span-7 flex flex-col gap-1 text-[10px]">
+            <div>
+              <span class="font-mono font-bold text-white">{{ dg.w1 }} °C </span>
+              <span class="text-[9px] text-[#8e8e8e] uppercase">WINDING 1</span>
+            </div>
+            <div>
+              <span class="font-mono font-bold text-white">{{ dg.w2 }} °C </span>
+              <span class="text-[9px] text-[#8e8e8e] uppercase">WINDING 2</span>
+            </div>
+            <div>
+              <span class="font-mono font-bold text-white">{{ dg.w3 }} °C </span>
+              <span class="text-[9px] text-[#8e8e8e] uppercase">WINDING 3</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom FO / LO Pressures -->
+        <div class="grid grid-cols-2 gap-2 border-t border-[#242529] pt-1.5 text-[9px]">
+          <div>
+            <span class="font-mono font-bold text-white">{{ dg.fo }} bar </span>
+            <span class="text-[8px] text-[#8e8e8e] uppercase">FO IN PRESS</span>
+          </div>
+          <div>
+            <span class="font-mono font-bold text-white">{{ dg.lo }} bar </span>
+            <span class="text-[8px] text-[#8e8e8e] uppercase">LO IN PRESS</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Auxiliaries tab fallback -->
+    <div v-else class="flex h-24 items-center justify-center rounded bg-[#17181b] border border-dashed border-[#282a2e] text-xs text-[#8e8e8e]">
+      Auxiliaries Sub-Systems & Pumps Nominal
+    </div>
+
+    <!-- Historical Timeline Chart Strip -->
+    <div class="my-2.5 rounded bg-[#17181b] border border-[#282a2e] p-2">
+      <div class="flex items-center justify-between pb-1 px-2 border-b border-[#242529] text-[10px]">
+        <div class="flex items-center gap-2">
+          <span class="size-2 rounded-full bg-[#ffb900]"></span>
+          <span class="font-bold text-[#ffb900]">{{ selectedMetricName }} (24h Trend)</span>
+        </div>
+        <div class="text-[#8e8e8e] font-mono text-[9px]">
+          <span>2026-09-09</span> &rarr; <span>2026-09-10</span>
+        </div>
+      </div>
+      <div class="relative w-full h-[100px] pt-1">
+        <ClientOnly>
+          <VChart :option="chartOption" autoresize style="height: 100px; width: 100%;" />
+        </ClientOnly>
+      </div>
     </div>
 
     <!-- Operating Data Tables (3 Columns) -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-border/40 pt-3">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5">
       <div
         v-for="(col, cIdx) in tableColumns"
         :key="cIdx"
-        class="flex flex-col gap-1.5 rounded border border-border/30 bg-background/40 p-2.5 text-xs"
+        class="flex flex-col gap-1 rounded bg-[#17181b] border border-[#282a2e] p-2 text-xs"
       >
         <div
           v-for="(row, rIdx) in col"
           :key="rIdx"
-          class="flex items-center justify-between border-b border-border/20 pb-1 last:border-none last:pb-0"
+          class="flex items-center justify-between border-b border-[#242529] pb-1 last:border-none last:pb-0"
         >
           <div class="flex items-center gap-1">
-            <span class="text-[11px] text-muted-foreground truncate max-w-[190px]">
+            <span class="text-[10px] text-[#8e8e8e] truncate max-w-[190px]">
               {{ row.label }}
             </span>
-            <Info class="size-2.5 text-cyan-400/60" />
+            <Info class="size-2.5 text-[#33b5e5]/50" />
           </div>
           <div class="flex items-baseline gap-1 font-mono">
-            <span class="font-bold text-foreground">{{ row.val }}</span>
-            <span class="text-[10px] text-muted-foreground">{{ row.unit }}</span>
+            <span class="font-bold text-white text-[11px]">{{ row.val }}</span>
+            <span class="text-[9px] text-[#8e8e8e]">{{ row.unit }}</span>
           </div>
         </div>
       </div>
