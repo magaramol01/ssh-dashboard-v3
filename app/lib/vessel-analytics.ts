@@ -1,7 +1,7 @@
 export function getCylinderStatusColor(temp: number): string {
   if (temp > 350) return '#ef4444' // Alarm / Red
   if (temp >= 330) return '#f59e0b' // Warning / Amber
-  return '#10b981' // Nominal / Green
+  return '#334155' // Nominal / Tactical steel-slate
 }
 
 export function computeCylinderStats(temps: number[]): { avg: number; max: number; min: number; spread: number } {
