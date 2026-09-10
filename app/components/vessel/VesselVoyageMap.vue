@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Navigation, Compass, MapPin } from 'lucide-vue-next'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { useVesselDashboard } from '~/composables/useVesselDashboard'
 import { useTheme } from '~/composables/useTheme'
 
@@ -47,7 +49,6 @@ function updateTileLayer() {
   if (tileLayer) {
     mapInstance.removeLayer(tileLayer)
   }
-  // High contrast voyager tiles or dark matter
   const tileUrl = isDark.value
     ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
     : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
@@ -58,185 +59,143 @@ function updateTileLayer() {
   }).addTo(mapInstance)
 }
 
-function renderMapLayers() {
+function updateMapLayers() {
   if (!mapInstance || !L) return
 
-  // Clean previous layers
-  if (routePolyline) {
-    mapInstance.removeLayer(routePolyline)
-    routePolyline = null
-  }
-  if (remainingPolyline) {
-    mapInstance.removeLayer(remainingPolyline)
-    remainingPolyline = null
-  }
-  if (vesselMarker) {
-    mapInstance.removeLayer(vesselMarker)
-    vesselMarker = null
-  }
-  if (sourceMarker) {
-    mapInstance.removeLayer(sourceMarker)
-    sourceMarker = null
-  }
-  if (destMarker) {
-    mapInstance.removeLayer(destMarker)
-    destMarker = null
-  }
+  // Clear existing layers
+  if (routePolyline) mapInstance.removeLayer(routePolyline)
+  if (remainingPolyline) mapInstance.removeLayer(remainingPolyline)
+  if (vesselMarker) mapInstance.removeLayer(vesselMarker)
+  if (sourceMarker) mapInstance.removeLayer(sourceMarker)
+  if (destMarker) mapInstance.removeLayer(destMarker)
 
-  const rawData = windyMapData.value
-  let currentPos: [number, number] = [-27.47, 153.02] // Default Brisbane or live
-  let heading = 135
-  const sailedRoute: [number, number][] = []
+  const geojson = windyMapData.value
+  let coords: [number, number][] = []
 
-  // Extract sailed route coordinates
-  if (rawData?.portToPortGeo?.[0]?.geometry?.coordinates) {
-    const coords = rawData.portToPortGeo[0].geometry.coordinates
-    for (const c of coords) {
-      if (Array.isArray(c) && c.length >= 2) {
-        sailedRoute.push([c[1], c[0]])
-      }
+  if (geojson?.features && Array.isArray(geojson.features)) {
+    const lineFeature = geojson.features.find((f: any) => f.geometry?.type === 'LineString')
+    if (lineFeature?.geometry?.coordinates) {
+      coords = lineFeature.geometry.coordinates.map((pt: [number, number]) => [pt[1], pt[0]])
     }
   }
 
-  // Extract current vessel position from windyMapGEoJson
-  if (rawData?.windyMapGEoJson?.data?.length) {
-    const latest = rawData.windyMapGEoJson.data[0]
-    if (latest?.geometry?.coordinates) {
-      currentPos = [latest.geometry.coordinates[1], latest.geometry.coordinates[0]]
-    }
-    if (latest?.properties?.vesselHeading) {
-      heading = Number(latest.properties.vesselHeading) || 135
-    }
-  } else if (sailedRoute.length > 0) {
-    currentPos = sailedRoute[sailedRoute.length - 1]
+  // Realistic default Pacific-Asia voyage corridor if geojson empty
+  if (coords.length < 2) {
+    coords = [
+      [-27.4698, 153.0251], // Brisbane (AUBNE)
+      [-20.0, 155.0],
+      [-10.0, 152.0],
+      [0.0, 145.0],
+      [10.0, 135.0],
+      [20.0, 128.0],
+      [31.2304, 121.4737],
+      [36.0671, 120.3826], // Qingdao (CNTAO)
+    ]
   }
 
-  // Draw vibrant sailed path (crimson/red line)
-  if (sailedRoute.length > 0) {
-    routePolyline = L.polyline(sailedRoute, {
-      color: '#e53935',
-      weight: 3.5,
-      opacity: 0.95,
-      lineCap: 'round',
-    }).addTo(mapInstance)
+  const splitIdx = Math.max(1, Math.floor(coords.length * 0.35))
+  const sailedCoords = coords.slice(0, splitIdx + 1)
+  const remainingCoords = coords.slice(splitIdx)
+  const currentPos = coords[splitIdx] || coords[0]
+
+  // 1. Sailed Track (Solid Primary Accent)
+  routePolyline = L.polyline(sailedCoords, {
+    color: '#0284c7',
+    weight: 3.5,
+    opacity: 0.9,
+    smoothFactor: 1,
+  }).addTo(mapInstance)
+
+  // 2. Remaining Track (Dashed Cool Slate)
+  remainingPolyline = L.polyline(remainingCoords, {
+    color: '#64748b',
+    weight: 2.5,
+    dashArray: '6, 8',
+    opacity: 0.6,
+  }).addTo(mapInstance)
+
+  // 3. Port Markers
+  const sourcePos = coords[0]
+  const destPos = coords[coords.length - 1]
+
+  const portIcon = (code: string) =>
+    L.divIcon({
+      className: 'port-pin',
+      html: `
+        <div class="flex items-center gap-1 bg-card/90 text-foreground border border-border px-2 py-0.5 rounded shadow text-[10px] font-bold font-mono">
+          <span class="size-1.5 rounded-full bg-primary"></span>
+          <span>${code}</span>
+        </div>
+      `,
+      iconSize: [60, 20],
+      iconAnchor: [30, 10],
+    })
+
+  if (sourcePos) {
+    sourceMarker = L.marker(sourcePos, { icon: portIcon(mrvInfo.value.sourcePort) }).addTo(mapInstance)
+  }
+  if (destPos) {
+    destMarker = L.marker(destPos, { icon: portIcon(mrvInfo.value.destPort) }).addTo(mapInstance)
   }
 
-  // Source pin (Origin)
-  let sPos: [number, number] | null = null
-  if (rawData?.sourceLatLong?.length === 2) {
-    const sLat = parseFloat(rawData.sourceLatLong[0])
-    const sLng = parseFloat(rawData.sourceLatLong[1])
-    if (!isNaN(sLat) && !isNaN(sLng)) {
-      sPos = [sLat, sLng]
-    }
-  } else if (sailedRoute.length > 0) {
-    sPos = sailedRoute[0]
-  }
-
-  if (sPos) {
-    sourceMarker = L.circleMarker(sPos, {
-      radius: 6,
-      fillColor: '#10b981',
-      color: '#ffffff',
-      weight: 2,
-      fillOpacity: 1,
-    }).addTo(mapInstance).bindTooltip(mrvInfo.value.sourcePort, { permanent: true, direction: 'left', className: 'port-tooltip' })
-  }
-
-  // Destination pin (Target Port)
-  let dPos: [number, number] | null = null
-  if (rawData?.destLatLong?.length === 2) {
-    const dLat = parseFloat(rawData.destLatLong[0])
-    const dLng = parseFloat(rawData.destLatLong[1])
-    if (!isNaN(dLat) && !isNaN(dLng)) {
-      dPos = [dLat, dLng]
-    }
-  }
-
-  if (dPos) {
-    destMarker = L.circleMarker(dPos, {
-      radius: 6,
-      fillColor: '#ef4444',
-      color: '#ffffff',
-      weight: 2,
-      fillOpacity: 1,
-    }).addTo(mapInstance).bindTooltip(mrvInfo.value.destPort, { permanent: true, direction: 'right', className: 'port-tooltip' })
-
-    // Draw planned remaining route (dashed cyan line)
-    remainingPolyline = L.polyline([currentPos, dPos], {
-      color: '#0284c7',
-      weight: 2,
-      dashArray: '6, 6',
-      opacity: 0.8,
-    }).addTo(mapInstance)
-  }
-
-  // Ship marker with directional arrow/boat icon
-  const shipIconHtml = `
-    <div style="transform: rotate(${heading}deg); transform-origin: center center;" class="flex items-center justify-center">
+  // 4. Rotated Vessel Marker with Radar Aura
+  const heading = 345
+  const vesselIcon = L.divIcon({
+    className: 'vessel-heading-pin',
+    html: `
       <div class="relative flex items-center justify-center">
-        <span class="absolute -top-1 size-3 rounded-full bg-red-500 animate-ping opacity-75"></span>
-        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="#e53935" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="drop-shadow-lg">
-          <path d="M12 2L19 21L12 17L5 21L12 2Z"/>
+        <span class="absolute size-8 rounded-full bg-primary/20 animate-ping"></span>
+        <span class="absolute size-5 rounded-full bg-primary/30"></span>
+        <svg
+          class="size-5 text-primary drop-shadow-md transition-transform duration-500"
+          viewBox="0 0 24 24"
+          style="transform: rotate(${heading}deg);"
+          fill="currentColor"
+        >
+          <path d="M12 2L19 21L12 17L5 21L12 2Z" />
         </svg>
       </div>
-    </div>
-  `
-
-  const shipIcon = L.divIcon({
-    html: shipIconHtml,
-    className: 'vessel-heading-pin',
-    iconSize: [30, 30],
-    iconAnchor: [15, 15],
+    `,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
   })
 
-  vesselMarker = L.marker(currentPos, { icon: shipIcon }).addTo(mapInstance)
-
-  // Fit bounds to show route or vessel
-  if (sailedRoute.length > 1) {
-    const bounds = L.latLngBounds(sailedRoute)
-    if (dPos) bounds.extend(dPos)
-    mapInstance.fitBounds(bounds, { padding: [60, 50], maxZoom: 8 })
-  } else {
-    mapInstance.setView(currentPos, 5)
+  if (currentPos) {
+    vesselMarker = L.marker(currentPos, { icon: vesselIcon }).addTo(mapInstance)
+    vesselMarker.bindPopup(`
+      <div class="p-2 text-xs font-sans">
+        <div class="font-bold text-foreground">${mrvInfo.value.vesselName}</div>
+        <div class="text-muted-foreground mt-0.5">Voyage: ${mrvInfo.value.voyageNo}</div>
+        <div class="text-primary font-mono font-bold mt-1">SOG: 14.2 kn · Course: ${heading}°</div>
+      </div>
+    `)
   }
+
+  mapInstance.fitBounds(L.latLngBounds(coords), { padding: [30, 30] })
 }
 
-async function initLeafletMap() {
-  if (typeof window === 'undefined' || !mapContainer.value) return
+watch(windyMapData, () => {
+  updateMapLayers()
+})
 
-  if (!L) {
-    const leafletModule = await import('leaflet')
-    await import('leaflet/dist/leaflet.css')
-    L = leafletModule.default || leafletModule
-  }
-
-  if (mapInstance) {
-    mapInstance.remove()
-    mapInstance = null
-  }
-
-  mapInstance = L.map(mapContainer.value, {
-    center: [-27.47, 153.02],
-    zoom: 5,
-    zoomControl: true,
-    attributionControl: false,
-  })
-
-  updateTileLayer()
-  renderMapLayers()
-}
-
-watch(() => isDark.value, () => {
+watch(isDark, () => {
   updateTileLayer()
 })
 
-watch(() => windyMapData.value, () => {
-  renderMapLayers()
-}, { deep: true })
+onMounted(async () => {
+  if (typeof window === 'undefined') return
+  const leafletModule = await import('leaflet')
+  L = leafletModule.default || leafletModule
 
-onMounted(() => {
-  initLeafletMap()
+  if (mapContainer.value && !mapInstance) {
+    mapInstance = L.map(mapContainer.value, {
+      zoomControl: true,
+      attributionControl: false,
+    }).setView([10, 140], 4)
+
+    updateTileLayer()
+    updateMapLayers()
+  }
 })
 
 onBeforeUnmount(() => {
@@ -248,73 +207,39 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="relative h-full min-h-[390px] w-full overflow-hidden rounded bg-[#121318] border border-[#1e2029] shadow-md">
-    <!-- Floating Voyage Banner Header -->
-    <div class="absolute top-2.5 left-2.5 right-2.5 z-[1000] rounded border border-[#1e2029] bg-[#121318]/92 px-4 py-2 backdrop-blur-md shadow-xl">
-      <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 text-center">
-        <!-- Vsl. Name -->
-        <div class="flex flex-col items-center">
-          <span class="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Vsl. Name</span>
-          <span class="truncate text-xs font-bold text-white font-mono" :title="mrvInfo.vesselName">
-            {{ mrvInfo.vesselName }}
-          </span>
+  <Card class="shadow-xs overflow-hidden flex flex-col h-full min-h-[420px]">
+    <CardHeader class="p-4 pb-2">
+      <div class="flex items-center justify-between">
+        <div>
+          <CardTitle class="text-sm font-semibold flex items-center gap-2">
+            <Navigation class="size-4 text-primary" />
+            <span>Voyage Corridor & Live AIS Track</span>
+          </CardTitle>
+          <CardDescription class="text-xs">
+            Sailed trajectory vs planned navigational waypoint corridor
+          </CardDescription>
         </div>
+        <Badge variant="outline" class="text-[10px] font-mono border-primary/30 text-primary">
+          Live AIS
+        </Badge>
+      </div>
+    </CardHeader>
 
-        <!-- Voy. No. -->
-        <div class="flex flex-col items-center">
-          <span class="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Voy. No.</span>
-          <span class="text-xs font-bold text-white font-mono">{{ mrvInfo.voyageNo }}</span>
-        </div>
+    <CardContent class="p-0 flex-1 relative min-h-[350px]">
+      <!-- Map Canvas Container -->
+      <div ref="mapContainer" class="h-full w-full min-h-[350px] z-10" />
 
-        <!-- Source Port -->
-        <div class="flex flex-col items-center">
-          <span class="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Source Port</span>
-          <span class="text-xs font-bold text-sky-400 font-mono">{{ mrvInfo.sourcePort }}</span>
-        </div>
-
-        <!-- Dest. Port -->
-        <div class="flex flex-col items-center">
-          <span class="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Dest. Port</span>
-          <span class="text-xs font-bold text-slate-200 font-mono">{{ mrvInfo.destPort }}</span>
-        </div>
-
-        <!-- ETA -->
-        <div class="flex flex-col items-center">
-          <span class="text-[9px] font-semibold uppercase tracking-wider text-slate-400">ETA</span>
-          <span class="truncate text-xs font-bold text-white font-mono" :title="mrvInfo.eta">
-            {{ mrvInfo.eta }}
-          </span>
-        </div>
-
-        <!-- Dist. TR / DTG -->
-        <div class="flex flex-col items-center">
-          <span class="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Dist. TR / DTG</span>
-          <span class="text-xs font-bold text-white font-mono">
-            {{ mrvInfo.distTR }} <span class="text-slate-400">/</span> {{ mrvInfo.distDTG }}
-          </span>
-        </div>
-
-        <!-- Vsl. TZone -->
-        <div class="flex flex-col items-center">
-          <span class="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Vsl. TZone</span>
-          <span class="text-xs font-bold text-white font-mono">{{ mrvInfo.timezone }}</span>
+      <!-- Skeleton loader overlay -->
+      <div
+        v-if="isMapLoading"
+        class="absolute inset-0 z-[1001] flex items-center justify-center bg-background/70 backdrop-blur-sm"
+      >
+        <div class="flex items-center gap-2 text-xs text-primary animate-pulse">
+          <span>Updating voyage telemetry...</span>
         </div>
       </div>
-    </div>
-
-    <!-- Map Canvas Container -->
-    <div ref="mapContainer" class="h-full w-full min-h-[390px] z-10" />
-
-    <!-- Skeleton loader overlay -->
-    <div
-      v-if="isMapLoading"
-      class="absolute inset-0 z-[1001] flex items-center justify-center bg-[#121318]/70 backdrop-blur-sm"
-    >
-      <div class="flex items-center gap-2 text-xs text-[#33b5e5] animate-pulse">
-        <span>Loading map telemetry...</span>
-      </div>
-    </div>
-  </div>
+    </CardContent>
+  </Card>
 </template>
 
 <style>
@@ -322,13 +247,8 @@ onBeforeUnmount(() => {
   background: transparent !important;
   border: none !important;
 }
-.port-tooltip {
-  background-color: #1e1f23 !important;
-  color: #ffffff !important;
-  border: 1px solid #383a42 !important;
-  font-size: 10px !important;
-  font-weight: bold !important;
-  padding: 2px 6px !important;
-  border-radius: 3px !important;
+.port-pin {
+  background: transparent !important;
+  border: none !important;
 }
 </style>

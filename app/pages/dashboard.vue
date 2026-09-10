@@ -1,11 +1,12 @@
 <script setup lang="ts">
 /**
- * Vessel Dashboard — Executive Operations Center (SmartShip Hub)
- * Built with tactical monochromatic palette, KPI summary strip,
- * high-definition voyage map, radial telemetry cockpit, and multi-graph analytics suite.
+ * Vessel Dashboard — Real-time Fleet Operations & Telemetry
+ * Aligned 1:1 with the CII Intelligence page (app/pages/emissions.vue)
+ * design tokens, card hierarchy, 6-tile KPI grid, and responsive drawer.
  */
 import { ref } from 'vue'
 import VesselHeaderBar from '~/components/vessel/VesselHeaderBar.vue'
+import VesselContextStrip from '~/components/vessel/VesselContextStrip.vue'
 import VesselKpiStrip from '~/components/vessel/VesselKpiStrip.vue'
 import VesselVoyageMap from '~/components/vessel/VesselVoyageMap.vue'
 import VesselRadialCockpit from '~/components/vessel/VesselRadialCockpit.vue'
@@ -15,9 +16,9 @@ import VesselDiagnosticsMatrix from '~/components/vessel/VesselDiagnosticsMatrix
 import VesselAlarmsDrawer from '~/components/vessel/VesselAlarmsDrawer.vue'
 
 definePageMeta({ middleware: 'require-dispatcher' })
-useHead({ title: 'Vessel Dashboard · Smart Ship Hub' })
+useHead({ title: 'Vessel Operations & Telemetry | Smart Ship Hub' })
 
-const isAlarmsOpen = ref(true)
+const isAlarmsOpen = ref(false)
 
 function toggleAlarms() {
   isAlarmsOpen.value = !isAlarmsOpen.value
@@ -25,55 +26,53 @@ function toggleAlarms() {
 </script>
 
 <template>
-  <div class="flex min-h-[calc(100vh-3.5rem)] w-full flex-col bg-[#0a0b0e] text-slate-200 font-sans overflow-x-hidden">
-    <!-- Top Vessel Filter & Status Header Bar -->
-    <div class="sticky top-0 z-30 bg-[#0e0f13]/90 backdrop-blur-md px-3.5 py-2 border-b border-[#1e2029]">
-      <VesselHeaderBar />
+  <div class="flex flex-1 min-h-[calc(100svh-3.5rem)] w-full relative">
+    <!-- Main Dashboard Area (Contracts smoothly when Alarms Rail is docked) -->
+    <div
+      :class="[
+        'flex-1 min-w-0 space-y-6 p-4 md:p-6 pb-12 transition-[margin] duration-350 ease-[cubic-bezier(0.16,1,0.3,1)]',
+        isAlarmsOpen ? 'lg:mr-[360px] xl:mr-[380px]' : ''
+      ]"
+    >
+      <!-- Header Controls & Filters (Sticky Bar matching emissions.vue) -->
+      <div class="sticky top-14 z-20 -mx-4 md:-mx-6 -mt-4 md:-mt-6 px-4 md:px-6 py-3.5 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border shadow-xs">
+        <VesselHeaderBar @toggle-alarms="toggleAlarms" />
+      </div>
+
+      <!-- Vessel Operations Context Strip -->
+      <VesselContextStrip />
+
+      <!-- 6-Tile Operational KPI Grid -->
+      <VesselKpiStrip @toggle-alarms="toggleAlarms" />
+
+      <!-- Middle Operations Grid: Map (~60%) + Telemetry Cockpit (~40%) -->
+      <div class="grid gap-6 lg:grid-cols-12 items-stretch">
+        <div class="lg:col-span-7">
+          <VesselVoyageMap />
+        </div>
+        <div class="lg:col-span-5">
+          <VesselRadialCockpit />
+        </div>
+      </div>
+
+      <!-- Bottom Multi-Graph Analytics Suite -->
+      <div class="space-y-6">
+        <div class="grid gap-6 lg:grid-cols-12">
+          <div class="lg:col-span-7">
+            <VesselTelemetryChart />
+          </div>
+          <div class="lg:col-span-5">
+            <VesselCylinderBarChart />
+          </div>
+        </div>
+
+        <div>
+          <VesselDiagnosticsMatrix />
+        </div>
+      </div>
     </div>
 
-    <!-- Main Content Area with RHS Drawer -->
-    <div class="flex flex-1 overflow-hidden">
-      <!-- Main Dashboard Scrollable Canvas -->
-      <main class="flex-1 overflow-y-auto p-3.5 space-y-3.5">
-        <!-- Tier 1: Executive KPI Strip -->
-        <section>
-          <VesselKpiStrip @toggle-alarms="toggleAlarms" />
-        </section>
-
-        <!-- Tier 2: Middle Split (Leaflet Map ~60% + Radial Cockpit ~40%) -->
-        <section class="grid grid-cols-1 xl:grid-cols-12 gap-3.5 items-stretch">
-          <!-- Left: High-Definition Voyage Map (7 cols) -->
-          <div class="xl:col-span-7 h-[420px] rounded-xl overflow-hidden">
-            <VesselVoyageMap />
-          </div>
-
-          <!-- Right: Radial Telemetry Cockpit (5 cols) -->
-          <div class="xl:col-span-5 h-[420px]">
-            <VesselRadialCockpit />
-          </div>
-        </section>
-
-        <!-- Tier 3: Bottom Multi-Graph Analytics Suite -->
-        <section class="space-y-3.5">
-          <!-- Graphs Grid: 24h Timeline Chart (7 cols) + Cylinder Exhaust Bar (5 cols) -->
-          <div class="grid grid-cols-1 xl:grid-cols-12 gap-3.5">
-            <div class="xl:col-span-7">
-              <VesselTelemetryChart />
-            </div>
-            <div class="xl:col-span-5">
-              <VesselCylinderBarChart />
-            </div>
-          </div>
-
-          <!-- Diagnostics Matrix (Full Width Tabbed Subsystems) -->
-          <div>
-            <VesselDiagnosticsMatrix />
-          </div>
-        </section>
-      </main>
-
-      <!-- Tier 4: Right-Hand Side (RHS) Sliding Alarms Command Rail -->
-      <VesselAlarmsDrawer v-model:open="isAlarmsOpen" />
-    </div>
+    <!-- Sliding Alarms Rail (Matching Copilot Drawer Docking) -->
+    <VesselAlarmsDrawer v-model="isAlarmsOpen" />
   </div>
 </template>

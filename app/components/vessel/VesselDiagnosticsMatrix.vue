@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { Cpu, Zap, Search } from 'lucide-vue-next'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { useVesselDashboard } from '~/composables/useVesselDashboard'
 
 const { dashboardState } = useVesselDashboard()
@@ -110,137 +112,138 @@ const filteredMeParams = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col rounded-xl bg-[#121318] border border-[#1e2029] p-3.5 shadow-sm">
-    <!-- Top Header -->
-    <div class="flex flex-wrap items-center justify-between gap-2 pb-2 mb-2 border-b border-[#1e2029]">
-      <div class="flex items-center gap-2">
-        <Cpu class="h-4 w-4 text-sky-400" />
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200">
-          Machinery Diagnostics Matrix
-        </h3>
-      </div>
-
-      <!-- Tab Buttons & Search -->
-      <div class="flex items-center gap-2">
-        <!-- Tabs -->
-        <div class="flex items-center bg-[#0a0b0e] p-0.5 rounded-lg border border-[#1e2029]">
-          <button
-            @click="currentTab = 'me'"
-            :class="[
-              'px-2.5 py-1 text-[10px] font-semibold rounded-md transition-all flex items-center gap-1.5',
-              currentTab === 'me'
-                ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            ]"
-          >
-            <Cpu class="h-3 w-3" />
-            Main Engine
-          </button>
-          <button
-            @click="currentTab = 'dg'"
-            :class="[
-              'px-2.5 py-1 text-[10px] font-semibold rounded-md transition-all flex items-center gap-1.5',
-              currentTab === 'dg'
-                ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            ]"
-          >
-            <Zap class="h-3 w-3" />
-            Aux Gens (DG1-3)
-          </button>
-        </div>
-
-        <!-- Search Input (Only on ME tab) -->
-        <div v-if="currentTab === 'me'" class="relative">
-          <Search class="h-3 w-3 absolute left-2 top-2 text-slate-500 pointer-events-none" />
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="Filter sensors..."
-            class="h-7 w-32 md:w-36 pl-6 pr-2 rounded-md bg-[#0a0b0e] border border-[#1e2029] text-[11px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-sky-500/50"
-          />
-        </div>
-      </div>
-    </div>
-
-    <!-- Tab 1 Content: Main Engine Parameters (2-Column Dense Grid) -->
-    <div v-if="currentTab === 'me'" class="max-h-[220px] overflow-y-auto pr-1">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-1.5">
-        <div
-          v-for="(p, idx) in filteredMeParams"
-          :key="idx"
-          class="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[#0e0f13] border border-[#1e2029] hover:border-slate-700 transition-colors"
-        >
-          <div class="flex items-center gap-2 min-w-0 pr-2">
-            <div class="h-1.5 w-1.5 rounded-full bg-slate-500 shrink-0" />
-            <span class="text-[11px] text-slate-300 truncate" :title="p.label">
-              {{ p.label }}
-            </span>
-          </div>
-
-          <div class="flex items-center gap-1 font-mono shrink-0">
-            <span class="text-[11px] font-bold text-slate-100">{{ p.value }}</span>
-            <span class="text-[10px] text-slate-500">{{ p.unit }}</span>
-          </div>
-        </div>
-      </div>
-      <div v-if="filteredMeParams.length === 0" class="py-6 text-center text-xs text-slate-500">
-        No sensors matching "{{ searchQuery }}"
-      </div>
-    </div>
-
-    <!-- Tab 2 Content: Auxiliary Generators Comparison -->
-    <div v-else class="grid grid-cols-1 md:grid-cols-3 gap-2 max-h-[220px] overflow-y-auto pr-1">
-      <div
-        v-for="dg in dgItems"
-        :key="dg.id"
-        class="rounded-lg bg-[#0e0f13] border border-[#1e2029] p-2.5 flex flex-col justify-between"
-      >
+  <Card class="shadow-xs">
+    <CardHeader class="p-4 pb-2">
+      <div class="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <!-- Generator Header -->
-          <div class="flex items-center justify-between border-b border-[#1e2029] pb-1.5 mb-2">
-            <span class="text-xs font-bold text-slate-200">{{ dg.name }}</span>
-            <span
+          <CardTitle class="text-sm font-semibold flex items-center gap-2">
+            <Cpu class="size-4 text-primary" />
+            <span>Machinery Diagnostics Matrix</span>
+          </CardTitle>
+          <CardDescription class="text-xs">
+            Live sensor bus telemetry across Main Engine & Auxiliary Generators
+          </CardDescription>
+        </div>
+
+        <!-- Tab Switcher & Filter -->
+        <div class="flex items-center gap-2">
+          <div class="flex items-center bg-muted p-0.5 rounded-lg border border-border">
+            <button
+              @click="currentTab = 'me'"
               :class="[
-                'px-1.5 py-0.2 text-[9px] font-mono uppercase rounded border',
-                dg.status === 'online'
-                  ? 'bg-sky-500/10 text-sky-400 border-sky-500/30'
-                  : 'bg-slate-800 text-slate-400 border-slate-700'
+                'px-2.5 py-1 text-[11px] font-medium rounded-md transition-all flex items-center gap-1.5 cursor-pointer',
+                currentTab === 'me'
+                  ? 'bg-background text-foreground shadow-xs font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
               ]"
             >
-              {{ dg.status }}
-            </span>
+              <Cpu class="size-3" />
+              Main Engine
+            </button>
+            <button
+              @click="currentTab = 'dg'"
+              :class="[
+                'px-2.5 py-1 text-[11px] font-medium rounded-md transition-all flex items-center gap-1.5 cursor-pointer',
+                currentTab === 'dg'
+                  ? 'bg-background text-foreground shadow-xs font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
+              ]"
+            >
+              <Zap class="size-3" />
+              Aux Gens (DG1-3)
+            </button>
           </div>
 
-          <!-- Parameter Rows -->
-          <div class="space-y-1 text-[11px]">
-            <div class="flex items-center justify-between text-slate-400">
-              <span>Speed</span>
-              <span class="font-mono font-bold text-slate-200">{{ dg.rpm }} rpm</span>
-            </div>
-            <div class="flex items-center justify-between text-slate-400">
-              <span>HT FW Press/Temp</span>
-              <span class="font-mono text-slate-200">{{ dg.htFwPress }}b / {{ dg.htFwTemp }}°C</span>
-            </div>
-            <div class="flex items-center justify-between text-slate-400">
-              <span>LO Press/Temp</span>
-              <span class="font-mono text-slate-200">{{ dg.loPress }}b / {{ dg.loTemp }}°C</span>
-            </div>
-            <div class="flex items-center justify-between text-slate-400">
-              <span>FO Temp</span>
-              <span class="font-mono text-slate-200">{{ dg.foTemp }} °C</span>
-            </div>
+          <!-- Search Filter -->
+          <div v-if="currentTab === 'me'" class="relative">
+            <Search class="size-3.5 absolute left-2.5 top-2 text-muted-foreground pointer-events-none" />
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="Filter sensors..."
+              class="h-7 w-32 md:w-40 pl-7 pr-2 rounded-md bg-muted/50 border border-border text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
+            />
           </div>
-        </div>
-
-        <!-- Windings Sub-card -->
-        <div class="mt-2 pt-1.5 border-t border-[#1e2029] flex items-center justify-between text-[10px] text-slate-500">
-          <span>Windings (U/V/W):</span>
-          <span class="font-mono font-bold text-slate-300">
-            {{ dg.w1 }}° / {{ dg.w2 }}° / {{ dg.w3 }}°
-          </span>
         </div>
       </div>
-    </div>
-  </div>
+    </CardHeader>
+
+    <CardContent class="p-4 pt-2">
+      <!-- Tab 1: Main Engine Parameters (2-Column Dense Grid) -->
+      <div v-if="currentTab === 'me'" class="max-h-[240px] overflow-y-auto pr-1">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div
+            v-for="(p, idx) in filteredMeParams"
+            :key="idx"
+            class="flex items-center justify-between px-3 py-2 rounded-lg bg-card/60 border border-border/80 hover:border-primary/30 transition-colors"
+          >
+            <div class="flex items-center gap-2 min-w-0 pr-2">
+              <div class="size-1.5 rounded-full bg-primary shrink-0" />
+              <span class="text-xs text-foreground truncate" :title="p.label">
+                {{ p.label }}
+              </span>
+            </div>
+
+            <div class="flex items-center gap-1 font-mono shrink-0">
+              <span class="text-xs font-bold text-foreground tabular-nums">{{ p.value }}</span>
+              <span class="text-[10px] text-muted-foreground">{{ p.unit }}</span>
+            </div>
+          </div>
+        </div>
+        <div v-if="filteredMeParams.length === 0" class="py-8 text-center text-xs text-muted-foreground">
+          No telemetry sensors matching "{{ searchQuery }}"
+        </div>
+      </div>
+
+      <!-- Tab 2: Auxiliary Generators (DG1–DG3) -->
+      <div v-else class="grid grid-cols-1 md:grid-cols-3 gap-3 max-h-[240px] overflow-y-auto pr-1">
+        <div
+          v-for="dg in dgItems"
+          :key="dg.id"
+          class="rounded-lg border bg-card/60 p-3 flex flex-col justify-between shadow-xs"
+        >
+          <div>
+            <div class="flex items-center justify-between border-b border-border pb-2 mb-2">
+              <span class="text-xs font-bold text-foreground">{{ dg.name }}</span>
+              <Badge
+                variant="outline"
+                :class="[
+                  'text-[9px] font-mono uppercase',
+                  dg.status === 'online' ? 'text-primary border-primary/30' : 'text-muted-foreground'
+                ]"
+              >
+                {{ dg.status }}
+              </Badge>
+            </div>
+
+            <div class="space-y-1.5 text-xs">
+              <div class="flex items-center justify-between text-muted-foreground">
+                <span>Speed</span>
+                <span class="font-mono font-bold text-foreground">{{ dg.rpm }} rpm</span>
+              </div>
+              <div class="flex items-center justify-between text-muted-foreground">
+                <span>HT FW Press/Temp</span>
+                <span class="font-mono text-foreground">{{ dg.htFwPress }}b / {{ dg.htFwTemp }}°C</span>
+              </div>
+              <div class="flex items-center justify-between text-muted-foreground">
+                <span>LO Press/Temp</span>
+                <span class="font-mono text-foreground">{{ dg.loPress }}b / {{ dg.loTemp }}°C</span>
+              </div>
+              <div class="flex items-center justify-between text-muted-foreground">
+                <span>FO Temp</span>
+                <span class="font-mono text-foreground">{{ dg.foTemp }} °C</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-3 pt-2 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
+            <span>Windings (U/V/W):</span>
+            <span class="font-mono font-bold text-foreground">
+              {{ dg.w1 }}° / {{ dg.w2 }}° / {{ dg.w3 }}°
+            </span>
+          </div>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
 </template>

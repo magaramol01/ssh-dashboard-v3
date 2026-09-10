@@ -1,11 +1,21 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Activity, Flame, Gauge, Zap, Wind } from 'lucide-vue-next'
+import { Activity, Flame, Zap, Wind } from 'lucide-vue-next'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  chartTextColor,
+  chartAxisColor,
+  chartSplitLineColor,
+  chartTooltipBg,
+  chartTooltipBorder,
+  chartTooltipText,
+} from '@/components/ui/charts/useChartTheme'
 import { useVesselDashboard } from '~/composables/useVesselDashboard'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent])
@@ -29,14 +39,13 @@ const timelineHours = [
   '12:00', '14:00', '16:00', '18:00', '20:00', '22:00', '24:00'
 ]
 
-// Deterministic datasets
+// Baseline datasets
 const baselineSpeed = [13.8, 14.0, 14.2, 14.1, 14.5, 14.8, 14.2, 13.9, 14.1, 14.4, 14.2, 14.0, 14.2]
 const baselineFuel = [28.4, 28.9, 29.2, 29.0, 30.1, 30.8, 29.5, 28.7, 29.1, 29.8, 29.3, 28.8, 29.0]
 const baselinePower = [8200, 8350, 8500, 8420, 8750, 8900, 8550, 8300, 8450, 8680, 8520, 8380, 8450]
 const baselineScavenge = [1.82, 1.85, 1.88, 1.86, 1.92, 1.95, 1.89, 1.84, 1.87, 1.91, 1.88, 1.85, 1.87]
 const baselineExhaust = [318, 320, 322, 321, 326, 328, 323, 319, 321, 325, 322, 320, 321]
 
-// Live stat callouts
 const currentStats = computed(() => {
   switch (activeMode.value) {
     case 'speed_fuel':
@@ -74,32 +83,27 @@ const chartOption = computed(() => {
   const isDual = activeMode.value === 'speed_fuel'
 
   const grid = {
-    left: 42,
-    right: isDual ? 42 : 18,
+    left: 45,
+    right: isDual ? 45 : 20,
     top: 25,
     bottom: 25,
   }
 
   const tooltip = {
     trigger: 'axis',
-    backgroundColor: '#121318',
-    borderColor: '#1e2029',
+    backgroundColor: chartTooltipBg.value,
+    borderColor: chartTooltipBorder.value,
     borderWidth: 1,
     padding: [8, 12],
-    textStyle: { color: '#f8fafc', fontSize: 11 },
-    axisPointer: {
-      type: 'cross',
-      lineStyle: { color: '#334155', type: 'dashed' },
-      crossStyle: { color: '#334155' },
-    },
+    textStyle: { color: chartTooltipText.value, fontSize: 11 },
   }
 
   const xAxis = {
     type: 'category',
     data: timelineHours,
     boundaryGap: false,
-    axisLine: { lineStyle: { color: '#1e2029' } },
-    axisLabel: { color: '#64748b', fontSize: 10 },
+    axisLine: { lineStyle: { color: chartAxisColor.value } },
+    axisLabel: { color: chartTextColor.value, fontSize: 10 },
     axisTick: { show: false },
   }
 
@@ -114,7 +118,7 @@ const chartOption = computed(() => {
         right: 10,
         itemWidth: 12,
         itemHeight: 4,
-        textStyle: { color: '#94a3b8', fontSize: 10 },
+        textStyle: { color: chartTextColor.value, fontSize: 10 },
       },
       xAxis,
       yAxis: [
@@ -123,17 +127,17 @@ const chartOption = computed(() => {
           name: 'kn',
           min: 10,
           max: 18,
-          nameTextStyle: { color: '#64748b', fontSize: 9, align: 'right' },
-          axisLabel: { color: '#64748b', fontSize: 9 },
-          splitLine: { lineStyle: { color: '#1a1c24', type: 'dashed' } },
+          nameTextStyle: { color: chartTextColor.value, fontSize: 9, align: 'right' },
+          axisLabel: { color: chartTextColor.value, fontSize: 9 },
+          splitLine: { lineStyle: { color: chartSplitLineColor.value, type: 'dashed' } },
         },
         {
           type: 'value',
           name: 't/day',
           min: 20,
           max: 36,
-          nameTextStyle: { color: '#64748b', fontSize: 9, align: 'left' },
-          axisLabel: { color: '#64748b', fontSize: 9 },
+          nameTextStyle: { color: chartTextColor.value, fontSize: 9, align: 'left' },
+          axisLabel: { color: chartTextColor.value, fontSize: 9 },
           splitLine: { show: false },
         },
       ],
@@ -144,7 +148,7 @@ const chartOption = computed(() => {
           yAxisIndex: 0,
           smooth: true,
           symbol: 'none',
-          lineStyle: { color: '#38bdf8', width: 1.8 },
+          lineStyle: { color: '#0284c7', width: 2 },
           areaStyle: {
             color: {
               type: 'linear',
@@ -153,8 +157,8 @@ const chartOption = computed(() => {
               x2: 0,
               y2: 1,
               colorStops: [
-                { offset: 0, color: 'rgba(56, 189, 248, 0.08)' },
-                { offset: 1, color: 'rgba(56, 189, 248, 0.0)' },
+                { offset: 0, color: 'rgba(2, 132, 199, 0.15)' },
+                { offset: 1, color: 'rgba(2, 132, 199, 0.0)' },
               ],
             },
           },
@@ -166,7 +170,7 @@ const chartOption = computed(() => {
           yAxisIndex: 1,
           smooth: true,
           symbol: 'none',
-          lineStyle: { color: '#94a3b8', width: 1.5, type: 'dashed' },
+          lineStyle: { color: '#64748b', width: 1.8, type: 'dashed' },
           areaStyle: {
             color: {
               type: 'linear',
@@ -175,8 +179,8 @@ const chartOption = computed(() => {
               x2: 0,
               y2: 1,
               colorStops: [
-                { offset: 0, color: 'rgba(148, 163, 184, 0.04)' },
-                { offset: 1, color: 'rgba(148, 163, 184, 0.0)' },
+                { offset: 0, color: 'rgba(100, 116, 139, 0.08)' },
+                { offset: 1, color: 'rgba(100, 116, 139, 0.0)' },
               ],
             },
           },
@@ -205,9 +209,9 @@ const chartOption = computed(() => {
       name: cfg.unit,
       min: cfg.min,
       max: cfg.max,
-      nameTextStyle: { color: '#64748b', fontSize: 9 },
-      axisLabel: { color: '#64748b', fontSize: 9 },
-      splitLine: { lineStyle: { color: '#1a1c24', type: 'dashed' } },
+      nameTextStyle: { color: chartTextColor.value, fontSize: 9 },
+      axisLabel: { color: chartTextColor.value, fontSize: 9 },
+      splitLine: { lineStyle: { color: chartSplitLineColor.value, type: 'dashed' } },
     },
     series: [
       {
@@ -215,7 +219,7 @@ const chartOption = computed(() => {
         type: 'line',
         smooth: true,
         symbol: 'none',
-        lineStyle: { color: '#38bdf8', width: 1.8 },
+        lineStyle: { color: '#0284c7', width: 2 },
         areaStyle: {
           color: {
             type: 'linear',
@@ -224,8 +228,8 @@ const chartOption = computed(() => {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(56, 189, 248, 0.08)' },
-              { offset: 1, color: 'rgba(56, 189, 248, 0.0)' },
+              { offset: 0, color: 'rgba(2, 132, 199, 0.15)' },
+              { offset: 1, color: 'rgba(2, 132, 199, 0.0)' },
             ],
           },
         },
@@ -237,61 +241,65 @@ const chartOption = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col rounded-xl bg-[#121318] border border-[#1e2029] p-3.5 shadow-sm">
-    <!-- Header -->
-    <div class="flex flex-wrap items-center justify-between gap-2 pb-2 mb-1 border-b border-[#1e2029]">
-      <div class="flex items-center gap-2">
-        <Activity class="h-4 w-4 text-sky-400" />
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200">
-          24h Telemetry Timeline
-        </h3>
+  <Card class="shadow-xs flex flex-col">
+    <CardHeader class="p-4 pb-2">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <CardTitle class="text-sm font-semibold flex items-center gap-2">
+            <Activity class="size-4 text-primary" />
+            <span>24-Hour Telemetry Timeline</span>
+          </CardTitle>
+          <CardDescription class="text-xs">
+            Dual-axis comparative speed & fuel profiles over past 24 hours
+          </CardDescription>
+        </div>
+
+        <!-- Quick Switcher Pills -->
+        <div class="flex items-center gap-1 bg-muted p-0.5 rounded-lg border border-border">
+          <button
+            v-for="m in modes"
+            :key="m.key"
+            @click="activeMode = m.key"
+            :class="[
+              'px-2.5 py-1 text-[11px] font-medium rounded-md transition-all flex items-center gap-1.5 cursor-pointer',
+              activeMode === m.key
+                ? 'bg-background text-foreground shadow-xs font-semibold'
+                : 'text-muted-foreground hover:text-foreground'
+            ]"
+          >
+            <component :is="m.icon" class="size-3" />
+            {{ m.label }}
+          </button>
+        </div>
+      </div>
+    </CardHeader>
+
+    <CardContent class="p-4 pt-1">
+      <!-- Mini Stat Callouts -->
+      <div class="flex items-center justify-end gap-4 py-1 text-xs mb-1">
+        <div class="flex items-center gap-1.5">
+          <span class="text-muted-foreground">{{ currentStats.label1 }}:</span>
+          <span class="font-mono font-bold text-foreground">{{ currentStats.val1 }}</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="text-muted-foreground">{{ currentStats.label2 }}:</span>
+          <span class="font-mono font-bold text-primary">{{ currentStats.val2 }}</span>
+        </div>
       </div>
 
-      <!-- Quick Switcher Pills -->
-      <div class="flex items-center gap-1 bg-[#0a0b0e] p-0.5 rounded-lg border border-[#1e2029]">
-        <button
-          v-for="m in modes"
-          :key="m.key"
-          @click="activeMode = m.key"
-          :class="[
-            'px-2.5 py-1 text-[10px] font-semibold rounded-md transition-all flex items-center gap-1.5',
-            activeMode === m.key
-              ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200'
-          ]"
-        >
-          <component :is="m.icon" class="h-3 w-3" />
-          {{ m.label }}
-        </button>
+      <!-- ECharts Container -->
+      <div class="relative w-full">
+        <ClientOnly>
+          <VChart
+            :option="chartOption"
+            autoresize
+            style="height: 220px; width: 100%;"
+          />
+          <template #fallback>
+            <Skeleton class="h-[220px] w-full rounded-xl" />
+          </template>
+        </ClientOnly>
       </div>
-    </div>
-
-    <!-- Live Mini Stat Callouts -->
-    <div class="flex items-center justify-end gap-4 py-1 text-[11px]">
-      <div class="flex items-center gap-1.5">
-        <span class="text-slate-500">{{ currentStats.label1 }}:</span>
-        <span class="font-mono font-bold text-slate-100">{{ currentStats.val1 }}</span>
-      </div>
-      <div class="flex items-center gap-1.5">
-        <span class="text-slate-500">{{ currentStats.label2 }}:</span>
-        <span class="font-mono font-bold text-sky-400">{{ currentStats.val2 }}</span>
-      </div>
-    </div>
-
-    <!-- ECharts Container -->
-    <div class="relative w-full">
-      <ClientOnly>
-        <VChart
-          :option="chartOption"
-          autoresize
-          style="height: 190px; width: 100%;"
-        />
-        <template #fallback>
-          <div class="h-[190px] w-full flex items-center justify-center text-xs text-slate-500 bg-black/20 rounded-lg">
-            Loading telemetry chart...
-          </div>
-        </template>
-      </ClientOnly>
-    </div>
-  </div>
+    </CardContent>
+  </Card>
 </template>

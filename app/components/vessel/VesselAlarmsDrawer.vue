@@ -2,54 +2,49 @@
 import { ref, computed, watch } from 'vue'
 import {
   Bell,
-  Settings,
   Search,
-  ChevronRight,
-  ChevronLeft,
+  X,
   Volume2,
   VolumeX,
+  CheckCircle2,
+  AlertTriangle,
+  AlertCircle,
+  Info,
 } from 'lucide-vue-next'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { useVesselDashboard, type RHSPanelFlag } from '~/composables/useVesselDashboard'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 
 const props = withDefaults(
   defineProps<{
+    modelValue?: boolean
     open?: boolean
   }>(),
   {
-    open: true,
+    modelValue: undefined,
+    open: undefined,
   }
 )
 
 const emit = defineEmits<{
+  (e: 'update:modelValue', val: boolean): void
   (e: 'update:open', val: boolean): void
 }>()
 
-const { rhsFlags, updateRHSFlags } = useVesselDashboard()
+const isOpen = computed({
+  get: () => (props.modelValue !== undefined ? props.modelValue : (props.open !== undefined ? props.open : false)),
+  set: (val: boolean) => {
+    emit('update:modelValue', val)
+    emit('update:open', val)
+  },
+})
 
-const isExpanded = ref<boolean>(props.open)
-
-watch(
-  () => props.open,
-  (val) => {
-    isExpanded.value = val
-  }
-)
-
-function toggleDrawer() {
-  isExpanded.value = !isExpanded.value
-  emit('update:open', isExpanded.value)
+function close() {
+  isOpen.value = false
 }
 
 const searchQuery = ref<string>('')
 const activeFilter = ref<'all' | 'critical' | 'warning' | 'info'>('all')
 const isMuted = ref<boolean>(false)
-const isSettingsOpen = ref<boolean>(false)
 
 interface AlarmItem {
   id: string
@@ -60,7 +55,6 @@ interface AlarmItem {
   acknowledged?: boolean
 }
 
-// Baseline alarms with rich metadata
 const alarmItems = ref<AlarmItem[]>([
   { id: 'ALM-1', code: 'A-04', title: 'DG3 RPM SENSOR DISCONNECTED', level: 'critical', time: '05:38:22' },
   { id: 'ALM-2', code: 'A-12', title: 'TC EXH GAS OUTLET HI TEMP', level: 'critical', time: '05:15:00' },
@@ -103,278 +97,204 @@ function acknowledgeAlarm(id: string) {
     item.acknowledged = !item.acknowledged
   }
 }
-
-// Local draft for settings dialog
-const draftFlags = ref<RHSPanelFlag[]>([])
-
-function openSettings() {
-  draftFlags.value = JSON.parse(JSON.stringify(rhsFlags.value))
-  isSettingsOpen.value = true
-}
-
-function toggleDraftFlag(typename: string) {
-  const item = draftFlags.value.find((f) => f.typename === typename)
-  if (item) {
-    const currentTrueCount = draftFlags.value.filter((f) => f.status).length
-    if (!item.status && currentTrueCount >= 2) {
-      alert('Only 2 panels can be shown at a time.')
-      return
-    }
-    item.status = !item.status
-  }
-}
-
-async function saveSettings() {
-  await updateRHSFlags(draftFlags.value)
-  isSettingsOpen.value = false
-}
 </script>
 
 <template>
-  <aside
-    class="flex flex-col bg-[#121318] border-l border-[#1e2029] transition-all duration-300 relative z-20 shrink-0 select-none shadow-xl h-full"
-    :class="isExpanded ? 'w-80 lg:w-84' : 'w-12'"
-  >
-    <!-- Top Bar with Toggle and Title -->
-    <div class="flex h-11 items-center justify-between border-b border-[#1e2029] px-3 bg-[#0e0f13]">
-      <button
-        type="button"
-        class="rounded-lg p-1.5 text-slate-400 hover:bg-[#1e2029] hover:text-slate-100 transition-colors"
-        :title="isExpanded ? 'Collapse Alarms' : 'Expand Alarms'"
-        @click="toggleDrawer"
+  <div>
+    <!-- Mobile Backdrop -->
+    <Transition name="fade">
+      <div
+        v-if="isOpen"
+        class="fixed inset-0 bg-background/60 backdrop-blur-xs z-25 lg:hidden"
+        @click="close"
+      />
+    </Transition>
+
+    <!-- Docked Alarms Drawer (Matches CII Copilot panel docking) -->
+    <Transition name="alarm-slide">
+      <aside
+        v-if="isOpen"
+        class="fixed right-0 top-14 bottom-0 z-30 w-full sm:w-[360px] xl:w-[380px] border-l border-border bg-card shadow-2xl flex flex-col"
       >
-        <ChevronRight v-if="isExpanded" class="h-4 w-4" />
-        <ChevronLeft v-else class="h-4 w-4" />
-      </button>
-
-      <template v-if="isExpanded">
-        <div class="flex items-center gap-2">
-          <Bell class="h-4 w-4 text-slate-400" />
-          <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200">
-            Alarms Rail
-          </h3>
-          <span class="rounded-full bg-slate-800 px-1.5 py-0.2 text-[10px] font-mono text-slate-300 border border-slate-700">
-            {{ counts.total }}
-          </span>
-        </div>
-
-        <div class="flex items-center gap-1">
-          <!-- Mute Button -->
-          <button
-            type="button"
-            class="rounded-lg p-1.5 text-slate-400 hover:bg-[#1e2029] hover:text-slate-100 transition-colors"
-            :title="isMuted ? 'Unmute Alarms' : 'Mute Alarms'"
-            @click="isMuted = !isMuted"
-          >
-            <VolumeX v-if="isMuted" class="h-3.5 w-3.5 text-slate-300" />
-            <Volume2 v-else class="h-3.5 w-3.5 text-slate-400" />
-          </button>
-
-          <!-- Settings Button -->
-          <button
-            type="button"
-            class="rounded-lg p-1.5 text-slate-400 hover:bg-[#1e2029] hover:text-slate-100 transition-colors"
-            title="Panel Settings"
-            @click="openSettings"
-          >
-            <Settings class="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </template>
-    </div>
-
-    <!-- Expanded Drawer Content -->
-    <template v-if="isExpanded">
-      <!-- Search Bar -->
-      <div class="p-2 border-b border-[#1e2029] bg-[#0a0b0e]">
-        <div class="relative">
-          <Search class="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-500 pointer-events-none" />
-          <input
-            v-model="searchQuery"
-            placeholder="Search code or description..."
-            class="h-7 w-full rounded-lg border border-[#1e2029] bg-[#0e0f13] pl-8 pr-2 text-[11px] text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-sky-500/50"
-          />
-        </div>
-      </div>
-
-      <!-- Priority Filter Strip -->
-      <div class="flex items-center justify-between border-b border-[#1e2029] px-2 py-1.5 bg-[#0a0b0e] text-[10px]">
-        <button
-          type="button"
-          @click="activeFilter = 'all'"
-          :class="[
-            'px-2 py-0.5 rounded font-medium transition-all',
-            activeFilter === 'all'
-              ? 'bg-slate-700 text-white'
-              : 'text-slate-400 hover:text-slate-200'
-          ]"
-        >
-          All ({{ counts.total }})
-        </button>
-
-        <button
-          type="button"
-          @click="activeFilter = 'critical'"
-          :class="[
-            'px-2 py-0.5 rounded font-medium flex items-center gap-1 transition-all',
-            activeFilter === 'critical'
-              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-              : 'text-rose-400/80 hover:text-rose-300'
-          ]"
-        >
-          <span class="h-1.5 w-1.5 rounded-full bg-rose-500" />
-          Crit ({{ counts.critical }})
-        </button>
-
-        <button
-          type="button"
-          @click="activeFilter = 'warning'"
-          :class="[
-            'px-2 py-0.5 rounded font-medium flex items-center gap-1 transition-all',
-            activeFilter === 'warning'
-              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-              : 'text-amber-400/80 hover:text-amber-300'
-          ]"
-        >
-          <span class="h-1.5 w-1.5 rounded-full bg-amber-400" />
-          Warn ({{ counts.warning }})
-        </button>
-
-        <button
-          type="button"
-          @click="activeFilter = 'info'"
-          :class="[
-            'px-2 py-0.5 rounded font-medium flex items-center gap-1 transition-all',
-            activeFilter === 'info'
-              ? 'bg-slate-700 text-slate-200'
-              : 'text-slate-400 hover:text-slate-300'
-          ]"
-        >
-          <span class="h-1.5 w-1.5 rounded-full bg-slate-400" />
-          Info ({{ counts.info }})
-        </button>
-      </div>
-
-      <!-- Alarms List -->
-      <div class="flex-1 overflow-y-auto divide-y divide-[#1e2029] p-1.5 space-y-1">
-        <div
-          v-for="item in filteredAlarms"
-          :key="item.id"
-          class="group flex flex-col gap-1 p-2 rounded-lg bg-[#0e0f13] border border-[#1e2029] hover:border-slate-700 transition-all cursor-pointer"
-          :class="{ 'opacity-50': item.acknowledged }"
-          @click="acknowledgeAlarm(item.id)"
-        >
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-1.5 min-w-0">
-              <!-- Clean Solid Dot (No neon glow) -->
-              <span
-                class="h-1.5 w-1.5 rounded-full shrink-0"
-                :class="{
-                  'bg-rose-500': item.level === 'critical',
-                  'bg-amber-400': item.level === 'warning',
-                  'bg-slate-400': item.level === 'info',
-                }"
-              />
-              <span class="font-mono text-[10px] font-bold tracking-wider"
-                :class="{
-                  'text-rose-400': item.level === 'critical',
-                  'text-amber-300': item.level === 'warning',
-                  'text-slate-300': item.level === 'info',
-                }"
-              >
-                {{ item.code }}
-              </span>
-              <span v-if="item.acknowledged" class="text-[9px] text-slate-400 font-mono px-1 rounded bg-slate-800">
-                ACK
-              </span>
+        <!-- Header -->
+        <div class="flex h-[52px] shrink-0 items-center justify-between border-b border-border px-4 bg-muted/20">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="size-7 rounded-md bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
+              <Bell class="size-4 text-amber-500" />
             </div>
-
-            <span class="font-mono text-[10px] text-slate-500">
-              {{ item.time }}
-            </span>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 leading-none">
+                <h2 class="font-semibold text-xs tracking-tight truncate leading-none">Alarms & Events</h2>
+                <Badge variant="outline" class="text-[9px] font-mono px-1.5 py-0 border-amber-500/40 text-amber-500">
+                  {{ counts.total }} Active
+                </Badge>
+              </div>
+              <p class="text-[10px] text-muted-foreground truncate leading-none mt-1">Real-time alerts & machinery alarms</p>
+            </div>
           </div>
 
-          <div class="text-[11px] text-slate-300 leading-snug line-clamp-2">
-            {{ item.title }}
-          </div>
-        </div>
-
-        <div v-if="filteredAlarms.length === 0" class="py-8 text-center text-xs text-slate-500">
-          No alarms match filter
-        </div>
-      </div>
-    </template>
-
-    <!-- Collapsed Vertical Rail -->
-    <template v-else>
-      <div class="flex flex-col items-center gap-4 py-4 text-slate-400">
-        <button
-          type="button"
-          class="p-2 rounded-lg hover:bg-[#1e2029] text-slate-300"
-          @click="toggleDrawer"
-          title="Expand Alarms"
-        >
-          <Bell class="h-4 w-4" />
-        </button>
-
-        <span class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-[10px] font-mono text-slate-300 border border-slate-700">
-          {{ counts.total }}
-        </span>
-
-        <span class="flex h-4 w-4 items-center justify-center rounded-full bg-amber-500/20 text-[9px] font-mono text-amber-400 border border-amber-500/30">
-          {{ counts.warning }}
-        </span>
-      </div>
-    </template>
-
-    <!-- RSH Panel Settings Dialog -->
-    <Dialog v-model:open="isSettingsOpen">
-      <DialogContent class="border-[#1e2029] bg-[#121318] text-slate-200 sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle class="text-sm font-bold text-slate-100">Telemetry Feeds</DialogTitle>
-        </DialogHeader>
-
-        <div class="space-y-3 py-3">
-          <p class="text-xs text-slate-400">
-            Configure up to 2 telemetry feeds to stream onto the operations rail.
-          </p>
-
-          <div class="space-y-2">
-            <div
-              v-for="flag in draftFlags"
-              :key="flag.typename"
-              class="flex items-center justify-between rounded-lg border border-[#1e2029] bg-[#0e0f13] p-2.5"
+          <div class="flex items-center gap-1 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              class="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
+              :title="isMuted ? 'Unmute' : 'Mute'"
+              @click="isMuted = !isMuted"
             >
-              <span class="text-xs font-medium text-slate-200 capitalize">
-                {{ flag.typename.replace('widget_', 'Telemetry Stream ') }}
-              </span>
-              <input
-                type="checkbox"
-                :checked="flag.status"
-                class="size-4 accent-sky-500 rounded cursor-pointer"
-                @change="toggleDraftFlag(flag.typename)"
-              />
-            </div>
+              <VolumeX v-if="isMuted" class="size-3.5 text-muted-foreground" />
+              <Volume2 v-else class="size-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
+              title="Close Drawer"
+              @click="close"
+            >
+              <X class="size-3.5" />
+            </Button>
           </div>
         </div>
 
-        <div class="flex justify-end gap-2 border-t border-[#1e2029] pt-3">
+        <!-- Search Bar -->
+        <div class="p-3 border-b border-border bg-muted/10">
+          <div class="relative">
+            <Search class="size-3.5 absolute left-2.5 top-2.5 text-muted-foreground pointer-events-none" />
+            <input
+              v-model="searchQuery"
+              placeholder="Filter by alarm code or title..."
+              class="h-8 w-full rounded-md border border-border bg-background pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+        </div>
+
+        <!-- Filter Strip -->
+        <div class="flex items-center justify-between border-b border-border px-3 py-1.5 bg-muted/10 text-xs">
           <button
             type="button"
-            class="rounded-lg border border-[#1e2029] px-3 py-1.5 text-xs text-slate-400 hover:text-slate-100"
-            @click="isSettingsOpen = false"
+            @click="activeFilter = 'all'"
+            :class="[
+              'px-2 py-0.5 rounded font-medium text-[11px] transition-all cursor-pointer',
+              activeFilter === 'all'
+                ? 'bg-background text-foreground shadow-xs font-semibold'
+                : 'text-muted-foreground hover:text-foreground'
+            ]"
           >
-            Cancel
+            All ({{ counts.total }})
           </button>
+
           <button
             type="button"
-            class="rounded-lg bg-sky-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-sky-500"
-            @click="saveSettings"
+            @click="activeFilter = 'critical'"
+            :class="[
+              'px-2 py-0.5 rounded font-medium text-[11px] flex items-center gap-1 transition-all cursor-pointer',
+              activeFilter === 'critical'
+                ? 'bg-rose-500/10 text-rose-500 font-semibold border border-rose-500/30'
+                : 'text-muted-foreground hover:text-rose-500'
+            ]"
           >
-            Save Changes
+            <span class="size-1.5 rounded-full bg-rose-500" />
+            Crit ({{ counts.critical }})
+          </button>
+
+          <button
+            type="button"
+            @click="activeFilter = 'warning'"
+            :class="[
+              'px-2 py-0.5 rounded font-medium text-[11px] flex items-center gap-1 transition-all cursor-pointer',
+              activeFilter === 'warning'
+                ? 'bg-amber-500/10 text-amber-500 font-semibold border border-amber-500/30'
+                : 'text-muted-foreground hover:text-amber-500'
+            ]"
+          >
+            <span class="size-1.5 rounded-full bg-amber-500" />
+            Warn ({{ counts.warning }})
+          </button>
+
+          <button
+            type="button"
+            @click="activeFilter = 'info'"
+            :class="[
+              'px-2 py-0.5 rounded font-medium text-[11px] flex items-center gap-1 transition-all cursor-pointer',
+              activeFilter === 'info'
+                ? 'bg-primary/10 text-primary font-semibold border border-primary/30'
+                : 'text-muted-foreground hover:text-primary'
+            ]"
+          >
+            <span class="size-1.5 rounded-full bg-primary" />
+            Info ({{ counts.info }})
           </button>
         </div>
-      </DialogContent>
-    </Dialog>
-  </aside>
+
+        <!-- Alarms List -->
+        <div class="flex-1 overflow-y-auto divide-y divide-border/60 p-2 space-y-1">
+          <div
+            v-for="item in filteredAlarms"
+            :key="item.id"
+            class="group flex flex-col gap-1.5 p-2.5 rounded-lg border border-transparent hover:border-border hover:bg-muted/30 transition-all cursor-pointer"
+            :class="{ 'opacity-50': item.acknowledged }"
+            @click="acknowledgeAlarm(item.id)"
+          >
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2 min-w-0">
+                <span
+                  class="size-1.5 rounded-full shrink-0"
+                  :class="{
+                    'bg-rose-500': item.level === 'critical',
+                    'bg-amber-500': item.level === 'warning',
+                    'bg-primary': item.level === 'info',
+                  }"
+                />
+                <span
+                  class="font-mono text-xs font-bold"
+                  :class="{
+                    'text-rose-500': item.level === 'critical',
+                    'text-amber-500': item.level === 'warning',
+                    'text-foreground': item.level === 'info',
+                  }"
+                >
+                  {{ item.code }}
+                </span>
+                <span v-if="item.acknowledged" class="text-[9px] text-muted-foreground font-mono px-1 rounded bg-muted">
+                  ACK
+                </span>
+              </div>
+
+              <span class="font-mono text-[10px] text-muted-foreground">
+                {{ item.time }}
+              </span>
+            </div>
+
+            <div class="text-xs text-foreground font-medium leading-snug line-clamp-2">
+              {{ item.title }}
+            </div>
+          </div>
+
+          <div v-if="filteredAlarms.length === 0" class="py-12 text-center text-xs text-muted-foreground">
+            No alarms match the active filter
+          </div>
+        </div>
+      </aside>
+    </Transition>
+  </div>
 </template>
+
+<style scoped>
+.alarm-slide-enter-active,
+.alarm-slide-leave-active {
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.alarm-slide-enter-from,
+.alarm-slide-leave-to {
+  transform: translateX(100%);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>

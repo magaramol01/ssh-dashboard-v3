@@ -6,6 +6,17 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { BarChart as EChartsBarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, MarkLineComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  chartTextColor,
+  chartAxisColor,
+  chartSplitLineColor,
+  chartTooltipBg,
+  chartTooltipBorder,
+  chartTooltipText,
+} from '@/components/ui/charts/useChartTheme'
 import { useVesselDashboard } from '~/composables/useVesselDashboard'
 import { getCylinderStatusColor, computeCylinderStats } from '~/lib/vessel-analytics'
 
@@ -59,9 +70,9 @@ const stats = computed(() => {
 })
 
 const overallStatus = computed(() => {
-  if (stats.value.max > 350) return { label: 'ALARM', color: 'text-rose-400 bg-rose-500/15 border-rose-500/30' }
-  if (stats.value.max >= 330) return { label: 'ELEVATED', color: 'text-amber-400 bg-amber-500/15 border-amber-500/30' }
-  return { label: 'NOMINAL', color: 'text-slate-300 bg-slate-800/80 border-slate-700/50' }
+  if (stats.value.max > 350) return { label: 'ALARM', color: 'text-rose-500 border-rose-500/30' }
+  if (stats.value.max >= 330) return { label: 'ELEVATED', color: 'text-amber-500 border-amber-500/30' }
+  return { label: 'NOMINAL', color: 'text-primary border-primary/30' }
 })
 
 const chartOption = computed(() => {
@@ -70,7 +81,7 @@ const chartOption = computed(() => {
     value: c.temp,
     itemStyle: {
       color: getCylinderStatusColor(c.temp),
-      borderRadius: [3, 3, 0, 0],
+      borderRadius: [4, 4, 0, 0],
     },
   }))
 
@@ -86,30 +97,30 @@ const chartOption = computed(() => {
     },
     tooltip: {
       trigger: 'item',
-      backgroundColor: '#121318',
-      borderColor: '#1e2029',
+      backgroundColor: chartTooltipBg.value,
+      borderColor: chartTooltipBorder.value,
       borderWidth: 1,
       padding: [8, 12],
-      textStyle: { color: '#f8fafc', fontSize: 11 },
+      textStyle: { color: chartTooltipText.value, fontSize: 11 },
       formatter: (params: any) => {
         const cyl = cylinders.value[params.dataIndex]
         const diff = (cyl.temp - avgTemp).toFixed(1)
         const sign = Number(diff) > 0 ? `+${diff}` : `${diff}`
         return `
-          <div class="font-semibold text-slate-200">${cyl.label} Exhaust Temp</div>
+          <div class="font-semibold text-foreground">${cyl.label} Exhaust Temp</div>
           <div class="flex items-center gap-2 mt-1">
-            <span class="font-mono text-sm font-bold text-sky-400">${cyl.temp} °C</span>
-            <span class="text-[10px] text-slate-400">(${sign} °C vs Avg)</span>
+            <span class="font-mono text-sm font-bold text-primary">${cyl.temp} °C</span>
+            <span class="text-[10px] text-muted-foreground">(${sign} °C vs Avg)</span>
           </div>
-          <div class="text-[10px] text-slate-500 mt-0.5">CFW: ${cyl.cfw} °C | PCO: ${cyl.pco} °C</div>
+          <div class="text-[10px] text-muted-foreground mt-0.5">CFW: ${cyl.cfw} °C | PCO: ${cyl.pco} °C</div>
         `
       },
     },
     xAxis: {
       type: 'category',
       data: xLabels,
-      axisLine: { lineStyle: { color: '#1e2029' } },
-      axisLabel: { color: '#94a3b8', fontSize: 10, fontWeight: 500 },
+      axisLine: { lineStyle: { color: chartAxisColor.value } },
+      axisLabel: { color: chartTextColor.value, fontSize: 10, fontWeight: 500 },
       axisTick: { show: false },
     },
     yAxis: {
@@ -117,27 +128,27 @@ const chartOption = computed(() => {
       name: '°C',
       min: 280,
       max: 360,
-      nameTextStyle: { color: '#64748b', fontSize: 9 },
-      axisLabel: { color: '#64748b', fontSize: 9 },
-      splitLine: { lineStyle: { color: '#1a1c24', type: 'dashed' } },
+      nameTextStyle: { color: chartTextColor.value, fontSize: 9 },
+      axisLabel: { color: chartTextColor.value, fontSize: 9 },
+      splitLine: { lineStyle: { color: chartSplitLineColor.value, type: 'dashed' } },
     },
     series: [
       {
         name: 'Exhaust Temp',
         type: 'bar',
-        barWidth: 24,
+        barWidth: 26,
         data: barData,
         markLine: {
           symbol: 'none',
           data: [
             {
               yAxis: avgTemp,
-              lineStyle: { color: '#38bdf8', type: 'dashed', width: 1.5, opacity: 0.7 },
+              lineStyle: { color: '#0284c7', type: 'dashed', width: 1.5, opacity: 0.8 },
               label: {
                 show: true,
                 position: 'end',
                 formatter: `Avg ${avgTemp}°C`,
-                color: '#38bdf8',
+                color: chartTextColor.value,
                 fontSize: 9,
                 fontWeight: 600,
               },
@@ -151,59 +162,55 @@ const chartOption = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col rounded-xl bg-[#121318] border border-[#1e2029] p-3.5 shadow-sm">
-    <!-- Header -->
-    <div class="flex flex-wrap items-center justify-between gap-2 pb-2 mb-1 border-b border-[#1e2029]">
-      <div class="flex items-center gap-2">
-        <Flame class="h-4 w-4 text-sky-400" />
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-200">
-          ME Cylinder Exhaust Temps
-        </h3>
-      </div>
+  <Card class="shadow-xs flex flex-col">
+    <CardHeader class="p-4 pb-2">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <CardTitle class="text-sm font-semibold flex items-center gap-2">
+            <Flame class="size-4 text-primary" />
+            <span>ME Cylinder Exhaust Temps</span>
+          </CardTitle>
+          <CardDescription class="text-xs">
+            Individual cylinder gas temperatures and spread variance
+          </CardDescription>
+        </div>
 
-      <!-- Status Badges -->
-      <div class="flex items-center gap-2">
-        <span
-          :class="[
-            'px-2 py-0.5 text-[10px] font-mono tracking-wider rounded-md border',
-            overallStatus.color
-          ]"
-        >
+        <Badge variant="outline" :class="['text-[10px] font-mono', overallStatus.color]">
           {{ overallStatus.label }}
-        </span>
+        </Badge>
       </div>
-    </div>
+    </CardHeader>
 
-    <!-- Quick Stats Strip -->
-    <div class="grid grid-cols-3 gap-2 py-1 px-2 mb-1 rounded-lg bg-[#0e0f13] border border-[#1e2029] text-center text-[11px]">
-      <div>
-        <div class="text-[9px] uppercase tracking-wider text-slate-500">Average</div>
-        <div class="font-mono font-bold text-slate-200">{{ stats.avg }} °C</div>
+    <CardContent class="p-4 pt-1 space-y-2">
+      <!-- Quick Stats Strip -->
+      <div class="grid grid-cols-3 gap-2 py-1.5 px-3 rounded-lg bg-muted/40 border border-border text-center text-xs">
+        <div>
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground">Average</div>
+          <div class="font-mono font-bold text-foreground">{{ stats.avg }} °C</div>
+        </div>
+        <div>
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground">Max Temp</div>
+          <div class="font-mono font-bold text-foreground">{{ stats.max }} °C</div>
+        </div>
+        <div>
+          <div class="text-[10px] uppercase tracking-wider text-muted-foreground">Spread (Δ)</div>
+          <div class="font-mono font-bold text-muted-foreground">{{ stats.spread }} °C</div>
+        </div>
       </div>
-      <div>
-        <div class="text-[9px] uppercase tracking-wider text-slate-500">Max Temp</div>
-        <div class="font-mono font-bold text-slate-200">{{ stats.max }} °C</div>
-      </div>
-      <div>
-        <div class="text-[9px] uppercase tracking-wider text-slate-500">Spread (Δ)</div>
-        <div class="font-mono font-bold text-slate-400">{{ stats.spread }} °C</div>
-      </div>
-    </div>
 
-    <!-- ECharts Bar Container -->
-    <div class="relative w-full">
-      <ClientOnly>
-        <VChart
-          :option="chartOption"
-          autoresize
-          style="height: 190px; width: 100%;"
-        />
-        <template #fallback>
-          <div class="h-[190px] w-full flex items-center justify-center text-xs text-slate-500 bg-black/20 rounded-lg">
-            Loading cylinder temperatures...
-          </div>
-        </template>
-      </ClientOnly>
-    </div>
-  </div>
+      <!-- ECharts Bar Container -->
+      <div class="relative w-full">
+        <ClientOnly>
+          <VChart
+            :option="chartOption"
+            autoresize
+            style="height: 220px; width: 100%;"
+          />
+          <template #fallback>
+            <Skeleton class="h-[220px] w-full rounded-xl" />
+          </template>
+        </ClientOnly>
+      </div>
+    </CardContent>
+  </Card>
 </template>
