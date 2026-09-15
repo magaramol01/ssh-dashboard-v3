@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { Info } from 'lucide-vue-next'
 import { useVesselDashboard } from '~/composables/useVesselDashboard'
+import { formatShaftPower } from '~/lib/vessel-analytics'
 
 const { dashboardState } = useVesselDashboard()
 const currentCarouselIndex = ref<number>(0)
@@ -110,18 +111,32 @@ function extractGroup(groupObj: any, fallback: MetricGroup): MetricGroup {
     const colData = row?.colData || {}
     if (colData.col1?.widgetData?.caption) {
       const w = colData.col1.widgetData
+      let val = w.value !== null && w.value !== undefined && w.value !== '' ? w.value : '0.00'
+      let unit = w.unit || ''
+      if (w.caption?.toUpperCase().includes('SHAFT POWER') || w.caption?.toUpperCase().includes('EST.POWER')) {
+        const p = formatShaftPower(val)
+        val = p.kwFormatted
+        unit = 'kW'
+      }
       metrics.push({
         caption: w.caption,
-        value: w.value !== null && w.value !== undefined && w.value !== '' ? w.value : '0.00',
-        unit: w.unit || '',
+        value: val,
+        unit,
       })
     }
     if (colData.col2?.widgetData?.caption) {
       const w = colData.col2.widgetData
+      let val = w.value !== null && w.value !== undefined && w.value !== '' ? w.value : '0.00'
+      let unit = w.unit || ''
+      if (w.caption?.toUpperCase().includes('SHAFT POWER') || w.caption?.toUpperCase().includes('EST.POWER')) {
+        const p = formatShaftPower(val)
+        val = p.kwFormatted
+        unit = 'kW'
+      }
       metrics.push({
         caption: w.caption,
-        value: w.value !== null && w.value !== undefined && w.value !== '' ? w.value : '0.00',
-        unit: w.unit || '',
+        value: val,
+        unit,
       })
     }
   }

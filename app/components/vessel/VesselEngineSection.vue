@@ -7,6 +7,7 @@ import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 import { useVesselDashboard } from '~/composables/useVesselDashboard'
+import { sanitizeExhaustTemp } from '~/lib/vessel-analytics'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent])
 
@@ -51,11 +52,11 @@ const cylinders = computed(() => {
   for (let i = 1; i <= 6; i++) {
     const g = gd[`gauge${i}`]
     const rawVal = g?.widgetData?.value
-    const val = rawVal !== null && rawVal !== undefined && rawVal !== '' ? String(rawVal) : '320.00'
+    const tempNum = sanitizeExhaustTemp(rawVal, i)
     list.push({
       id: i,
       name: g?.widgetData?.caption || `CYL ${i} EXH GAS TEMP`,
-      temp: val === '0.00' ? '320.50' : val,
+      temp: tempNum.toFixed(2),
       cfw: g?.col1?.widgetData?.value ?? '74.00',
       pco: g?.col2?.widgetData?.value ?? '40.00',
       param: g?.widgetData?.modbusParameterIdentifier || `AM2${i}`,

@@ -203,14 +203,10 @@ const filteredAlarms = computed(() => {
                 </h2>
                 <Badge
                   variant="outline"
-                  :class="[
-                    'text-[10px] font-mono px-1.5 py-0 font-medium',
-                    criticalAlarmsCount > 0
-                      ? 'border-rose-500/40 text-rose-500 bg-rose-500/10'
-                      : 'border-amber-500/40 text-amber-500 bg-amber-500/10'
-                  ]"
+                  class="text-[10px] font-mono px-2 py-0.5 font-medium border-border/80 bg-muted/60 text-muted-foreground flex items-center gap-1.5"
                 >
-                  {{ activeAlarmsCount }} active
+                  <span v-if="criticalAlarmsCount > 0" class="size-1.5 rounded-full bg-rose-500 animate-ping shrink-0" />
+                  <span>{{ activeAlarmsCount }} active</span>
                 </Badge>
               </div>
               <p class="text-xs text-muted-foreground truncate mt-0.5 leading-normal">
@@ -256,8 +252,8 @@ const filteredAlarms = computed(() => {
               <span class="size-1.5 rounded-full bg-amber-500" />
               <span class="font-semibold font-mono">{{ warningAlarmsCount }}</span> warnings
             </span>
-            <span class="flex items-center gap-1.5 text-primary font-normal">
-              <span class="size-1.5 rounded-full bg-primary" />
+            <span class="flex items-center gap-1.5 text-sky-500 font-normal">
+              <span class="size-1.5 rounded-full bg-sky-500" />
               <span class="font-semibold font-mono">{{ infoAlarmsCount }}</span> info
             </span>
           </div>
@@ -275,7 +271,7 @@ const filteredAlarms = computed(() => {
               title="Warning Alarms"
             />
             <div
-              class="bg-primary transition-all duration-300"
+              class="bg-sky-500 transition-all duration-300"
               :style="{ width: `${(infoAlarmsCount / (alarmsList.length || 1)) * 100}%` }"
               title="Info / Advisories"
             />
@@ -405,11 +401,11 @@ const filteredAlarms = computed(() => {
                 :class="[
                   'px-1.5 py-0.5 rounded border transition-colors cursor-pointer flex items-center gap-1',
                   activeSeverity === 'info'
-                    ? 'border-primary/50 bg-primary/15 text-primary font-medium'
-                    : 'border-border text-muted-foreground hover:text-primary'
+                    ? 'border-sky-500/50 bg-sky-500/15 text-sky-500 font-medium'
+                    : 'border-border text-muted-foreground hover:text-sky-500'
                 ]"
               >
-                <span class="size-1 rounded-full bg-primary" />
+                <span class="size-1 rounded-full bg-sky-500" />
                 Advisory
               </button>
             </div>
@@ -448,14 +444,14 @@ const filteredAlarms = computed(() => {
             v-for="item in filteredAlarms"
             :key="item.id"
             :class="[
-              'rounded-lg border p-3 transition-all flex flex-col gap-2',
+              'rounded-lg border p-3 transition-all flex flex-col gap-2 shadow-xs',
               item.acknowledged
                 ? 'bg-muted/15 border-border/40 opacity-60'
                 : item.level === 'critical'
-                  ? 'bg-rose-500/5 border-rose-500/30 hover:border-rose-500/50 shadow-xs'
+                  ? 'border-l-4 border-l-rose-500 bg-rose-500/5 border-border/80 hover:border-rose-500/40'
                   : item.level === 'warning'
-                    ? 'bg-amber-500/5 border-amber-500/30 hover:border-amber-500/50'
-                    : 'bg-card border-border hover:border-primary/40'
+                    ? 'border-l-4 border-l-amber-500 bg-amber-500/5 border-border/80 hover:border-amber-500/40'
+                    : 'border-l-4 border-l-sky-500 bg-sky-500/5 border-border/80 hover:border-sky-500/40'
             ]"
           >
             <!-- Card Header: Severity Code, System Tag, UTC Time -->
@@ -469,7 +465,7 @@ const filteredAlarms = computed(() => {
                       ? 'bg-rose-500/15 text-rose-500 border border-rose-500/30'
                       : item.level === 'warning'
                         ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30'
-                        : 'bg-primary/15 text-primary border border-primary/30'
+                        : 'bg-sky-500/15 text-sky-500 border border-sky-500/30'
                   ]"
                 >
                   <span
@@ -479,7 +475,7 @@ const filteredAlarms = computed(() => {
                         ? 'bg-rose-500 animate-ping'
                         : item.level === 'warning'
                           ? 'bg-amber-500'
-                          : 'bg-primary'
+                          : 'bg-sky-500'
                     ]"
                   />
                   {{ item.code }}
@@ -520,7 +516,7 @@ const filteredAlarms = computed(() => {
                 <span class="text-muted-foreground text-xs font-normal">Observed:</span>
                 <span
                   class="font-mono font-semibold ml-1.5"
-                  :class="item.level === 'critical' ? 'text-rose-500' : 'text-foreground'"
+                  :class="item.level === 'critical' ? 'text-rose-500' : item.level === 'warning' ? 'text-amber-500' : 'text-sky-500'"
                 >
                   {{ item.reading }}
                 </span>

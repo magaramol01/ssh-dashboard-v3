@@ -9,6 +9,7 @@ import {
 } from 'lucide-vue-next'
 import { Card, CardContent } from '@/components/ui/card'
 import { useVesselDashboard } from '~/composables/useVesselDashboard'
+import { formatShaftPower, sanitizeExhaustTemp, computeCylinderStats } from '~/lib/vessel-analytics'
 
 const {
   dashboardState,
@@ -47,11 +48,20 @@ const fuelRate = computed(() => {
 const shaftPower = computed(() => {
   const row4 = dashboardState.value?.widget_1?.configuration?.body?.data?.carousel1?.group2?.data?.row4
   const raw = row4?.colData?.col1?.widgetData?.value
-  if (raw !== null && raw !== undefined && raw !== '' && raw !== '0.00' && raw !== 'NA') {
-    const num = parseFloat(raw)
-    return isNaN(num) ? '8,450' : num.toLocaleString()
+  return formatShaftPower(raw)
+})
+
+const exhaustStats = computed(() => {
+  const acc1 = dashboardState.value?.widget_3?.configuration?.body?.data?.carousel1?.acc1
+  if (!acc1?.gaugesData) {
+    return { avg: 321.2, spread: 6.8 }
   }
-  return '8,450'
+  const temps: number[] = []
+  for (let i = 1; i <= 6; i++) {
+    const raw = acc1.gaugesData[`gauge${i}`]?.widgetData?.value
+    temps.push(sanitizeExhaustTemp(raw, i))
+  }
+  return computeCylinderStats(temps)
 })
 
 const shaftMcr = computed(() => {
@@ -129,11 +139,11 @@ const voyageProgressPct = computed(() => {
           <Zap class="size-4 text-primary" />
         </div>
         <div class="text-2xl font-bold tracking-tight tabular-nums text-foreground">
-          {{ shaftPower }}
+          {{ shaftPower.kwFormatted }}
           <span class="text-xs font-normal text-muted-foreground">kW</span>
         </div>
         <p class="text-[11px] text-muted-foreground truncate font-normal">
-          Load: {{ shaftMcr }} MCR · {{ shaftRpm }}
+          Load: {{ shaftMcr }} MCR · {{ shaftPower.mwFormatted }} MW
         </p>
       </CardContent>
     </Card>
@@ -163,11 +173,11 @@ const voyageProgressPct = computed(() => {
           <Flame class="size-4 text-primary" />
         </div>
         <div class="text-2xl font-bold tracking-tight tabular-nums text-foreground">
-          321.2
+          {{ exhaustStats.avg }}
           <span class="text-xs font-normal text-muted-foreground">°C</span>
         </div>
         <p class="text-[11px] text-muted-foreground truncate font-normal">
-          Spread: 6.8°C · Nominal (&lt;330°C)
+          Spread: {{ exhaustStats.spread }}°C · Nominal (&lt;380°C)
         </p>
       </CardContent>
     </Card>

@@ -18,7 +18,7 @@ import {
   chartTooltipText,
 } from '@/components/ui/charts/useChartTheme'
 import { useVesselDashboard } from '~/composables/useVesselDashboard'
-import { getCylinderStatusColor, computeCylinderStats } from '~/lib/vessel-analytics'
+import { getCylinderStatusColor, computeCylinderStats, sanitizeExhaustTemp } from '~/lib/vessel-analytics'
 
 use([CanvasRenderer, EChartsBarChart, GridComponent, TooltipComponent, MarkLineComponent])
 
@@ -51,12 +51,11 @@ const cylinders = computed<CylinderData[]>(() => {
   for (let i = 1; i <= 6; i++) {
     const g = gd[`gauge${i}`]
     const rawVal = g?.widgetData?.value
-    const parsed = rawVal !== null && rawVal !== undefined && rawVal !== '' ? parseFloat(String(rawVal)) : 0
-    const temp = (!parsed || parsed === 0) ? (318 + i * 1.2) : parsed
+    const temp = sanitizeExhaustTemp(rawVal, i)
     list.push({
       id: i,
       label: `CYL ${i}`,
-      temp: parseFloat(temp.toFixed(1)),
+      temp,
       cfw: g?.col1?.widgetData?.value ?? '74.00',
       pco: g?.col2?.widgetData?.value ?? '40.00',
     })
@@ -70,9 +69,9 @@ const stats = computed(() => {
 })
 
 const overallStatus = computed(() => {
-  if (stats.value.max > 350) return { label: 'Alarm', color: 'text-rose-500 border-rose-500/30' }
-  if (stats.value.max >= 330) return { label: 'Elevated', color: 'text-amber-500 border-amber-500/30' }
-  return { label: 'Nominal', color: 'text-primary border-primary/30' }
+  if (stats.value.max > 420) return { label: 'Alarm', color: 'text-rose-500 border-rose-500/30' }
+  if (stats.value.max >= 380) return { label: 'Elevated', color: 'text-amber-500 border-amber-500/30' }
+  return { label: 'Nominal', color: 'text-sky-500 border-sky-500/30' }
 })
 
 const chartOption = computed(() => {
@@ -86,6 +85,8 @@ const chartOption = computed(() => {
   }))
 
   const avgTemp = stats.value.avg
+  const minAxis = Math.max(0, Math.floor((stats.value.min - 30) / 20) * 20 || 280)
+  const maxAxis = Math.ceil((stats.value.max + 30) / 20) * 20 || 380
 
   return {
     backgroundColor: 'transparent',
@@ -122,8 +123,8 @@ const chartOption = computed(() => {
     yAxis: {
       type: 'value',
       name: '°C',
-      min: 280,
-      max: 380,
+      min: minAxis,
+      max: maxAxis,
       nameTextStyle: { color: chartTextColor.value, fontSize: 9 },
       axisLabel: { color: chartTextColor.value, fontSize: 9 },
       splitLine: { lineStyle: { color: chartSplitLineColor.value, type: 'dashed' } },
@@ -137,7 +138,7 @@ const chartOption = computed(() => {
         markLine: {
           silent: true,
           symbol: 'none',
-          lineStyle: { color: '#0284c7', type: 'dashed', width: 1.5 },
+          lineStyle: { color: '#0ea5e9', type: 'dashed', width: 1.5 },
           data: [
             {
               yAxis: avgTemp,

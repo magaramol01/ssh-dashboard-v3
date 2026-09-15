@@ -137,9 +137,9 @@ const meanDraft = computed(() => {
                 :stroke-dashoffset="119.4 * (1 - Math.min(1, Math.max(0, speedVal / 25)))"
               />
             </svg>
-            <div class="absolute bottom-1 flex flex-col items-center">
-              <span class="font-mono text-xl font-bold text-foreground tabular-nums">{{ speedVal.toFixed(1) }}</span>
-              <span class="text-[11px] font-normal text-muted-foreground">knots</span>
+            <div class="absolute bottom-0.5 flex flex-col items-center">
+              <span class="font-mono text-sm font-medium text-foreground/80 tabular-nums">{{ speedVal.toFixed(1) }}</span>
+              <span class="text-[10px] font-normal text-muted-foreground/70">kn</span>
             </div>
           </div>
 
@@ -170,9 +170,9 @@ const meanDraft = computed(() => {
                 :stroke-dashoffset="119.4 * (1 - Math.min(1, Math.max(0, mcrVal / 100)))"
               />
             </svg>
-            <div class="absolute bottom-1 flex flex-col items-center">
-              <span class="font-mono text-xl font-bold text-foreground tabular-nums">{{ mcrVal.toFixed(1) }}%</span>
-              <span class="text-[11px] font-normal text-muted-foreground">rated MCR</span>
+            <div class="absolute bottom-0.5 flex flex-col items-center">
+              <span class="font-mono text-sm font-medium text-foreground/80 tabular-nums">{{ mcrVal.toFixed(1) }}%</span>
+              <span class="text-[10px] font-normal text-muted-foreground/70">MCR</span>
             </div>
           </div>
 
@@ -203,9 +203,9 @@ const meanDraft = computed(() => {
                 :stroke-dashoffset="119.4 * (1 - Math.min(1, Math.max(0, rpmVal / 120)))"
               />
             </svg>
-            <div class="absolute bottom-1 flex flex-col items-center">
-              <span class="font-mono text-xl font-bold text-foreground tabular-nums">{{ rpmVal.toFixed(1) }}</span>
-              <span class="text-[11px] font-normal text-muted-foreground">rev / min</span>
+            <div class="absolute bottom-0.5 flex flex-col items-center">
+              <span class="font-mono text-sm font-medium text-foreground/80 tabular-nums">{{ rpmVal.toFixed(1) }}</span>
+              <span class="text-[10px] font-normal text-muted-foreground/70">rpm</span>
             </div>
           </div>
 
@@ -236,9 +236,9 @@ const meanDraft = computed(() => {
                 :stroke-dashoffset="119.4 * (1 - Math.min(1, Math.max(0, fuelVal / 35)))"
               />
             </svg>
-            <div class="absolute bottom-1 flex flex-col items-center">
-              <span class="font-mono text-xl font-bold text-foreground tabular-nums">{{ fuelVal.toFixed(1) }}</span>
-              <span class="text-[11px] font-normal text-muted-foreground">tons / day</span>
+            <div class="absolute bottom-0.5 flex flex-col items-center">
+              <span class="font-mono text-sm font-medium text-foreground/80 tabular-nums">{{ fuelVal.toFixed(1) }}</span>
+              <span class="text-[10px] font-normal text-muted-foreground/70">t/d</span>
             </div>
           </div>
 
@@ -272,9 +272,9 @@ const meanDraft = computed(() => {
                 :stroke-dashoffset="119.4 * (1 - Math.min(1, Math.max(0, windSpeed / 40)))"
               />
             </svg>
-            <div class="absolute bottom-1 flex flex-col items-center">
-              <span class="font-mono text-xl font-bold text-foreground tabular-nums">{{ windSpeed.toFixed(1) }}</span>
-              <span class="text-[11px] font-normal text-muted-foreground">knots</span>
+            <div class="absolute bottom-0.5 flex flex-col items-center">
+              <span class="font-mono text-sm font-medium text-foreground/80 tabular-nums">{{ windSpeed.toFixed(1) }}</span>
+              <span class="text-[10px] font-normal text-muted-foreground/70">kn</span>
             </div>
           </div>
 
@@ -327,9 +327,9 @@ const meanDraft = computed(() => {
                 :stroke-dashoffset="119.4 * (1 - Math.min(1, Math.max(0, waveHeight / 6)))"
               />
             </svg>
-            <div class="absolute bottom-1 flex flex-col items-center">
-              <span class="font-mono text-xl font-bold text-foreground tabular-nums">{{ waveHeight.toFixed(1) }}</span>
-              <span class="text-[11px] font-normal text-muted-foreground">meters</span>
+            <div class="absolute bottom-0.5 flex flex-col items-center">
+              <span class="font-mono text-sm font-medium text-foreground/80 tabular-nums">{{ waveHeight.toFixed(1) }}</span>
+              <span class="text-[10px] font-normal text-muted-foreground/70">m</span>
             </div>
           </div>
 
@@ -360,9 +360,9 @@ const meanDraft = computed(() => {
                 :stroke-dashoffset="119.4 * (1 - Math.min(1, Math.max(0, meanDraft / 14)))"
               />
             </svg>
-            <div class="absolute bottom-1 flex flex-col items-center">
-              <span class="font-mono text-xl font-bold text-foreground tabular-nums">{{ meanDraft.toFixed(1) }}</span>
-              <span class="text-[11px] font-normal text-muted-foreground">meters</span>
+            <div class="absolute bottom-0.5 flex flex-col items-center">
+              <span class="font-mono text-sm font-medium text-foreground/80 tabular-nums">{{ meanDraft.toFixed(1) }}</span>
+              <span class="text-[10px] font-normal text-muted-foreground/70">m</span>
             </div>
           </div>
 
