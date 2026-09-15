@@ -70,13 +70,13 @@ const stats = computed(() => {
 })
 
 const overallStatus = computed(() => {
-  if (stats.value.max > 350) return { label: 'ALARM', color: 'text-rose-500 border-rose-500/30' }
-  if (stats.value.max >= 330) return { label: 'ELEVATED', color: 'text-amber-500 border-amber-500/30' }
-  return { label: 'NOMINAL', color: 'text-primary border-primary/30' }
+  if (stats.value.max > 350) return { label: 'Alarm', color: 'text-rose-500 border-rose-500/30' }
+  if (stats.value.max >= 330) return { label: 'Elevated', color: 'text-amber-500 border-amber-500/30' }
+  return { label: 'Nominal', color: 'text-primary border-primary/30' }
 })
 
 const chartOption = computed(() => {
-  const xLabels = cylinders.value.map((c) => c.label)
+  const xLabels = cylinders.value.map((c) => `Cyl ${c.id}`)
   const barData = cylinders.value.map((c) => ({
     value: c.temp,
     itemStyle: {
@@ -90,29 +90,25 @@ const chartOption = computed(() => {
   return {
     backgroundColor: 'transparent',
     grid: {
-      left: 35,
-      right: 15,
+      left: 45,
+      right: 20,
       top: 25,
       bottom: 25,
     },
     tooltip: {
-      trigger: 'item',
+      trigger: 'axis',
       backgroundColor: chartTooltipBg.value,
       borderColor: chartTooltipBorder.value,
       borderWidth: 1,
-      padding: [8, 12],
       textStyle: { color: chartTooltipText.value, fontSize: 11 },
-      formatter: (params: any) => {
-        const cyl = cylinders.value[params.dataIndex]
-        const diff = (cyl.temp - avgTemp).toFixed(1)
-        const sign = Number(diff) > 0 ? `+${diff}` : `${diff}`
+      formatter: (params: any[]) => {
+        const item = params[0]
+        const cyl = cylinders.value[item.dataIndex]
         return `
-          <div class="font-semibold text-foreground">${cyl.label} Exhaust Temp</div>
-          <div class="flex items-center gap-2 mt-1">
-            <span class="font-mono text-sm font-bold text-primary">${cyl.temp} °C</span>
-            <span class="text-[10px] text-muted-foreground">(${sign} °C vs Avg)</span>
-          </div>
-          <div class="text-[10px] text-muted-foreground mt-0.5">CFW: ${cyl.cfw} °C | PCO: ${cyl.pco} °C</div>
+          <div class="font-bold border-b border-border pb-1 mb-1">${cyl.label}</div>
+          <div class="flex justify-between gap-4"><span>Exh Temp:</span><b>${cyl.temp} °C</b></div>
+          <div class="flex justify-between gap-4"><span>CFW Out:</span><b>${cyl.cfw} °C</b></div>
+          <div class="flex justify-between gap-4"><span>PCO Out:</span><b>${cyl.pco} °C</b></div>
         `
       },
     },
@@ -120,14 +116,14 @@ const chartOption = computed(() => {
       type: 'category',
       data: xLabels,
       axisLine: { lineStyle: { color: chartAxisColor.value } },
-      axisLabel: { color: chartTextColor.value, fontSize: 10, fontWeight: 500 },
+      axisLabel: { color: chartTextColor.value, fontSize: 10 },
       axisTick: { show: false },
     },
     yAxis: {
       type: 'value',
       name: '°C',
       min: 280,
-      max: 360,
+      max: 380,
       nameTextStyle: { color: chartTextColor.value, fontSize: 9 },
       axisLabel: { color: chartTextColor.value, fontSize: 9 },
       splitLine: { lineStyle: { color: chartSplitLineColor.value, type: 'dashed' } },
@@ -136,17 +132,18 @@ const chartOption = computed(() => {
       {
         name: 'Exhaust Temp',
         type: 'bar',
-        barWidth: 26,
+        barWidth: '38%',
         data: barData,
         markLine: {
+          silent: true,
           symbol: 'none',
+          lineStyle: { color: '#0284c7', type: 'dashed', width: 1.5 },
           data: [
             {
               yAxis: avgTemp,
-              lineStyle: { color: '#0284c7', type: 'dashed', width: 1.5, opacity: 0.8 },
               label: {
                 show: true,
-                position: 'end',
+                position: 'insideEndTop',
                 formatter: `Avg ${avgTemp}°C`,
                 color: chartTextColor.value,
                 fontSize: 9,
@@ -166,16 +163,17 @@ const chartOption = computed(() => {
     <CardHeader class="p-4 pb-2">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div>
+          <div class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Thermal Profile</div>
           <CardTitle class="text-sm font-semibold flex items-center gap-2">
             <Flame class="size-4 text-primary" />
-            <span>ME Cylinder Exhaust Temps</span>
+            <span>ME Cylinder Exhaust Temperatures</span>
           </CardTitle>
           <CardDescription class="text-xs">
             Individual cylinder gas temperatures and spread variance
           </CardDescription>
         </div>
 
-        <Badge variant="outline" :class="['text-[10px] font-mono', overallStatus.color]">
+        <Badge variant="outline" :class="['text-[11px] font-medium', overallStatus.color]">
           {{ overallStatus.label }}
         </Badge>
       </div>
@@ -185,16 +183,16 @@ const chartOption = computed(() => {
       <!-- Quick Stats Strip -->
       <div class="grid grid-cols-3 gap-2 py-1.5 px-3 rounded-lg bg-muted/40 border border-border text-center text-xs">
         <div>
-          <div class="text-[10px] uppercase tracking-wider text-muted-foreground">Average</div>
-          <div class="font-mono font-bold text-foreground">{{ stats.avg }} °C</div>
+          <div class="text-xs font-normal text-muted-foreground">Average</div>
+          <div class="text-base font-semibold font-mono text-foreground">{{ stats.avg }} <span class="text-xs font-normal text-muted-foreground">°C</span></div>
         </div>
         <div>
-          <div class="text-[10px] uppercase tracking-wider text-muted-foreground">Max Temp</div>
-          <div class="font-mono font-bold text-foreground">{{ stats.max }} °C</div>
+          <div class="text-xs font-normal text-muted-foreground">Max temp</div>
+          <div class="text-base font-semibold font-mono text-foreground">{{ stats.max }} <span class="text-xs font-normal text-muted-foreground">°C</span></div>
         </div>
         <div>
-          <div class="text-[10px] uppercase tracking-wider text-muted-foreground">Spread (Δ)</div>
-          <div class="font-mono font-bold text-muted-foreground">{{ stats.spread }} °C</div>
+          <div class="text-xs font-normal text-muted-foreground">Spread (Δ)</div>
+          <div class="text-base font-semibold font-mono text-foreground">{{ stats.spread }} <span class="text-xs font-normal text-muted-foreground">°C</span></div>
         </div>
       </div>
 

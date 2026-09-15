@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import {
   Bell,
   Search,
@@ -10,9 +10,17 @@ import {
   AlertTriangle,
   AlertCircle,
   Info,
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
+  Sparkles,
+  CheckCheck,
+  RotateCcw,
+  SlidersHorizontal,
 } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useVesselDashboard, type VesselAlarmItem } from '~/composables/useVesselDashboard'
 
 const props = withDefaults(
   defineProps<{
@@ -42,259 +50,568 @@ function close() {
   isOpen.value = false
 }
 
-const searchQuery = ref<string>('')
-const activeFilter = ref<'all' | 'critical' | 'warning' | 'info'>('all')
-const isMuted = ref<boolean>(false)
+const {
+  alarmsList,
+  isAlarmsMuted,
+  activeAlarmsCount,
+  criticalAlarmsCount,
+  warningAlarmsCount,
+  infoAlarmsCount,
+  advisoryAlarmsCount,
+  acknowledgeAlarm,
+  acknowledgeAllAlarms,
+  resetAllAlarms,
+  toggleMuteAlarms,
+} = useVesselDashboard()
 
-interface AlarmItem {
-  id: string
-  code: string
-  title: string
-  level: 'critical' | 'warning' | 'info'
-  time: string
-  acknowledged?: boolean
+// Local UI state
+const searchQuery = ref<string>('')
+const activeCategory = ref<'all' | 'alarm' | 'alert' | 'advisory'>('all')
+const activeSeverity = ref<'all' | 'critical' | 'warning' | 'info'>('all')
+const hideAcknowledged = ref<boolean>(false)
+const expandedIds = ref<Set<string>>(new Set(['ALM-1', 'ALM-2'])) // Expand first two criticals by default
+
+function toggleExpand(id: string) {
+  if (expandedIds.value.has(id)) {
+    expandedIds.value.delete(id)
+  } else {
+    expandedIds.value.add(id)
+  }
 }
 
-const alarmItems = ref<AlarmItem[]>([
-  { id: 'ALM-1', code: 'A-04', title: 'DG3 RPM SENSOR DISCONNECTED', level: 'critical', time: '05:38:22' },
-  { id: 'ALM-2', code: 'A-12', title: 'TC EXH GAS OUTLET HI TEMP', level: 'critical', time: '05:15:00' },
-  { id: 'ALM-3', code: 'W-01', title: 'ME JCW INLET PRESS LOW', level: 'warning', time: '05:42:10' },
-  { id: 'ALM-4', code: 'W-09', title: 'ME SCAV AIR TEMP ELEVATED', level: 'warning', time: '05:30:15' },
-  { id: 'ALM-5', code: 'W-03', title: 'DG1 HT FW LOW LEVEL', level: 'warning', time: '04:42:19' },
-  { id: 'ALM-6', code: 'W-05', title: 'ME SCAV AIR RECEIVER TEMP HIGH', level: 'warning', time: '04:20:11' },
-  { id: 'ALM-7', code: 'W-08', title: 'FO SERVICE TANK LOW LEVEL', level: 'warning', time: '04:02:18' },
-  { id: 'ALM-8', code: 'I-02', title: 'AUTO UNLOADER IN OPERATION', level: 'info', time: '04:58:30' },
-  { id: 'ALM-9', code: 'I-01', title: 'AUX BLOWER #1 STARTED', level: 'info', time: '03:12:05' },
-])
+function isExpanded(id: string): boolean {
+  return expandedIds.value.has(id)
+}
 
-const counts = computed(() => ({
-  critical: alarmItems.value.filter((a) => a.level === 'critical').length,
-  warning: alarmItems.value.filter((a) => a.level === 'warning').length,
-  info: alarmItems.value.filter((a) => a.level === 'info').length,
-  total: alarmItems.value.length,
+function playNotificationSound(type: 'ack' | 'chime' = 'chime') {
+  if (isAlarmsMuted.value || typeof window === 'undefined') return
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+    if (!AudioCtx) return
+    const ctx = new AudioCtx()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = 'sine'
+    if (type === 'ack') {
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime) // C5
+      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.08) // E5
+      gain.gain.setValueAtTime(0.04, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2)
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start()
+      osc.stop(ctx.currentTime + 0.22)
+    } else {
+      osc.frequency.setValueAtTime(880, ctx.currentTime)
+      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.15)
+      gain.gain.setValueAtTime(0.05, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18)
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start()
+      osc.stop(ctx.currentTime + 0.2)
+    }
+  } catch {
+    // AudioContext unavailable or blocked
+  }
+}
+
+function handleAcknowledge(id: string) {
+  acknowledgeAlarm(id)
+  playNotificationSound('ack')
+}
+
+function handleAcknowledgeAll() {
+  acknowledgeAllAlarms()
+  playNotificationSound('ack')
+}
+
+function handleToggleMute() {
+  toggleMuteAlarms()
+  if (!isAlarmsMuted.value) {
+    playNotificationSound('chime')
+  }
+}
+
+// Category counts
+const categoryCounts = computed(() => ({
+  all: alarmsList.value.length,
+  alarm: alarmsList.value.filter((a) => a.category === 'alarm').length,
+  alert: alarmsList.value.filter((a) => a.category === 'alert').length,
+  advisory: alarmsList.value.filter((a) => a.category === 'advisory').length,
 }))
 
+// Filtered list
 const filteredAlarms = computed(() => {
-  let list = alarmItems.value
+  let list = alarmsList.value
 
-  if (activeFilter.value !== 'all') {
-    list = list.filter((a) => a.level === activeFilter.value)
+  // Category filter
+  if (activeCategory.value !== 'all') {
+    list = list.filter((a) => a.category === activeCategory.value)
   }
 
+  // Severity filter
+  if (activeSeverity.value !== 'all') {
+    list = list.filter((a) => a.level === activeSeverity.value)
+  }
+
+  // Hide acknowledged
+  if (hideAcknowledged.value) {
+    list = list.filter((a) => !a.acknowledged)
+  }
+
+  // Search query
   const q = searchQuery.value.trim().toLowerCase()
   if (q) {
-    list = list.filter(
-      (a) => a.title.toLowerCase().includes(q) || a.code.toLowerCase().includes(q)
+    list = list.filter((a) =>
+      a.title.toLowerCase().includes(q) ||
+      a.code.toLowerCase().includes(q) ||
+      a.system.toLowerCase().includes(q) ||
+      (a.reading && a.reading.toLowerCase().includes(q)) ||
+      (a.advisory && a.advisory.toLowerCase().includes(q))
     )
   }
 
   return list
 })
-
-function acknowledgeAlarm(id: string) {
-  const item = alarmItems.value.find((a) => a.id === id)
-  if (item) {
-    item.acknowledged = !item.acknowledged
-  }
-}
 </script>
 
 <template>
-  <div>
-    <!-- Mobile Backdrop -->
-    <Transition name="fade">
-      <div
-        v-if="isOpen"
-        class="fixed inset-0 bg-background/60 backdrop-blur-xs z-25 lg:hidden"
-        @click="close"
-      />
-    </Transition>
-
-    <!-- Docked Alarms Drawer (Matches CII Copilot panel docking) -->
-    <Transition name="alarm-slide">
-      <aside
-        v-if="isOpen"
-        class="fixed right-0 top-14 bottom-0 z-30 w-full sm:w-[360px] xl:w-[380px] border-l border-border bg-card shadow-2xl flex flex-col"
-      >
-        <!-- Header -->
-        <div class="flex h-[52px] shrink-0 items-center justify-between border-b border-border px-4 bg-muted/20">
+  <aside
+    v-if="isOpen"
+    class="sticky top-14 h-[calc(100svh-3.5rem)] w-[360px] xl:w-[390px] shrink-0 border-l border-border bg-card flex flex-col text-foreground z-10"
+  >
+        <!-- Top Main Header (Aligned 1:1 with 72px main sticky header bar) -->
+        <div class="flex h-[72px] shrink-0 items-center justify-between border-b border-border px-4 bg-muted/20">
           <div class="flex items-center gap-2.5 min-w-0">
-            <div class="size-7 rounded-md bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
-              <Bell class="size-4 text-amber-500" />
+            <div
+              :class="[
+                'flex size-9 items-center justify-center rounded-lg border shrink-0 transition-colors',
+                criticalAlarmsCount > 0
+                  ? 'bg-rose-500/10 border-rose-500/30 text-rose-500'
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-500'
+              ]"
+            >
+              <Bell class="size-5" :class="{ 'animate-bounce': criticalAlarmsCount > 0 && !isAlarmsMuted }" />
             </div>
+
             <div class="min-w-0">
-              <div class="flex items-center gap-2 leading-none">
-                <h2 class="font-semibold text-xs tracking-tight truncate leading-none">Alarms & Events</h2>
-                <Badge variant="outline" class="text-[9px] font-mono px-1.5 py-0 border-amber-500/40 text-amber-500">
-                  {{ counts.total }} Active
+              <div class="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground leading-none mb-1">Safety & Monitoring</div>
+              <div class="flex items-center gap-2">
+                <h2 class="font-semibold text-sm tracking-tight text-foreground truncate leading-tight">
+                  Alarms & Events
+                </h2>
+                <Badge
+                  variant="outline"
+                  :class="[
+                    'text-[10px] font-mono px-1.5 py-0 font-medium',
+                    criticalAlarmsCount > 0
+                      ? 'border-rose-500/40 text-rose-500 bg-rose-500/10'
+                      : 'border-amber-500/40 text-amber-500 bg-amber-500/10'
+                  ]"
+                >
+                  {{ activeAlarmsCount }} active
                 </Badge>
               </div>
-              <p class="text-[10px] text-muted-foreground truncate leading-none mt-1">Real-time alerts & machinery alarms</p>
+              <p class="text-xs text-muted-foreground truncate mt-0.5 leading-normal">
+                Real-time safety alerts & predictive CBM events
+              </p>
             </div>
           </div>
 
           <div class="flex items-center gap-1 shrink-0">
+            <!-- Mute / Unmute Sound -->
             <Button
               variant="ghost"
               size="icon"
-              class="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
-              :title="isMuted ? 'Unmute' : 'Mute'"
-              @click="isMuted = !isMuted"
+              class="size-8 text-muted-foreground hover:text-foreground cursor-pointer"
+              :title="isAlarmsMuted ? 'Sound Muted (Click to Unmute)' : 'Sound Active (Click to Mute)'"
+              @click="handleToggleMute"
             >
-              <VolumeX v-if="isMuted" class="size-3.5 text-muted-foreground" />
-              <Volume2 v-else class="size-3.5" />
+              <VolumeX v-if="isAlarmsMuted" class="size-4 text-muted-foreground" />
+              <Volume2 v-else class="size-4 text-primary" />
             </Button>
+
+            <!-- Close / Collapse Sidebar (>) -->
             <Button
               variant="ghost"
               size="icon"
-              class="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
-              title="Close Drawer"
+              class="size-8 text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer rounded-md"
+              title="Close Alarms Sidebar (>)"
               @click="close"
             >
-              <X class="size-3.5" />
+              <ChevronRight class="size-5" />
             </Button>
           </div>
         </div>
 
-        <!-- Search Bar -->
-        <div class="p-3 border-b border-border bg-muted/10">
-          <div class="relative">
-            <Search class="size-3.5 absolute left-2.5 top-2.5 text-muted-foreground pointer-events-none" />
-            <input
-              v-model="searchQuery"
-              placeholder="Filter by alarm code or title..."
-              class="h-8 w-full rounded-md border border-border bg-background pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+        <!-- Severity Proportion Bar & Counters -->
+        <div class="px-4 py-2.5 border-b border-border bg-muted/10 space-y-2">
+          <div class="flex items-center justify-between text-[11px]">
+            <span class="flex items-center gap-1.5 text-rose-500 font-normal">
+              <span class="size-1.5 rounded-full bg-rose-500" :class="{ 'animate-ping': criticalAlarmsCount > 0 }" />
+              <span class="font-semibold font-mono">{{ criticalAlarmsCount }}</span> critical
+            </span>
+            <span class="flex items-center gap-1.5 text-amber-500 font-normal">
+              <span class="size-1.5 rounded-full bg-amber-500" />
+              <span class="font-semibold font-mono">{{ warningAlarmsCount }}</span> warnings
+            </span>
+            <span class="flex items-center gap-1.5 text-primary font-normal">
+              <span class="size-1.5 rounded-full bg-primary" />
+              <span class="font-semibold font-mono">{{ infoAlarmsCount }}</span> info
+            </span>
+          </div>
+
+          <!-- Multi-colored ratio bar -->
+          <div class="w-full bg-muted h-1.5 rounded-full overflow-hidden flex">
+            <div
+              class="bg-rose-500 transition-all duration-300"
+              :style="{ width: `${(criticalAlarmsCount / (alarmsList.length || 1)) * 100}%` }"
+              title="Critical Alarms"
+            />
+            <div
+              class="bg-amber-500 transition-all duration-300"
+              :style="{ width: `${(warningAlarmsCount / (alarmsList.length || 1)) * 100}%` }"
+              title="Warning Alarms"
+            />
+            <div
+              class="bg-primary transition-all duration-300"
+              :style="{ width: `${(infoAlarmsCount / (alarmsList.length || 1)) * 100}%` }"
+              title="Info / Advisories"
             />
           </div>
         </div>
 
-        <!-- Filter Strip -->
-        <div class="flex items-center justify-between border-b border-border px-3 py-1.5 bg-muted/10 text-xs">
+        <!-- Category Tabs Strip (All, Alarms, Alerts, Advisories) -->
+        <div class="flex items-center border-b border-border bg-muted/20 px-2 py-1 gap-1 text-xs">
           <button
             type="button"
-            @click="activeFilter = 'all'"
+            @click="activeCategory = 'all'"
             :class="[
-              'px-2 py-0.5 rounded font-medium text-[11px] transition-all cursor-pointer',
-              activeFilter === 'all'
+              'flex-1 py-1 text-[11px] font-medium rounded-md transition-all cursor-pointer text-center',
+              activeCategory === 'all'
                 ? 'bg-background text-foreground shadow-xs font-semibold'
                 : 'text-muted-foreground hover:text-foreground'
             ]"
           >
-            All ({{ counts.total }})
+            All ({{ categoryCounts.all }})
           </button>
 
           <button
             type="button"
-            @click="activeFilter = 'critical'"
+            @click="activeCategory = 'alarm'"
             :class="[
-              'px-2 py-0.5 rounded font-medium text-[11px] flex items-center gap-1 transition-all cursor-pointer',
-              activeFilter === 'critical'
-                ? 'bg-rose-500/10 text-rose-500 font-semibold border border-rose-500/30'
-                : 'text-muted-foreground hover:text-rose-500'
+              'flex-1 py-1 text-[11px] font-medium rounded-md transition-all cursor-pointer text-center',
+              activeCategory === 'alarm'
+                ? 'bg-background text-foreground shadow-xs font-semibold'
+                : 'text-muted-foreground hover:text-foreground'
             ]"
           >
-            <span class="size-1.5 rounded-full bg-rose-500" />
-            Crit ({{ counts.critical }})
+            Alarms ({{ categoryCounts.alarm }})
           </button>
 
           <button
             type="button"
-            @click="activeFilter = 'warning'"
+            @click="activeCategory = 'alert'"
             :class="[
-              'px-2 py-0.5 rounded font-medium text-[11px] flex items-center gap-1 transition-all cursor-pointer',
-              activeFilter === 'warning'
-                ? 'bg-amber-500/10 text-amber-500 font-semibold border border-amber-500/30'
-                : 'text-muted-foreground hover:text-amber-500'
+              'flex-1 py-1 text-[11px] font-medium rounded-md transition-all cursor-pointer text-center',
+              activeCategory === 'alert'
+                ? 'bg-background text-foreground shadow-xs font-semibold'
+                : 'text-muted-foreground hover:text-foreground'
             ]"
           >
-            <span class="size-1.5 rounded-full bg-amber-500" />
-            Warn ({{ counts.warning }})
+            Alerts ({{ categoryCounts.alert }})
           </button>
 
           <button
             type="button"
-            @click="activeFilter = 'info'"
+            @click="activeCategory = 'advisory'"
             :class="[
-              'px-2 py-0.5 rounded font-medium text-[11px] flex items-center gap-1 transition-all cursor-pointer',
-              activeFilter === 'info'
-                ? 'bg-primary/10 text-primary font-semibold border border-primary/30'
-                : 'text-muted-foreground hover:text-primary'
+              'flex-1 py-1 text-[11px] font-medium rounded-md transition-all cursor-pointer text-center flex items-center justify-center gap-1',
+              activeCategory === 'advisory'
+                ? 'bg-background text-foreground shadow-xs font-semibold'
+                : 'text-muted-foreground hover:text-foreground'
             ]"
           >
-            <span class="size-1.5 rounded-full bg-primary" />
-            Info ({{ counts.info }})
+            <Sparkles class="size-3 text-primary" />
+            CBM ({{ categoryCounts.advisory }})
           </button>
         </div>
 
-        <!-- Alarms List -->
-        <div class="flex-1 overflow-y-auto divide-y divide-border/60 p-2 space-y-1">
+        <!-- Search Bar & Filter Options -->
+        <div class="p-2.5 border-b border-border bg-background space-y-2">
+          <!-- Search Input -->
+          <div class="relative">
+            <Search class="size-3.5 absolute left-2.5 top-2.5 text-muted-foreground pointer-events-none" />
+            <input
+              v-model="searchQuery"
+              placeholder="Search code, equipment, parameter, or message..."
+              class="h-8 w-full rounded-md border border-border bg-muted/20 pl-8 pr-7 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            <button
+              v-if="searchQuery"
+              type="button"
+              @click="searchQuery = ''"
+              class="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              <X class="size-3" />
+            </button>
+          </div>
+
+          <!-- Quick Severity Filters & Bulk Actions -->
+          <div class="flex items-center justify-between gap-1 text-[10px]">
+            <div class="flex items-center gap-1 overflow-x-auto">
+              <button
+                type="button"
+                @click="activeSeverity = 'all'"
+                :class="[
+                  'px-2 py-0.5 rounded border transition-colors cursor-pointer',
+                  activeSeverity === 'all'
+                    ? 'border-foreground/30 bg-muted font-medium text-foreground'
+                    : 'border-border text-muted-foreground hover:text-foreground'
+                ]"
+              >
+                All
+              </button>
+              <button
+                type="button"
+                @click="activeSeverity = 'critical'"
+                :class="[
+                  'px-1.5 py-0.5 rounded border transition-colors cursor-pointer flex items-center gap-1',
+                  activeSeverity === 'critical'
+                    ? 'border-rose-500/50 bg-rose-500/15 text-rose-500 font-medium'
+                    : 'border-border text-muted-foreground hover:text-rose-500'
+                ]"
+              >
+                <span class="size-1 rounded-full bg-rose-500" />
+                Critical
+              </button>
+              <button
+                type="button"
+                @click="activeSeverity = 'warning'"
+                :class="[
+                  'px-1.5 py-0.5 rounded border transition-colors cursor-pointer flex items-center gap-1',
+                  activeSeverity === 'warning'
+                    ? 'border-amber-500/50 bg-amber-500/15 text-amber-500 font-medium'
+                    : 'border-border text-muted-foreground hover:text-amber-500'
+                ]"
+              >
+                <span class="size-1 rounded-full bg-amber-500" />
+                Warning
+              </button>
+              <button
+                type="button"
+                @click="activeSeverity = 'info'"
+                :class="[
+                  'px-1.5 py-0.5 rounded border transition-colors cursor-pointer flex items-center gap-1',
+                  activeSeverity === 'info'
+                    ? 'border-primary/50 bg-primary/15 text-primary font-medium'
+                    : 'border-border text-muted-foreground hover:text-primary'
+                ]"
+              >
+                <span class="size-1 rounded-full bg-primary" />
+                Advisory
+              </button>
+            </div>
+
+            <!-- Bulk Acknowledge / Reset -->
+            <div class="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                @click="hideAcknowledged = !hideAcknowledged"
+                :class="[
+                  'px-1.5 py-0.5 rounded border text-[10px] cursor-pointer transition-colors',
+                  hideAcknowledged
+                    ? 'bg-primary/15 border-primary/40 text-primary font-semibold'
+                    : 'border-border text-muted-foreground hover:text-foreground'
+                ]"
+                title="Hide acknowledged alarms from list"
+              >
+                {{ hideAcknowledged ? 'Hiding ACK' : 'All ACK' }}
+              </button>
+              <button
+                type="button"
+                @click="handleAcknowledgeAll"
+                class="px-1.5 py-0.5 rounded border border-border text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer flex items-center gap-1"
+                title="Mark all alarms as acknowledged"
+              >
+                <CheckCheck class="size-2.5 text-primary" />
+                Ack All
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alarms List Container -->
+        <div class="flex-1 overflow-y-auto p-3 space-y-2.5">
           <div
             v-for="item in filteredAlarms"
             :key="item.id"
-            class="group flex flex-col gap-1.5 p-2.5 rounded-lg border border-transparent hover:border-border hover:bg-muted/30 transition-all cursor-pointer"
-            :class="{ 'opacity-50': item.acknowledged }"
-            @click="acknowledgeAlarm(item.id)"
+            :class="[
+              'rounded-lg border p-3 transition-all flex flex-col gap-2',
+              item.acknowledged
+                ? 'bg-muted/15 border-border/40 opacity-60'
+                : item.level === 'critical'
+                  ? 'bg-rose-500/5 border-rose-500/30 hover:border-rose-500/50 shadow-xs'
+                  : item.level === 'warning'
+                    ? 'bg-amber-500/5 border-amber-500/30 hover:border-amber-500/50'
+                    : 'bg-card border-border hover:border-primary/40'
+            ]"
           >
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2 min-w-0">
+            <!-- Card Header: Severity Code, System Tag, UTC Time -->
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <!-- Severity Badge -->
                 <span
-                  class="size-1.5 rounded-full shrink-0"
-                  :class="{
-                    'bg-rose-500': item.level === 'critical',
-                    'bg-amber-500': item.level === 'warning',
-                    'bg-primary': item.level === 'info',
-                  }"
-                />
-                <span
-                  class="font-mono text-xs font-bold"
-                  :class="{
-                    'text-rose-500': item.level === 'critical',
-                    'text-amber-500': item.level === 'warning',
-                    'text-foreground': item.level === 'info',
-                  }"
+                  :class="[
+                    'inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium font-mono',
+                    item.level === 'critical'
+                      ? 'bg-rose-500/15 text-rose-500 border border-rose-500/30'
+                      : item.level === 'warning'
+                        ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30'
+                        : 'bg-primary/15 text-primary border border-primary/30'
+                  ]"
                 >
+                  <span
+                    class="size-1.5 rounded-full shrink-0"
+                    :class="[
+                      item.level === 'critical' && !item.acknowledged
+                        ? 'bg-rose-500 animate-ping'
+                        : item.level === 'warning'
+                          ? 'bg-amber-500'
+                          : 'bg-primary'
+                    ]"
+                  />
                   {{ item.code }}
                 </span>
-                <span v-if="item.acknowledged" class="text-[9px] text-muted-foreground font-mono px-1 rounded bg-muted">
+
+                <!-- System / Equipment Badge -->
+                <span class="text-[10px] text-muted-foreground font-normal bg-muted px-1.5 py-0.5 rounded border border-border/50">
+                  {{ item.system }}
+                </span>
+
+                <!-- Acknowledged Badge -->
+                <span
+                  v-if="item.acknowledged"
+                  class="inline-flex items-center gap-0.5 text-[9px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded"
+                >
+                  <CheckCircle2 class="size-2.5 text-muted-foreground" />
                   ACK
                 </span>
               </div>
 
-              <span class="font-mono text-[10px] text-muted-foreground">
-                {{ item.time }}
+              <!-- Timestamp -->
+              <span class="text-[10px] font-mono text-muted-foreground shrink-0">
+                {{ item.time }} UTC
               </span>
             </div>
 
-            <div class="text-xs text-foreground font-medium leading-snug line-clamp-2">
+            <!-- Alarm Title -->
+            <div class="text-xs font-semibold text-foreground leading-snug">
               {{ item.title }}
+            </div>
+
+            <!-- Observed vs Limit Comparison Box -->
+            <div
+              v-if="item.reading || item.limit"
+              class="flex items-center gap-2 text-xs bg-muted/40 p-2 rounded-md border border-border/50"
+            >
+              <div class="flex-1 truncate">
+                <span class="text-muted-foreground text-xs font-normal">Observed:</span>
+                <span
+                  class="font-mono font-semibold ml-1.5"
+                  :class="item.level === 'critical' ? 'text-rose-500' : 'text-foreground'"
+                >
+                  {{ item.reading }}
+                </span>
+              </div>
+              <div class="text-muted-foreground/30 font-normal">|</div>
+              <div class="flex-1 truncate">
+                <span class="text-muted-foreground text-xs font-normal">Threshold:</span>
+                <span class="font-mono font-medium text-muted-foreground ml-1.5">{{ item.limit }}</span>
+              </div>
+            </div>
+
+            <!-- Actionable Troubleshooting / Advisory Checklist -->
+            <div v-if="item.advisory" class="pt-0.5">
+              <button
+                type="button"
+                @click="toggleExpand(item.id)"
+                class="text-[10px] text-primary hover:underline flex items-center gap-1 font-medium cursor-pointer"
+              >
+                <Sparkles class="size-3" />
+                <span>{{ isExpanded(item.id) ? 'Hide Troubleshooting Advisory' : 'View Actionable Advisory' }}</span>
+                <ChevronUp v-if="isExpanded(item.id)" class="size-3" />
+                <ChevronDown v-else class="size-3" />
+              </button>
+
+              <div
+                v-if="isExpanded(item.id)"
+                class="mt-1.5 p-2 rounded-md bg-muted/60 border border-border/70 text-[11px] text-muted-foreground leading-relaxed flex items-start gap-2"
+              >
+                <div class="size-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                <div>{{ item.advisory }}</div>
+              </div>
+            </div>
+
+            <!-- Card Footer: Type & Inline Acknowledge Action -->
+            <div class="flex items-center justify-between pt-1 border-t border-border/40 mt-0.5">
+              <span class="text-[10px] text-muted-foreground capitalize">
+                Category: {{ item.category }}
+              </span>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                :class="[
+                  'h-6 px-2 text-[10px] gap-1 cursor-pointer font-medium rounded',
+                  item.acknowledged
+                    ? 'text-muted-foreground hover:text-foreground'
+                    : 'text-primary hover:bg-primary/10 font-semibold'
+                ]"
+                @click.stop="handleAcknowledge(item.id)"
+              >
+                <CheckCircle2 class="size-3" :class="{ 'text-primary': !item.acknowledged }" />
+                <span>{{ item.acknowledged ? 'Unacknowledge' : 'Acknowledge' }}</span>
+              </Button>
             </div>
           </div>
 
-          <div v-if="filteredAlarms.length === 0" class="py-12 text-center text-xs text-muted-foreground">
-            No alarms match the active filter
+          <!-- Empty State -->
+          <div v-if="filteredAlarms.length === 0" class="py-16 text-center space-y-2">
+            <div class="size-10 rounded-full bg-muted flex items-center justify-center mx-auto text-muted-foreground">
+              <CheckCircle2 class="size-5 text-emerald-500" />
+            </div>
+            <div class="text-xs font-semibold text-foreground">No Alarms Found</div>
+            <p class="text-[11px] text-muted-foreground max-w-[240px] mx-auto">
+              {{ searchQuery ? 'No events match your search filters.' : 'All events matching the selected category are cleared or acknowledged.' }}
+            </p>
+            <div v-if="hideAcknowledged || searchQuery || activeSeverity !== 'all'" class="pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                class="h-7 text-xs cursor-pointer"
+                @click="searchQuery = ''; activeSeverity = 'all'; hideAcknowledged = false"
+              >
+                Reset Filters
+              </Button>
+            </div>
           </div>
         </div>
-      </aside>
-    </Transition>
-  </div>
+
+        <!-- Footer Strip -->
+        <div class="p-2.5 border-t border-border bg-muted/20 flex items-center justify-between text-[11px] text-muted-foreground">
+          <div class="flex items-center gap-1.5">
+            <span class="size-2 rounded-full bg-emerald-500" />
+            <span class="font-mono text-[10px]">CBM Engine Live</span>
+          </div>
+          <button
+            type="button"
+            @click="resetAllAlarms"
+            class="text-[10px] text-muted-foreground hover:text-foreground underline cursor-pointer"
+          >
+            Reset All to Active
+          </button>
+        </div>
+  </aside>
 </template>
-
-<style scoped>
-.alarm-slide-enter-active,
-.alarm-slide-leave-active {
-  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.alarm-slide-enter-from,
-.alarm-slide-leave-to {
-  transform: translateX(100%);
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.25s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-</style>

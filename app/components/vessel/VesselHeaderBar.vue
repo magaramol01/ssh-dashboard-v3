@@ -3,7 +3,6 @@ import { computed } from 'vue'
 import {
   Gauge,
   RefreshCw,
-  Bell,
   Radio,
 } from 'lucide-vue-next'
 import {
@@ -16,10 +15,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useVesselDashboard } from '~/composables/useVesselDashboard'
-
-const emit = defineEmits<{
-  (e: 'toggle-alarms'): void
-}>()
 
 const {
   selectedVesselId,
@@ -36,7 +31,7 @@ const isOnline = computed(() => connectivity.value?.status !== false && connecti
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+  <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between w-full">
     <!-- Title & Icon (Matches CII page header) -->
     <div class="flex items-center gap-2.5">
       <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
@@ -107,20 +102,6 @@ const isOnline = computed(() => connectivity.value?.status !== false && connecti
       >
         <RefreshCw class="size-3.5" :class="{ 'animate-spin': isLoading }" />
         <span>Refresh</span>
-      </Button>
-
-      <!-- Alarms Drawer Toggle Button -->
-      <Button
-        variant="outline"
-        size="sm"
-        class="h-8 text-xs gap-1.5 cursor-pointer border-amber-500/30 text-amber-500 hover:bg-amber-500/10"
-        @click="emit('toggle-alarms')"
-      >
-        <Bell class="size-3.5" />
-        <span>Alarms</span>
-        <span class="rounded-full bg-amber-500/20 px-1 py-0.2 text-[9px] font-bold text-amber-500">
-          14
-        </span>
       </Button>
     </div>
   </div>

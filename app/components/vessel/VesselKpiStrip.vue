@@ -6,16 +6,15 @@ import {
   Zap,
   Compass,
   Flame,
-  AlertTriangle,
 } from 'lucide-vue-next'
 import { Card, CardContent } from '@/components/ui/card'
 import { useVesselDashboard } from '~/composables/useVesselDashboard'
 
-const emit = defineEmits<{
-  (e: 'toggle-alarms'): void
-}>()
-
-const { dashboardState, mrvData, connectivity } = useVesselDashboard()
+const {
+  dashboardState,
+  mrvData,
+  connectivity,
+} = useVesselDashboard()
 
 // Telemetry parsers with robust fallbacks
 const sogValue = computed(() => {
@@ -86,20 +85,20 @@ const voyageProgressPct = computed(() => {
 </script>
 
 <template>
-  <!-- 6-Tile Operational KPI Grid (Matches CII page layout) -->
-  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+  <!-- 5-Tile Operational KPI Grid -->
+  <div class="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
     <!-- Tile 1: Speed Over Ground -->
     <Card class="shadow-xs">
       <CardContent class="p-4 space-y-1.5">
-        <div class="flex items-center justify-between text-xs text-muted-foreground">
-          <span class="font-medium uppercase tracking-wider text-[10px]">Speed Over Ground</span>
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-xs font-normal text-muted-foreground">Speed over ground</span>
           <Navigation class="size-4 text-primary" />
         </div>
-        <div class="text-xl font-bold tracking-tight tabular-nums text-foreground">
+        <div class="text-2xl font-bold tracking-tight tabular-nums text-foreground">
           {{ sogValue }}
           <span class="text-xs font-normal text-muted-foreground">kn</span>
         </div>
-        <p class="text-[11px] text-muted-foreground truncate">
+        <p class="text-[11px] text-muted-foreground truncate font-normal">
           STW: {{ stwValue }} · Drift: 0.0 kn
         </p>
       </CardContent>
@@ -108,16 +107,16 @@ const voyageProgressPct = computed(() => {
     <!-- Tile 2: Fuel Rate -->
     <Card class="shadow-xs">
       <CardContent class="p-4 space-y-1.5">
-        <div class="flex items-center justify-between text-xs text-muted-foreground">
-          <span class="font-medium uppercase tracking-wider text-[10px]">Fuel Rate</span>
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-xs font-normal text-muted-foreground">Fuel rate</span>
           <Fuel class="size-4 text-primary" />
         </div>
-        <div class="text-xl font-bold tracking-tight tabular-nums text-foreground">
+        <div class="text-2xl font-bold tracking-tight tabular-nums text-foreground">
           {{ fuelRate }}
           <span class="text-xs font-normal text-muted-foreground">t/day</span>
         </div>
-        <p class="text-[11px] text-muted-foreground truncate">
-          SFOC: 168.4 g/kWh · Eco Speed
+        <p class="text-[11px] text-muted-foreground truncate font-normal">
+          SFOC: 168.4 g/kWh · Eco speed
         </p>
       </CardContent>
     </Card>
@@ -125,15 +124,15 @@ const voyageProgressPct = computed(() => {
     <!-- Tile 3: Shaft Power -->
     <Card class="shadow-xs">
       <CardContent class="p-4 space-y-1.5">
-        <div class="flex items-center justify-between text-xs text-muted-foreground">
-          <span class="font-medium uppercase tracking-wider text-[10px]">Shaft Power</span>
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-xs font-normal text-muted-foreground">Shaft power</span>
           <Zap class="size-4 text-primary" />
         </div>
-        <div class="text-xl font-bold tracking-tight tabular-nums text-foreground">
+        <div class="text-2xl font-bold tracking-tight tabular-nums text-foreground">
           {{ shaftPower }}
           <span class="text-xs font-normal text-muted-foreground">kW</span>
         </div>
-        <p class="text-[11px] text-muted-foreground truncate">
+        <p class="text-[11px] text-muted-foreground truncate font-normal">
           Load: {{ shaftMcr }} MCR · {{ shaftRpm }}
         </p>
       </CardContent>
@@ -142,16 +141,16 @@ const voyageProgressPct = computed(() => {
     <!-- Tile 4: Voyage Progress -->
     <Card class="shadow-xs">
       <CardContent class="p-4 space-y-1.5">
-        <div class="flex items-center justify-between text-xs text-muted-foreground">
-          <span class="font-medium uppercase tracking-wider text-[10px]">Voyage Progress</span>
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-xs font-normal text-muted-foreground">Voyage progress</span>
           <Compass class="size-4 text-primary" />
         </div>
-        <div class="text-xl font-bold tracking-tight tabular-nums text-foreground">
+        <div class="text-2xl font-bold tracking-tight tabular-nums text-foreground">
           {{ voyageProgressPct }}%
           <span class="text-xs font-normal text-muted-foreground">sailed</span>
         </div>
-        <p class="text-[11px] text-muted-foreground truncate">
-          {{ distTR }} / {{ distToGo }} NM · In Transit
+        <p class="text-[11px] text-muted-foreground truncate font-normal">
+          {{ distTR }} / {{ distToGo }} NM · In transit
         </p>
       </CardContent>
     </Card>
@@ -159,36 +158,16 @@ const voyageProgressPct = computed(() => {
     <!-- Tile 5: Exhaust Gas Temp -->
     <Card class="shadow-xs">
       <CardContent class="p-4 space-y-1.5">
-        <div class="flex items-center justify-between text-xs text-muted-foreground">
-          <span class="font-medium uppercase tracking-wider text-[10px]">Exhaust Temp (Avg)</span>
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-xs font-normal text-muted-foreground">Exhaust temperature (avg)</span>
           <Flame class="size-4 text-primary" />
         </div>
-        <div class="text-xl font-bold tracking-tight tabular-nums text-foreground">
+        <div class="text-2xl font-bold tracking-tight tabular-nums text-foreground">
           321.2
           <span class="text-xs font-normal text-muted-foreground">°C</span>
         </div>
-        <p class="text-[11px] text-muted-foreground truncate">
+        <p class="text-[11px] text-muted-foreground truncate font-normal">
           Spread: 6.8°C · Nominal (&lt;330°C)
-        </p>
-      </CardContent>
-    </Card>
-
-    <!-- Tile 6: Alarms & Alerts -->
-    <Card
-      class="shadow-xs cursor-pointer hover:border-primary/50 transition-colors"
-      @click="emit('toggle-alarms')"
-    >
-      <CardContent class="p-4 space-y-1.5">
-        <div class="flex items-center justify-between text-xs text-muted-foreground">
-          <span class="font-medium uppercase tracking-wider text-[10px]">Active Alarms</span>
-          <AlertTriangle class="size-4 text-amber-500" />
-        </div>
-        <div class="text-xl font-bold tracking-tight tabular-nums text-foreground flex items-center gap-2">
-          <span>14 Active</span>
-          <span class="size-2 rounded-full bg-amber-500" />
-        </div>
-        <p class="text-[11px] text-muted-foreground truncate">
-          2 Critical · 8 Warnings · Rail &rarr;
         </p>
       </CardContent>
     </Card>

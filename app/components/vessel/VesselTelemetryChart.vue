@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { Activity, Flame, Zap, Wind } from 'lucide-vue-next'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -25,6 +25,8 @@ const { rechartData } = useVesselDashboard()
 type TelemetryMode = 'speed_fuel' | 'power' | 'scavenge' | 'exhaust'
 
 const activeMode = ref<TelemetryMode>('speed_fuel')
+const isHovered = ref(false)
+let rotationTimer: ReturnType<typeof setInterval> | null = null
 
 const modes: { key: TelemetryMode; label: string; icon: any }[] = [
   { key: 'speed_fuel', label: 'Speed vs Fuel', icon: Activity },
@@ -32,6 +34,48 @@ const modes: { key: TelemetryMode; label: string; icon: any }[] = [
   { key: 'scavenge', label: 'Scavenge Air', icon: Wind },
   { key: 'exhaust', label: 'Exhaust Temp', icon: Flame },
 ]
+
+const modeDescriptions: Record<TelemetryMode, string> = {
+  speed_fuel: 'Dual-axis comparative speed & fuel profiles over past 24 hours',
+  power: 'Continuous shaft power output (kW) over past 24 hours',
+  scavenge: 'Scavenge air receiver pressure (bar) over past 24 hours',
+  exhaust: 'Main engine cylinder exhaust temperature (°C) over past 24 hours',
+}
+
+function nextMode() {
+  const currentIndex = modes.findIndex(m => m.key === activeMode.value)
+  const nextIndex = (currentIndex + 1) % modes.length
+  activeMode.value = modes[nextIndex].key
+}
+
+function startInterval() {
+  stopInterval()
+  rotationTimer = setInterval(() => {
+    if (!isHovered.value) {
+      nextMode()
+    }
+  }, 5000)
+}
+
+function stopInterval() {
+  if (rotationTimer) {
+    clearInterval(rotationTimer)
+    rotationTimer = null
+  }
+}
+
+function selectMode(key: TelemetryMode) {
+  activeMode.value = key
+  startInterval()
+}
+
+onMounted(() => {
+  startInterval()
+})
+
+onBeforeUnmount(() => {
+  stopInterval()
+})
 
 // 24h timeline markers
 const timelineHours = [
@@ -51,30 +95,30 @@ const currentStats = computed(() => {
     case 'speed_fuel':
       return {
         val1: `${baselineSpeed[baselineSpeed.length - 1]} kn`,
-        label1: 'SOG',
+        label1: 'Speed (SOG)',
         val2: `${baselineFuel[baselineFuel.length - 1]} t/d`,
-        label2: 'Fuel',
+        label2: 'Fuel rate',
       }
     case 'power':
       return {
         val1: `${baselinePower[baselinePower.length - 1]} kW`,
-        label1: 'Live Power',
+        label1: 'Live power',
         val2: `${Math.max(...baselinePower)} kW`,
-        label2: 'Peak',
+        label2: 'Peak load',
       }
     case 'scavenge':
       return {
         val1: `${baselineScavenge[baselineScavenge.length - 1]} bar`,
-        label1: 'Receiver',
+        label1: 'Receiver pressure',
         val2: '1.88 bar',
-        label2: 'Avg',
+        label2: 'Average',
       }
     case 'exhaust':
       return {
         val1: `${baselineExhaust[baselineExhaust.length - 1]} °C`,
-        label1: 'Avg Exh',
+        label1: 'Average exhaust',
         val2: `${Math.max(...baselineExhaust)} °C`,
-        label2: 'Peak',
+        label2: 'Peak temperature',
       }
   }
 })
@@ -241,49 +285,64 @@ const chartOption = computed(() => {
 </script>
 
 <template>
-  <Card class="shadow-xs flex flex-col">
+  <Card
+    class="shadow-xs flex flex-col"
+    @mouseenter="isHovered = true"
+    @mouseleave="isHovered = false"
+  >
     <CardHeader class="p-4 pb-2">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div>
+          <div class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Telemetry Timeline</div>
           <CardTitle class="text-sm font-semibold flex items-center gap-2">
             <Activity class="size-4 text-primary" />
-            <span>24-Hour Telemetry Timeline</span>
+            <span>24-Hour Trends & Profiles</span>
           </CardTitle>
           <CardDescription class="text-xs">
-            Dual-axis comparative speed & fuel profiles over past 24 hours
+            {{ modeDescriptions[activeMode] }}
           </CardDescription>
         </div>
 
-        <!-- Quick Switcher Pills -->
-        <div class="flex items-center gap-1 bg-muted p-0.5 rounded-lg border border-border">
-          <button
-            v-for="m in modes"
-            :key="m.key"
-            @click="activeMode = m.key"
-            :class="[
-              'px-2.5 py-1 text-[11px] font-medium rounded-md transition-all flex items-center gap-1.5 cursor-pointer',
-              activeMode === m.key
-                ? 'bg-background text-foreground shadow-xs font-semibold'
-                : 'text-muted-foreground hover:text-foreground'
-            ]"
+        <!-- Quick Switcher Pills & Auto Indicator -->
+        <div class="flex items-center gap-2">
+          <span
+            class="text-[10px] text-muted-foreground font-mono px-1.5 py-0.5 rounded border border-border/60 flex items-center gap-1 select-none"
+            :title="isHovered ? 'Auto-cycle paused while cursor is over widget' : 'Auto-cycling every 5s (pauses on hover)'"
           >
-            <component :is="m.icon" class="size-3" />
-            {{ m.label }}
-          </button>
+            <span class="size-1.5 rounded-full" :class="isHovered ? 'bg-amber-500' : 'bg-primary animate-pulse'" />
+            {{ isHovered ? 'Paused' : 'Auto 5s' }}
+          </span>
+
+          <div class="flex items-center gap-1 bg-muted p-0.5 rounded-lg border border-border">
+            <button
+              v-for="m in modes"
+              :key="m.key"
+              @click="selectMode(m.key)"
+              :class="[
+                'px-2.5 py-1 text-[11px] font-medium rounded-md transition-all flex items-center gap-1.5 cursor-pointer',
+                activeMode === m.key
+                  ? 'bg-background text-foreground shadow-xs font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
+              ]"
+            >
+              <component :is="m.icon" class="size-3" />
+              {{ m.label }}
+            </button>
+          </div>
         </div>
       </div>
     </CardHeader>
 
     <CardContent class="p-4 pt-1">
       <!-- Mini Stat Callouts -->
-      <div class="flex items-center justify-end gap-4 py-1 text-xs mb-1">
+      <div class="flex items-center justify-end gap-5 py-1 text-xs mb-1">
         <div class="flex items-center gap-1.5">
-          <span class="text-muted-foreground">{{ currentStats.label1 }}:</span>
-          <span class="font-mono font-bold text-foreground">{{ currentStats.val1 }}</span>
+          <span class="text-xs font-normal text-muted-foreground">{{ currentStats.label1 }}:</span>
+          <span class="font-mono text-sm font-semibold text-foreground">{{ currentStats.val1 }}</span>
         </div>
         <div class="flex items-center gap-1.5">
-          <span class="text-muted-foreground">{{ currentStats.label2 }}:</span>
-          <span class="font-mono font-bold text-primary">{{ currentStats.val2 }}</span>
+          <span class="text-xs font-normal text-muted-foreground">{{ currentStats.label2 }}:</span>
+          <span class="font-mono text-sm font-semibold text-primary">{{ currentStats.val2 }}</span>
         </div>
       </div>
 

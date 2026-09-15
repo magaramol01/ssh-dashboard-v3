@@ -28,8 +28,8 @@ const formattedTime = computed(() => {
       <!-- Vessel Name & Sister Group -->
       <div class="flex items-center gap-2">
         <Ship class="size-4 text-primary" />
-        <span class="font-bold text-sm text-foreground">{{ selectedVessel?.name || 'ALS KRONOS' }}</span>
-        <Badge variant="outline" class="text-[10px] font-mono">
+        <span class="font-semibold text-sm text-foreground">{{ selectedVessel?.name || 'ALS KRONOS' }}</span>
+        <Badge variant="outline" class="text-[10px] font-mono font-normal">
           {{ selectedVessel?.sistergroup || 'CX 5.0' }}
         </Badge>
       </div>
@@ -38,9 +38,9 @@ const formattedTime = computed(() => {
 
       <!-- Route: Source -> Destination -->
       <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <span class="font-semibold text-foreground font-mono">{{ mrvData.scr || 'AUBNE' }}</span>
+        <span class="font-medium text-foreground font-mono">{{ mrvData.scr || 'AUBNE' }}</span>
         <ArrowRight class="size-3 text-muted-foreground" />
-        <span class="font-semibold text-foreground font-mono">{{ mrvData.destination || 'CNTAO' }}</span>
+        <span class="font-medium text-foreground font-mono">{{ mrvData.destination || 'CNTAO' }}</span>
         <span class="text-[11px]">({{ mrvData.voyage || '635N' }})</span>
       </div>
 
@@ -49,8 +49,8 @@ const formattedTime = computed(() => {
       <!-- ETA & Distance -->
       <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Compass class="size-3.5 text-primary" />
-        <span>ETA:</span>
-        <span class="font-semibold text-foreground font-mono">{{ mrvData.etanextport || '2026-09-18 11:00' }}</span>
+        <span class="font-normal text-muted-foreground">ETA</span>
+        <span class="font-medium text-foreground font-mono">{{ mrvData.etanextport || '2026-09-18 11:00' }}</span>
         <span class="text-[11px]">· {{ mrvData.totaldistrun || '403' }} / {{ mrvData.disttogo || '4,063' }} NM</span>
       </div>
     </div>
@@ -59,8 +59,8 @@ const formattedTime = computed(() => {
     <div class="flex items-center gap-3 text-xs self-end md:self-auto">
       <div class="flex items-center gap-1.5">
         <Radio class="size-3.5" :class="isOnline ? 'text-emerald-500' : 'text-rose-500'" />
-        <span class="text-muted-foreground">VSAT:</span>
-        <span class="font-semibold" :class="isOnline ? 'text-emerald-500' : 'text-rose-500'">
+        <span class="text-muted-foreground font-normal">VSAT</span>
+        <span class="font-medium" :class="isOnline ? 'text-emerald-500' : 'text-rose-500'">
           {{ isOnline ? 'Connected' : 'Offline' }}
         </span>
       </div>

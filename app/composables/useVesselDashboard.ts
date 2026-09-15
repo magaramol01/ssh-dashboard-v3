@@ -28,6 +28,191 @@ export interface ConnectivityData {
   code?: 'green' | 'red' | string
 }
 
+export interface VesselAlarmItem {
+  id: string
+  code: string
+  title: string
+  category: 'alarm' | 'alert' | 'advisory'
+  level: 'critical' | 'warning' | 'info'
+  system: string
+  time: string
+  reading?: string
+  limit?: string
+  advisory?: string
+  acknowledged?: boolean
+}
+
+export const DEFAULT_VESSEL_ALARMS: VesselAlarmItem[] = [
+  {
+    id: 'ALM-1',
+    code: 'A-04',
+    title: 'DG3 RPM SENSOR DISCONNECTED',
+    category: 'alarm',
+    level: 'critical',
+    system: 'Diesel Generator 3',
+    time: '05:38:22',
+    reading: 'Signal Loss (0 rpm)',
+    limit: 'Active Pickup',
+    advisory: 'Inspect pickup sensor cabling on DG3 flywheel housing. Test magnetic pickup resistance (nominal 1.2 kΩ).',
+  },
+  {
+    id: 'ALM-2',
+    code: 'A-12',
+    title: 'TC EXH GAS OUTLET HI TEMP',
+    category: 'alarm',
+    level: 'critical',
+    system: 'Turbocharger',
+    time: '05:15:00',
+    reading: '342.5 °C',
+    limit: '320.0 °C',
+    advisory: 'High exhaust gas outlet temperature detected. Inspect air filter differential pressure and check for turbine nozzle fouling.',
+  },
+  {
+    id: 'ALM-3',
+    code: 'A-08',
+    title: 'ME MAIN BEARING OIL PRESS LOW',
+    category: 'alarm',
+    level: 'critical',
+    system: 'Main Engine Lube Oil',
+    time: '04:52:10',
+    reading: '1.85 bar',
+    limit: '2.20 bar',
+    advisory: 'Bearing oil manifold pressure below safety limit. Start standby electric lube oil pump immediately and inspect auto-backwash filter.',
+  },
+  {
+    id: 'ALM-4',
+    code: 'W-01',
+    title: 'ME JCW INLET PRESS LOW',
+    category: 'alarm',
+    level: 'warning',
+    system: 'ME Cooling',
+    time: '05:42:10',
+    reading: '2.30 bar',
+    limit: '2.80 bar',
+    advisory: 'Jacket cooling water inlet pressure depressed. Check expansion tank static head level and de-aerator vent valve.',
+  },
+  {
+    id: 'ALM-5',
+    code: 'W-09',
+    title: 'ME SCAV AIR TEMP ELEVATED',
+    category: 'alarm',
+    level: 'warning',
+    system: 'Scavenge Air',
+    time: '05:30:15',
+    reading: '49.2 °C',
+    limit: '45.0 °C',
+    advisory: 'Scavenge air temperature after cooler is higher than design. Verify sea water cooling flow rate and clean cooler element if required.',
+  },
+  {
+    id: 'ALM-6',
+    code: 'W-03',
+    title: 'DG1 HT FW LOW LEVEL',
+    category: 'alarm',
+    level: 'warning',
+    system: 'Diesel Generator 1',
+    time: '04:42:19',
+    reading: '28% Tank Level',
+    limit: '35% Min',
+    advisory: 'DG1 High Temperature fresh water expansion tank level low. Top up cooling system with treated water and check mechanical seals.',
+  },
+  {
+    id: 'ALM-7',
+    code: 'W-05',
+    title: 'ME SCAV AIR RECEIVER TEMP HIGH',
+    category: 'alarm',
+    level: 'warning',
+    system: 'Scavenge Receiver',
+    time: '04:20:11',
+    reading: '58.4 °C',
+    limit: '55.0 °C',
+    advisory: 'Receiver air temperature threshold exceeded. Check cylinder liner drain temperatures for signs of piston blow-by.',
+  },
+  {
+    id: 'ALM-8',
+    code: 'W-08',
+    title: 'FO SERVICE TANK LOW LEVEL',
+    category: 'alarm',
+    level: 'warning',
+    system: 'Fuel System',
+    time: '04:02:18',
+    reading: '32% Level',
+    limit: '40% Min',
+    advisory: 'Fuel oil daily service tank reaching low operational limit. Initiate transfer from settling tank through separator #1.',
+  },
+  {
+    id: 'ALM-9',
+    code: 'ALT-01',
+    title: 'WAYPOINT XTD LIMIT EXCEEDED',
+    category: 'alert',
+    level: 'warning',
+    system: 'Navigation / AIS',
+    time: '03:45:00',
+    reading: '0.78 NM XTD',
+    limit: '0.50 NM Max',
+    advisory: 'Cross-track distance exceeds voyage corridor boundary. Check bridge autopilot settings and current ocean drift.',
+  },
+  {
+    id: 'ALM-10',
+    code: 'ALT-02',
+    title: 'WEATHER ROUGH SEA ADVISORY',
+    category: 'alert',
+    level: 'warning',
+    system: 'Weather Routing',
+    time: '03:18:22',
+    reading: '4.2m Significant Wave',
+    limit: '3.5m Envelope',
+    advisory: 'Approaching moderate swell sector. Consider engine RPM reduction to prevent propeller racing and hull slamming.',
+  },
+  {
+    id: 'ALM-11',
+    code: 'INF-01',
+    title: 'AUTO UNLOADER IN OPERATION',
+    category: 'alert',
+    level: 'info',
+    system: 'Starting Air',
+    time: '04:58:30',
+    reading: 'Cycle Active',
+    limit: 'Nominal',
+    advisory: 'Compressor #2 automatic unloader cycle running nominally.',
+  },
+  {
+    id: 'ALM-12',
+    code: 'INF-02',
+    title: 'AUX BLOWER #1 STARTED',
+    category: 'alert',
+    level: 'info',
+    system: 'Main Engine',
+    time: '03:12:05',
+    reading: 'Running (28 Hz)',
+    limit: 'Auto Standby',
+    advisory: 'Auxiliary blower started automatically due to scavenge air pressure below 0.35 bar during maneuver.',
+  },
+  {
+    id: 'ALM-13',
+    code: 'ADV-01',
+    title: 'CYLINDER 4 SFOC OPTIMIZATION',
+    category: 'advisory',
+    level: 'info',
+    system: 'CBM Advisory',
+    time: '02:40:00',
+    reading: '172.4 g/kWh',
+    limit: '165.0 Target',
+    advisory: 'Variable Injection Timing (VIT) trim offset recommended +0.8° to optimize thermal efficiency and reduce specific fuel consumption.',
+  },
+  {
+    id: 'ALM-14',
+    code: 'ADV-02',
+    title: 'EXHAUST VALVE 2 TEMPORARY DEVIATION',
+    category: 'advisory',
+    level: 'warning',
+    system: 'Predictive Diagnostics',
+    time: '02:15:40',
+    reading: '+14 °C Spread',
+    limit: '12 °C Max Spread',
+    advisory: 'Exhaust valve hydraulic actuator pressure drop detected during closing phase. Schedule inspection at next bunkering port.',
+  },
+]
+
 export interface RHSPanelFlag {
   id: string
   typename: string
@@ -77,6 +262,37 @@ export function useVesselDashboard() {
   ])
   const graphAvgValues = useState<any[]>('vessel_dashboard_graph_avg', () => [])
   const rechartData = useState<any[]>('vessel_dashboard_rechart', () => [])
+  const alarmsList = useState<VesselAlarmItem[]>('vessel_dashboard_alarms', () => [...DEFAULT_VESSEL_ALARMS])
+  const isAlarmsMuted = useState<boolean>('vessel_dashboard_alarms_muted', () => false)
+
+  const activeAlarmsCount = computed(() => alarmsList.value.filter((a) => !a.acknowledged).length)
+  const criticalAlarmsCount = computed(() => alarmsList.value.filter((a) => a.level === 'critical' && !a.acknowledged).length)
+  const warningAlarmsCount = computed(() => alarmsList.value.filter((a) => a.level === 'warning' && !a.acknowledged).length)
+  const infoAlarmsCount = computed(() => alarmsList.value.filter((a) => a.level === 'info' && !a.acknowledged).length)
+  const advisoryAlarmsCount = computed(() => alarmsList.value.filter((a) => a.category === 'advisory' && !a.acknowledged).length)
+
+  function acknowledgeAlarm(id: string) {
+    const item = alarmsList.value.find((a) => a.id === id)
+    if (item) {
+      item.acknowledged = !item.acknowledged
+    }
+  }
+
+  function acknowledgeAllAlarms() {
+    alarmsList.value.forEach((a) => {
+      a.acknowledged = true
+    })
+  }
+
+  function resetAllAlarms() {
+    alarmsList.value.forEach((a) => {
+      a.acknowledged = false
+    })
+  }
+
+  function toggleMuteAlarms() {
+    isAlarmsMuted.value = !isAlarmsMuted.value
+  }
 
   const isLoading = ref<boolean>(false)
   const isMapLoading = ref<boolean>(false)
@@ -291,6 +507,17 @@ export function useVesselDashboard() {
     rhsFlags,
     graphAvgValues,
     rechartData,
+    alarmsList,
+    isAlarmsMuted,
+    activeAlarmsCount,
+    criticalAlarmsCount,
+    warningAlarmsCount,
+    infoAlarmsCount,
+    advisoryAlarmsCount,
+    acknowledgeAlarm,
+    acknowledgeAllAlarms,
+    resetAllAlarms,
+    toggleMuteAlarms,
     isLoading,
     isMapLoading,
     fetchVesselsList,

@@ -116,6 +116,7 @@ const filteredMeParams = computed(() => {
     <CardHeader class="p-4 pb-2">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div>
+          <div class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Sensor Telemetry</div>
           <CardTitle class="text-sm font-semibold flex items-center gap-2">
             <Cpu class="size-4 text-primary" />
             <span>Machinery Diagnostics Matrix</span>
@@ -179,14 +180,14 @@ const filteredMeParams = computed(() => {
           >
             <div class="flex items-center gap-2 min-w-0 pr-2">
               <div class="size-1.5 rounded-full bg-primary shrink-0" />
-              <span class="text-xs text-foreground truncate" :title="p.label">
+              <span class="text-xs text-foreground truncate font-normal" :title="p.label">
                 {{ p.label }}
               </span>
             </div>
 
             <div class="flex items-center gap-1 font-mono shrink-0">
-              <span class="text-xs font-bold text-foreground tabular-nums">{{ p.value }}</span>
-              <span class="text-[10px] text-muted-foreground">{{ p.unit }}</span>
+              <span class="text-xs font-semibold text-foreground tabular-nums">{{ p.value }}</span>
+              <span class="text-[10px] font-normal text-muted-foreground">{{ p.unit }}</span>
             </div>
           </div>
         </div>
@@ -204,12 +205,12 @@ const filteredMeParams = computed(() => {
         >
           <div>
             <div class="flex items-center justify-between border-b border-border pb-2 mb-2">
-              <span class="text-xs font-bold text-foreground">{{ dg.name }}</span>
+              <span class="text-xs font-semibold text-foreground">{{ dg.name }}</span>
               <Badge
                 variant="outline"
                 :class="[
-                  'text-[9px] font-mono uppercase',
-                  dg.status === 'online' ? 'text-primary border-primary/30' : 'text-muted-foreground'
+                  'text-[10px] font-medium capitalize',
+                  dg.status === 'online' ? 'text-emerald-500 border-emerald-500/30 bg-emerald-500/10' : 'text-muted-foreground border-border bg-muted/40'
                 ]"
               >
                 {{ dg.status }}
@@ -217,28 +218,28 @@ const filteredMeParams = computed(() => {
             </div>
 
             <div class="space-y-1.5 text-xs">
-              <div class="flex items-center justify-between text-muted-foreground">
-                <span>Speed</span>
-                <span class="font-mono font-bold text-foreground">{{ dg.rpm }} rpm</span>
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-normal text-muted-foreground">Speed</span>
+                <span class="font-mono text-xs font-semibold text-foreground">{{ dg.rpm }} <span class="text-[10px] font-normal text-muted-foreground">rpm</span></span>
               </div>
-              <div class="flex items-center justify-between text-muted-foreground">
-                <span>HT FW Press/Temp</span>
-                <span class="font-mono text-foreground">{{ dg.htFwPress }}b / {{ dg.htFwTemp }}°C</span>
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-normal text-muted-foreground">HT fresh water</span>
+                <span class="font-mono text-xs font-semibold text-foreground">{{ dg.htFwPress }}b / {{ dg.htFwTemp }}°C</span>
               </div>
-              <div class="flex items-center justify-between text-muted-foreground">
-                <span>LO Press/Temp</span>
-                <span class="font-mono text-foreground">{{ dg.loPress }}b / {{ dg.loTemp }}°C</span>
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-normal text-muted-foreground">Lube oil</span>
+                <span class="font-mono text-xs font-semibold text-foreground">{{ dg.loPress }}b / {{ dg.loTemp }}°C</span>
               </div>
-              <div class="flex items-center justify-between text-muted-foreground">
-                <span>FO Temp</span>
-                <span class="font-mono text-foreground">{{ dg.foTemp }} °C</span>
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-normal text-muted-foreground">Fuel oil temp</span>
+                <span class="font-mono text-xs font-semibold text-foreground">{{ dg.foTemp }} °C</span>
               </div>
             </div>
           </div>
 
-          <div class="mt-3 pt-2 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
-            <span>Windings (U/V/W):</span>
-            <span class="font-mono font-bold text-foreground">
+          <div class="mt-3 pt-2 border-t border-border flex items-center justify-between text-xs">
+            <span class="text-xs font-normal text-muted-foreground">Windings (U/V/W):</span>
+            <span class="font-mono text-xs font-semibold text-foreground">
               {{ dg.w1 }}° / {{ dg.w2 }}° / {{ dg.w3 }}°
             </span>
           </div>
