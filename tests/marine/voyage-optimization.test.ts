@@ -15,6 +15,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const fixturePath = join(__dirname, '../fixtures/cii-date-range-sample.json')
 const sampleRecords: CiiDateRangeRecord[] = JSON.parse(readFileSync(fixturePath, 'utf-8'))
 
+// Real data from a different vessel/reporting-app version: numeric (not DMS
+// string) lat/lng, string avgSpeed, and a zero-distance event-marker record
+// interleaved with the real noon reports (captured live, 2026-09-16).
+const numericCoordsFixturePath = join(__dirname, '../fixtures/cii-date-range-sample-numeric-coords.json')
+const numericCoordsRecords: CiiDateRangeRecord[] = JSON.parse(readFileSync(numericCoordsFixturePath, 'utf-8'))
+
 describe('Voyage Optimization Domain Engine', () => {
   test('mapCiiRecordsToDailyNoons maps real CII API records into ordered daily noon reports', () => {
     const noons = mapCiiRecordsToDailyNoons(sampleRecords)
@@ -38,6 +44,24 @@ describe('Voyage Optimization Domain Engine', () => {
 
   test('resolveVesselDeadweightMt reads real deadweight from a CII record', () => {
     assert.equal(resolveVesselDeadweightMt(sampleRecords), 69787)
+  })
+
+  test('mapCiiRecordsToDailyNoons handles numeric lat/lng, string avgSpeed, and filters zero-distance event markers', () => {
+    // Fixture has 3 raw records: two real noon reports (distance > 0) and
+    // one zero-distance "event_sea_passage_end" marker sharing the same
+    // reportDateTime as the second real report.
+    const noons = mapCiiRecordsToDailyNoons(numericCoordsRecords)
+    assert.equal(noons.length, 2, 'the zero-distance event marker must be filtered out')
+
+    const day1 = noons[0]!
+    assert.equal(day1.distanceRunNm, 288)
+    assert.equal(day1.sog, 12, 'string avgSpeed "12.00" must be coerced to a number')
+    assert.ok(Math.abs(day1.coords[0] - 7.255) < 0.0001, 'numeric latitude passes through unchanged')
+    assert.ok(Math.abs(day1.coords[1] - -82.576833) < 0.0001, 'numeric longitude passes through unchanged')
+
+    const day2 = noons[1]!
+    assert.equal(day2.dayNumber, 2)
+    assert.equal(day2.cumulativeDistanceNm, 512)
   })
 
   test('calculateRouteStrategies returns 4 standard comparative strategies with basis labels', () => {

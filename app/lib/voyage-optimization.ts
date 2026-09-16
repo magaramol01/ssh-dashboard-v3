@@ -17,9 +17,11 @@ export interface CiiDateRangeRecord {
   reportDateTime: string
   voyage: string
   distance: number
-  avgSpeed: number
-  draftFwd: number
-  draftAft: number
+  // Real API data is inconsistent per vessel/reporting-app version: some
+  // send numeric avgSpeed, others a formatted string like "12.00".
+  avgSpeed: number | string
+  draftFwd: number | null
+  draftAft: number | null
   massOfCo2: number
   transportWork: number
   totalConsumption: number
@@ -36,13 +38,16 @@ export interface CiiDateRangeRecord {
   consumptionData: Record<string, { value: number; label: string; coefficient: number }>
   vesselInfo?: { deadweight?: string }
   noonreportdata?: {
-    Latitude?: string
-    Longitude?: string
+    // Position format varies by vessel/reporting app: DMS string
+    // ("24°13'5''S") for some, plain decimal degrees (number or numeric
+    // string) for others. Absent/null on non-position event records.
+    Latitude?: string | number | null
+    Longitude?: string | number | null
     Wind_Force?: number
     Wind_Speed?: number
-    Wind_Direction?: string
+    Wind_Direction?: string | number
     Wave_Height?: number
-    Swell_Direction?: string
+    Swell_Direction?: string | number
     Remarks?: string
   }
 }
@@ -118,6 +123,28 @@ export const EU_ETS_CARBON_PRICE_EUR_PER_TON = 85
 export const DEFAULT_LAYCAN_BUFFER_HOURS = 8.5
 
 /**
+ * How far back to query the CII date-range API to find the current voyage's
+ * start. Real noon-report data does not reliably carry a Voyage_Start_Date
+ * (observed null on live data), so callers instead fetch this wide a window
+ * and filter to the current voyage number. 60 days comfortably covers
+ * virtually any commercial voyage length.
+ */
+export const CII_LOOKBACK_DAYS = 60
+
+/**
+ * Resolves a noon-report position value to decimal degrees. Real API data
+ * varies by vessel/reporting-app: DMS strings ("24°13'5''S"), plain decimal
+ * numbers, numeric strings, or null/absent on non-position event records.
+ */
+function resolveNoonCoordinate(value: string | number | null | undefined): number {
+  if (typeof value === 'number') return value
+  if (value === null || value === undefined || value === '') return NaN
+  const trimmed = value.trim()
+  if (/^-?\d+(\.\d+)?$/.test(trimmed)) return Number(trimmed)
+  return parseDmsCoordinate(trimmed)
+}
+
+/**
  * Calculates IMO Attained CII in g CO2 / (MT * NM).
  * Fallback only — real per-day records already carry `attainedCII` from the API.
  */
@@ -141,10 +168,16 @@ export function resolveCiiRating(cii: number): CIIRating {
 
 /**
  * Maps live CII date-range API records into the DailyNoonReport shape the
- * screen renders. Records are sorted chronologically and numbered D1..Dn.
+ * screen renders. The API interleaves real position/noon reports with
+ * zero-distance event markers (sea-passage-end, anchorage, bunkering,
+ * arrival/departure, etc. — observed as ~64% of records on live data) in
+ * the same response; only records with an actual distance run represent a
+ * real day. Records are sorted chronologically and numbered D1..Dn.
  */
 export function mapCiiRecordsToDailyNoons(records: CiiDateRangeRecord[]): DailyNoonReport[] {
-  const sorted = [...records].sort(
+  const noonRecords = records.filter((r) => (r.distance || 0) > 0)
+
+  const sorted = [...noonRecords].sort(
     (a, b) => new Date(a.reportDateTime).getTime() - new Date(b.reportDateTime).getTime()
   )
 
@@ -155,8 +188,8 @@ export function mapCiiRecordsToDailyNoons(records: CiiDateRangeRecord[]): DailyN
     cumulativeDistance += record.distance || 0
     cumulativeFuel += record.totalConsumption || 0
 
-    const lat = parseDmsCoordinate(record.noonreportdata?.Latitude || '')
-    const lng = parseDmsCoordinate(record.noonreportdata?.Longitude || '')
+    const lat = resolveNoonCoordinate(record.noonreportdata?.Latitude)
+    const lng = resolveNoonCoordinate(record.noonreportdata?.Longitude)
 
     const byType: Record<string, { value: number; label: string }> = {}
     for (const [key, fuel] of Object.entries(record.consumptionData || {})) {
@@ -173,7 +206,7 @@ export function mapCiiRecordsToDailyNoons(records: CiiDateRangeRecord[]): DailyN
       coords: [Number.isNaN(lat) ? 0 : lat, Number.isNaN(lng) ? 0 : lng],
       distanceRunNm: record.distance || 0,
       cumulativeDistanceNm: Math.round(cumulativeDistance * 10) / 10,
-      sog: record.avgSpeed || 0,
+      sog: Number(record.avgSpeed) || 0,
       fuelConsumedMt: {
         byType,
         total: Math.round((record.totalConsumption || 0) * 10) / 10,
@@ -192,7 +225,7 @@ export function mapCiiRecordsToDailyNoons(records: CiiDateRangeRecord[]): DailyN
         windSpeedKts: record.noonreportdata?.Wind_Speed || 0,
         windDirectionDeg: Number(record.noonreportdata?.Wind_Direction) || 0,
         waveHeightM: record.noonreportdata?.Wave_Height || 0,
-        swellDirection: record.noonreportdata?.Swell_Direction || '',
+        swellDirection: String(record.noonreportdata?.Swell_Direction ?? ''),
         shortForecast: record.noonreportdata?.Remarks || record.reportType || '',
         source: 'cii-api',
       },

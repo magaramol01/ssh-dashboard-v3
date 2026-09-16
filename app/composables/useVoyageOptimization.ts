@@ -7,6 +7,7 @@ import {
   resolveVesselDeadweightMt,
   EU_ETS_CARBON_PRICE_EUR_PER_TON,
   DEFAULT_LAYCAN_BUFFER_HOURS,
+  CII_LOOKBACK_DAYS,
   type DailyNoonReport,
   type RouteStrategyOption,
   type VoyageAdvisory,
@@ -84,18 +85,19 @@ export function useVoyageOptimization() {
     ]
   })
 
-  // 2. Fetch real per-day CII noon report data for the active vessel.
-  // Window is a trailing 14 days ending at the latest known noon report date
-  // (the API has no "whole voyage" query; true voyage-start-aware ranging is
-  // a documented follow-up, not implemented here to avoid guessing at data
-  // this composable doesn't have).
+  // 2. Fetch real per-day CII noon report data for the active vessel, scoped
+  // to the current voyage. Real noon-report data does not reliably carry a
+  // Voyage_Start_Date (observed null on live data), so the fetch window is
+  // widened to CII_LOOKBACK_DAYS and the results are filtered down to
+  // records matching the vessel's current voyage number (from mrvData) —
+  // Day 1 ends up being the earliest real noon report of that voyage.
   async function fetchCiiDateRange() {
     isCiiLoading.value = true
     ciiLoadError.value = false
     try {
       const endDate = (mrvData.value?.rptdate || new Date().toISOString()).slice(0, 10)
       const endDt = new Date(endDate)
-      const startDt = new Date(endDt.getTime() - 13 * 24 * 3600 * 1000)
+      const startDt = new Date(endDt.getTime() - CII_LOOKBACK_DAYS * 24 * 3600 * 1000)
       const startDate = startDt.toISOString().slice(0, 10)
       const year = endDt.getUTCFullYear()
 
@@ -103,7 +105,11 @@ export function useVoyageOptimization() {
         '/api/vessels/cii-date-range',
         { params: { vesselId: selectedVesselId.value, startDate, endDate, year } }
       )
-      ciiRecords.value = res.success ? res.records : []
+      const fetchedRecords = res.success ? res.records : []
+      const currentVoyage = mrvData.value?.voyage
+      ciiRecords.value = currentVoyage
+        ? fetchedRecords.filter((r) => r.voyage === currentVoyage)
+        : fetchedRecords
       ciiLoadError.value = !res.success
     } catch {
       ciiRecords.value = []
@@ -128,11 +134,13 @@ export function useVoyageOptimization() {
         ? totalDistRaw + distToGoRaw
         : 5400 // Fallback only when live voyage-distance telemetry is unavailable
 
-    const totalCiiDist = ciiRecords.value.reduce((sum, r) => sum + (r.distance || 0), 0)
-    const totalCiiFuel = ciiRecords.value.reduce((sum, r) => sum + (r.totalConsumption || 0), 0)
+    // Only real noon/position reports (not zero-distance event markers) count toward these aggregates
+    const noonRecords = ciiRecords.value.filter((r) => (r.distance || 0) > 0)
+    const totalCiiDist = noonRecords.reduce((sum, r) => sum + (r.distance || 0), 0)
+    const totalCiiFuel = noonRecords.reduce((sum, r) => sum + (r.totalConsumption || 0), 0)
     const avgSpeed =
       totalCiiDist > 0
-        ? ciiRecords.value.reduce((sum, r) => sum + (r.avgSpeed || 0) * (r.distance || 0), 0) / totalCiiDist
+        ? noonRecords.reduce((sum, r) => sum + (Number(r.avgSpeed) || 0) * (r.distance || 0), 0) / totalCiiDist
         : parsedVessel.value.sog || 13.5
 
     // Real fuel-burn rate (MT/NM) from the fetched noon-report window, scaled to the full voyage distance
@@ -267,6 +275,17 @@ export function useVoyageOptimization() {
       fetchRouteWeather()
     },
     { immediate: true }
+  )
+
+  // Re-fetch CII once the current voyage number becomes known, in case the
+  // first fetch above raced ahead of mrvData and could not filter by voyage.
+  watch(
+    () => mrvData.value?.voyage,
+    (voyage, prevVoyage) => {
+      if (voyage && voyage !== prevVoyage) {
+        fetchCiiDateRange()
+      }
+    }
   )
 
   return {
