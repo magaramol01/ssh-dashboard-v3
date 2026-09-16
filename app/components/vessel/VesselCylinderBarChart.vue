@@ -169,16 +169,10 @@ const expandedChartOption = computed(() => getBarChartOption(true))
   <Card class="border border-border/50 bg-card shadow-xs flex flex-col h-full">
     <CardHeader class="p-4 pb-2">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <div class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Thermal Profile</div>
-          <CardTitle class="text-sm font-semibold flex items-center gap-2">
-            <Flame class="size-4 text-primary" />
-            <span>ME Cylinder Exhaust Temperatures</span>
-          </CardTitle>
-          <CardDescription class="text-xs">
-            Individual cylinder gas temperatures and spread variance
-          </CardDescription>
-        </div>
+        <CardTitle class="text-sm font-semibold flex items-center gap-2">
+          <Flame class="size-4 text-primary" />
+          <span>Cylinder Exhaust Temperatures</span>
+        </CardTitle>
 
         <div class="flex items-center gap-2">
           <Badge variant="outline" :class="['text-xs font-medium px-2 py-0.5', overallStatus.color]">

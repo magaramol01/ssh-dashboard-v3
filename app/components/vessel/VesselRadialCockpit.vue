@@ -79,16 +79,10 @@ const meanDraft = computed(() => {
   <Card class="border border-border/50 bg-card shadow-xs flex flex-col h-full min-h-[450px]">
     <CardHeader class="p-4 pb-2">
       <div class="flex items-center justify-between">
-        <div>
-          <div class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Propulsion & Dynamics</div>
-          <CardTitle class="text-sm font-semibold flex items-center gap-2">
-            <Gauge class="size-4 text-primary" />
-            <span>Telemetry Cockpit</span>
-          </CardTitle>
-          <CardDescription class="text-xs">
-            Propulsion dynamics, shaft load, and environmental indicators
-          </CardDescription>
-        </div>
+        <CardTitle class="text-sm font-semibold flex items-center gap-2">
+          <Gauge class="size-4 text-primary" />
+          <span>Propulsion Dynamics</span>
+        </CardTitle>
 
         <!-- Pill Switcher -->
         <div class="h-8 flex items-center rounded-lg bg-muted/50 p-1 border border-border/40">

@@ -109,47 +109,34 @@ function getStatusBadgeClass(status: TelemetryParameter['status']) {
     <!-- Card Header -->
     <CardHeader class="p-4 pb-2 space-y-2.5">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <!-- Eyebrow with Pulsing Live Telemetry Indicator Dot and Health Summary Tally Badge -->
-          <div class="flex items-center gap-2 mb-1">
-            <span class="relative flex size-2">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span class="relative inline-flex rounded-full size-2 bg-emerald-500" />
-            </span>
-            <span class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              SENSOR BUS TELEMETRY
-            </span>
-            <div
-              class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border"
-              :class="[
-                health.criticalCount > 0
-                  ? 'border-rose-500/30 bg-rose-500/10 text-rose-400'
-                  : health.warningCount > 0
-                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-400'
-                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-              ]"
-            >
-              <span class="font-semibold">{{ health.nominalCount }} Nominal</span>
-              <template v-if="health.criticalCount > 0">
-                <span class="opacity-40">•</span>
-                <span class="font-semibold">{{ health.criticalCount }} Critical</span>
-              </template>
-              <template v-else>
-                <span class="opacity-40">•</span>
-                <span :class="health.warningCount > 0 ? 'font-semibold' : 'opacity-80'">
-                  {{ health.warningCount }} Warnings
-                </span>
-              </template>
-            </div>
-          </div>
-
+        <div class="flex items-center gap-3">
           <CardTitle class="text-sm font-semibold flex items-center gap-2">
             <Cpu class="size-4 text-primary" />
             <span>Machinery Diagnostics Matrix</span>
           </CardTitle>
-          <CardDescription class="text-xs text-muted-foreground">
-            Live sensor bus telemetry across Main Engine and Auxiliary Generators
-          </CardDescription>
+
+          <div
+            class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border"
+            :class="[
+              health.criticalCount > 0
+                ? 'border-rose-500/30 bg-rose-500/10 text-rose-400'
+                : health.warningCount > 0
+                  ? 'border-amber-500/30 bg-amber-500/10 text-amber-400'
+                  : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+            ]"
+          >
+            <span class="font-semibold">{{ health.nominalCount }} Nominal</span>
+            <template v-if="health.criticalCount > 0">
+              <span class="opacity-40">•</span>
+              <span class="font-semibold">{{ health.criticalCount }} Critical</span>
+            </template>
+            <template v-else>
+              <span class="opacity-40">•</span>
+              <span :class="health.warningCount > 0 ? 'font-semibold' : 'opacity-80'">
+                {{ health.warningCount }} Warnings
+              </span>
+            </template>
+          </div>
         </div>
 
         <!-- Primary Tab Switcher & Search Filter -->
@@ -338,11 +325,10 @@ function getStatusBadgeClass(status: TelemetryParameter['status']) {
                     :title="`Current: ${p.value} ${p.unit}`"
                   />
                 </div>
-                <!-- Operating range text below the bar -->
-                <div class="flex items-center justify-between text-[10px] font-mono text-muted-foreground/80">
-                  <span>Min: {{ p.nominalMin }}</span>
-                  <span class="text-[9px] uppercase tracking-wider text-muted-foreground/60">Safe Target</span>
-                  <span>Max: {{ p.nominalMax }} {{ p.unit }}</span>
+                <!-- Operating range bounds -->
+                <div class="flex items-center justify-between text-[10px] font-mono text-muted-foreground/60">
+                  <span>{{ p.nominalMin }}</span>
+                  <span>{{ p.nominalMax }} {{ p.unit }}</span>
                 </div>
               </div>
             </div>

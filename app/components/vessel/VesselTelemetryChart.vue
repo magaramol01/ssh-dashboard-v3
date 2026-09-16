@@ -259,16 +259,10 @@ const expandedChartOption = computed(() => getChartConfig(true))
   <Card class="border border-border/50 bg-card shadow-xs flex flex-col h-full">
     <CardHeader class="p-4 pb-2">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <div class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Telemetry Timeline</div>
-          <CardTitle class="text-sm font-semibold flex items-center gap-2">
-            <Activity class="size-4 text-primary" />
-            <span>24-Hour Trends & Profiles</span>
-          </CardTitle>
-          <CardDescription class="text-xs">
-            {{ modeDescriptions[activeMode] }}
-          </CardDescription>
-        </div>
+        <CardTitle class="text-sm font-semibold flex items-center gap-2">
+          <Activity class="size-4 text-primary" />
+          <span>24h Telemetry Profiles</span>
+        </CardTitle>
 
         <!-- Quick Switcher Pills & Controls -->
         <div class="flex items-center gap-2">

@@ -305,15 +305,14 @@ onBeforeUnmount(() => {
   <Card class="border border-border/50 bg-card shadow-xs overflow-hidden flex flex-col h-full min-h-[450px]">
     <CardHeader class="p-4 pb-2">
       <div class="flex items-center justify-between">
-        <div>
-          <div class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Navigation &amp; Passage</div>
+        <div class="flex items-center gap-2.5">
           <CardTitle class="text-sm font-semibold flex items-center gap-2">
             <Navigation class="size-4 text-primary" />
-            <span>Voyage Corridor &amp; Live AIS Track</span>
+            <span>Voyage Corridor</span>
           </CardTitle>
-          <CardDescription class="text-xs">
-            AUBNE (Brisbane) &rarr; JPYOK (Yokohama) Pacific waypoint passage corridor
-          </CardDescription>
+          <Badge variant="outline" class="text-[11px] font-mono font-medium px-2 py-0.5 border-border text-muted-foreground">
+            {{ mrvData?.scr || 'PECLL' }} &rarr; {{ mrvData?.destination || 'CNNDE' }}
+          </Badge>
         </div>
 
         <div class="flex items-center gap-2">

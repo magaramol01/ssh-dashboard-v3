@@ -14,6 +14,23 @@ const { selectedVessel, mrvData, connectivity } = useVesselDashboard()
 
 const isOnline = computed(() => connectivity.value?.status !== false && connectivity.value?.code !== 'red')
 
+const formattedEta = computed(() => {
+  const val = mrvData.value?.etanextport
+  if (!val) return '18 Sep 11:00 UTC'
+  try {
+    const d = new Date(val)
+    if (isNaN(d.getTime())) return val
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const day = String(d.getUTCDate()).padStart(2, '0')
+    const mon = months[d.getUTCMonth()]
+    const hours = String(d.getUTCHours()).padStart(2, '0')
+    const mins = String(d.getUTCMinutes()).padStart(2, '0')
+    return `${day} ${mon} ${hours}:${mins} UTC`
+  } catch {
+    return val
+  }
+})
+
 const formattedTime = computed(() => {
   const now = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -50,7 +67,7 @@ const formattedTime = computed(() => {
       <div class="flex items-center gap-2 text-xs">
         <Compass class="size-3.5 text-primary shrink-0" />
         <span class="text-muted-foreground font-normal">ETA</span>
-        <span class="font-semibold text-foreground font-mono">{{ mrvData.etanextport || '2026-09-18 11:00 UTC' }}</span>
+        <span class="font-semibold text-foreground font-mono">{{ formattedEta }}</span>
         <span class="text-muted-foreground font-mono text-xs">· {{ mrvData.totaldistrun || '403' }} / {{ mrvData.disttogo || '4,063' }} NM</span>
       </div>
     </div>

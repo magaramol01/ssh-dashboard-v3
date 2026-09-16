@@ -67,7 +67,7 @@ const searchQuery = ref<string>('')
 const activeCategory = ref<'all' | 'alarm' | 'alert' | 'advisory'>('all')
 const activeSeverity = ref<'all' | 'critical' | 'warning' | 'info'>('all')
 const hideAcknowledged = ref<boolean>(false)
-const expandedIds = ref<Set<string>>(new Set(['ALM-1', 'ALM-2'])) // Expand first two criticals by default
+const expandedIds = ref<Set<string>>(new Set()) // Collapsed by default
 
 function toggleExpand(id: string) {
   if (expandedIds.value.has(id)) {
@@ -498,25 +498,24 @@ const filteredAlarms = computed(() => {
           </div>
         </div>
 
-        <!-- Actionable Troubleshooting / Advisory Checklist -->
+        <!-- Operational Advisory -->
         <div v-if="item.advisory" class="pt-0.5">
           <button
             type="button"
             @click="toggleExpand(item.id)"
-            class="text-xs text-primary hover:underline flex items-center gap-1.5 font-medium cursor-pointer"
+            class="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1.5 font-medium cursor-pointer"
           >
-            <Sparkles class="size-3 text-primary" />
-            <span>{{ isExpanded(item.id) ? 'Hide Troubleshooting Advisory' : 'View Actionable Advisory' }}</span>
+            <Info class="size-3 text-muted-foreground" />
+            <span>{{ isExpanded(item.id) ? 'Hide advisory' : 'Operational advisory' }}</span>
             <ChevronUp v-if="isExpanded(item.id)" class="size-3" />
             <ChevronDown v-else class="size-3" />
           </button>
 
           <div
             v-if="isExpanded(item.id)"
-            class="mt-2 p-2.5 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground leading-relaxed flex items-start gap-2"
+            class="mt-2 p-2 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground leading-relaxed"
           >
-            <div class="size-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-            <div>{{ item.advisory }}</div>
+            {{ item.advisory }}
           </div>
         </div>
 

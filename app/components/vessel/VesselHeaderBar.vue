@@ -56,14 +56,11 @@ const {
           <h1 class="text-xl font-bold tracking-tight text-foreground">
             {{ selectedVessel?.name || 'Avery Point' }} Operations
           </h1>
-          <Badge variant="outline" class="text-xs font-semibold border-teal-500/30 text-teal-400 bg-teal-500/10 flex items-center gap-1.5 px-2 py-0.5">
-            <span class="size-1.5 rounded-full bg-teal-400 animate-pulse" />
+          <Badge variant="outline" class="text-xs font-semibold border-emerald-500/30 text-emerald-400 bg-emerald-500/10 flex items-center gap-1.5 px-2 py-0.5">
+            <span class="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
             Live Telemetry
           </Badge>
         </div>
-        <p class="text-xs text-muted-foreground mt-0.5">
-          Real-time propulsion telemetry, 24h operational trends, and machinery diagnostics
-        </p>
       </div>
     </div>
 
