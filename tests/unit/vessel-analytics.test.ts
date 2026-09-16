@@ -3,10 +3,10 @@ import assert from 'node:assert/strict'
 import { getCylinderStatusColor, computeCylinderStats, formatTelemetryValue } from '../../app/lib/vessel-analytics'
 
 test('getCylinderStatusColor categorizes temperatures properly', () => {
-  assert.equal(getCylinderStatusColor(318.5), '#334155') // Tactical steel-slate for nominal
-  assert.equal(getCylinderStatusColor(330.0), '#f59e0b') // Warning amber
-  assert.equal(getCylinderStatusColor(345.2), '#f59e0b') // Warning amber
-  assert.equal(getCylinderStatusColor(352.0), '#ef4444') // Alarm red
+  assert.equal(getCylinderStatusColor(318.5), '#14b8a6') // Healthy teal for nominal
+  assert.equal(getCylinderStatusColor(385.0), '#f59e0b') // Warning amber
+  assert.equal(getCylinderStatusColor(415.2), '#f59e0b') // Warning amber
+  assert.equal(getCylinderStatusColor(425.0), '#ef4444') // Critical red
 })
 
 test('computeCylinderStats computes average and spread correctly', () => {

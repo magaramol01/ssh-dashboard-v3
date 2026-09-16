@@ -186,8 +186,8 @@ function updateMapLayers() {
     L.divIcon({
       className: 'port-pin',
       html: `
-        <div class="flex items-center gap-1.5 bg-card/95 text-foreground border border-border/80 px-2 py-0.5 rounded-md shadow-md text-[10px] font-bold font-mono backdrop-blur-xs">
-          <span class="size-2 rounded-full shrink-0 ${isSource ? 'bg-emerald-500' : 'bg-primary'}"></span>
+        <div class="flex items-center gap-1.5 bg-card/95 text-foreground border border-border/80 px-2 py-0.5 rounded-md shadow-md text-xs font-bold font-mono backdrop-blur-xs">
+          <span class="size-2 rounded-full shrink-0 ${isSource ? 'bg-teal-500' : 'bg-primary'}"></span>
           <span>${code}</span>
         </div>
       `,
@@ -302,14 +302,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <Card class="shadow-xs overflow-hidden flex flex-col h-full min-h-[450px]">
+  <Card class="border border-border/50 bg-card shadow-xs overflow-hidden flex flex-col h-full min-h-[450px]">
     <CardHeader class="p-4 pb-2">
       <div class="flex items-center justify-between">
         <div>
-          <div class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Navigation & Passage</div>
+          <div class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Navigation &amp; Passage</div>
           <CardTitle class="text-sm font-semibold flex items-center gap-2">
             <Navigation class="size-4 text-primary" />
-            <span>Voyage Corridor & Live AIS Track</span>
+            <span>Voyage Corridor &amp; Live AIS Track</span>
           </CardTitle>
           <CardDescription class="text-xs">
             AUBNE (Brisbane) &rarr; JPYOK (Yokohama) Pacific waypoint passage corridor
@@ -317,7 +317,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="flex items-center gap-2">
-          <Badge variant="outline" class="text-[11px] font-medium border-primary/30 text-primary">
+          <Badge variant="outline" class="text-xs font-semibold border-sky-500/30 text-sky-400 bg-sky-500/10 px-2 py-0.5">
             Live AIS
           </Badge>
         </div>
@@ -329,19 +329,19 @@ onBeforeUnmount(() => {
       <div ref="mapContainer" class="h-full w-full min-h-[380px] z-10" />
 
       <!-- Floating Corridor Telemetry HUD (Top-Left) -->
-      <div class="absolute top-3 left-3 z-[1000] flex flex-col gap-1 p-2.5 rounded-lg bg-background/90 backdrop-blur-md border border-border shadow-md max-w-[280px] pointer-events-none">
-        <div class="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">Corridor Bounds</div>
-        <div class="flex items-center justify-between gap-3 text-xs font-medium">
+      <div class="absolute top-3 left-3 z-[1000] flex flex-col gap-1.5 p-3 rounded-xl bg-background/90 backdrop-blur-md border border-border/60 shadow-lg max-w-[290px] pointer-events-none">
+        <div class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Corridor Bounds</div>
+        <div class="flex items-center justify-between gap-3 text-xs font-semibold">
           <span class="text-primary flex items-center gap-1.5 font-mono">
             <span class="size-1.5 rounded-full bg-primary" />
             {{ mrvInfo.sourcePort }} &rarr; {{ mrvInfo.destPort }}
           </span>
-          <span class="text-muted-foreground font-normal text-[11px]">15 NM buffer</span>
+          <span class="text-muted-foreground font-normal text-xs">15 NM buffer</span>
         </div>
-        <div class="text-xs text-muted-foreground flex items-center justify-between gap-2 pt-0.5 border-t border-border/50 font-normal">
+        <div class="text-xs text-muted-foreground flex items-center justify-between gap-2 pt-1 border-t border-border/40 font-normal">
           <span>Sailed: <span class="font-mono font-semibold text-foreground">{{ mrvInfo.distTR }} NM</span></span>
           <span>DTG: <span class="font-mono font-semibold text-foreground">{{ mrvInfo.distDTG }} NM</span></span>
-          <span class="text-emerald-500 font-medium text-[11px]">In track</span>
+          <span class="text-teal-400 font-semibold text-xs">In track</span>
         </div>
       </div>
 
@@ -349,7 +349,7 @@ onBeforeUnmount(() => {
       <button
         type="button"
         @click="fitCorridorBounds"
-        class="absolute bottom-3 right-3 z-[1000] flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-background/90 hover:bg-background border border-border shadow-md text-xs font-medium text-foreground backdrop-blur-xs cursor-pointer transition-all hover:border-primary/50"
+        class="h-8 absolute bottom-3 right-3 z-[1000] flex items-center gap-1.5 px-3 rounded-lg bg-background/90 hover:bg-background border border-border/60 shadow-md text-xs font-medium text-foreground backdrop-blur-xs cursor-pointer transition-all hover:border-primary/50"
         title="Re-center and fit Pacific corridor to frame"
       >
         <Focus class="size-3.5 text-primary" />

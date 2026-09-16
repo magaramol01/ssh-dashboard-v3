@@ -76,25 +76,25 @@ const meanDraft = computed(() => {
 </script>
 
 <template>
-  <Card class="shadow-xs flex flex-col h-full min-h-[420px]">
+  <Card class="border border-border/50 bg-card shadow-xs flex flex-col h-full min-h-[450px]">
     <CardHeader class="p-4 pb-2">
       <div class="flex items-center justify-between">
         <div>
-          <div class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Propulsion & Dynamics</div>
+          <div class="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Propulsion & Dynamics</div>
           <CardTitle class="text-sm font-semibold flex items-center gap-2">
             <Gauge class="size-4 text-primary" />
             <span>Telemetry Cockpit</span>
           </CardTitle>
           <CardDescription class="text-xs">
-            Propulsion, shaft load & environmental indicators
+            Propulsion dynamics, shaft load, and environmental indicators
           </CardDescription>
         </div>
 
-        <!-- Pill Switcher (Matches CII tab style) -->
-        <div class="flex rounded-lg bg-muted p-0.5 border border-border">
+        <!-- Pill Switcher -->
+        <div class="h-8 flex items-center rounded-lg bg-muted/50 p-1 border border-border/40">
           <button
             type="button"
-            class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-all cursor-pointer"
+            class="h-6 rounded-md px-3 text-xs font-medium transition-all cursor-pointer"
             :class="activeTab === 'propulsion' ? 'bg-background text-foreground shadow-xs font-semibold' : 'text-muted-foreground hover:text-foreground'"
             @click="activeTab = 'propulsion'"
           >
@@ -102,7 +102,7 @@ const meanDraft = computed(() => {
           </button>
           <button
             type="button"
-            class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-all cursor-pointer"
+            class="h-6 rounded-md px-3 text-xs font-medium transition-all cursor-pointer"
             :class="activeTab === 'environment' ? 'bg-background text-foreground shadow-xs font-semibold' : 'text-muted-foreground hover:text-foreground'"
             @click="activeTab = 'environment'"
           >
@@ -116,16 +116,16 @@ const meanDraft = computed(() => {
       <!-- 4-Meter Grid: Propulsion & Speed View -->
       <div v-if="activeTab === 'propulsion'" class="grid grid-cols-2 gap-3 flex-1 items-center">
         <!-- Meter 1: Speed Meter -->
-        <div class="flex flex-col items-center justify-between rounded-lg border bg-card/60 p-3 h-full shadow-xs">
+        <div class="flex flex-col items-center justify-between rounded-lg bg-muted/20 hover:bg-muted/30 border border-border/30 p-3 h-full transition-colors">
           <div class="w-full flex items-center justify-between text-xs">
-            <span class="text-xs font-normal text-muted-foreground">Speed (SOG)</span>
-            <span class="text-xs font-normal text-muted-foreground">kn</span>
+            <span class="font-medium text-muted-foreground">Speed (SOG)</span>
+            <span class="text-xs text-muted-foreground font-mono">kn</span>
           </div>
 
           <!-- Radial Dial -->
-          <div class="relative flex items-center justify-center my-1">
+          <div class="relative flex items-center justify-center my-1.5">
             <svg class="h-20 w-32" viewBox="0 0 100 60">
-              <path d="M 12,52 A 38,38 0 0,1 88,52" fill="none" stroke="currentColor" class="text-muted/40" stroke-width="7" stroke-linecap="round" />
+              <path d="M 12,52 A 38,38 0 0,1 88,52" fill="none" stroke="currentColor" class="text-muted/30" stroke-width="7" stroke-linecap="round" />
               <path
                 d="M 12,52 A 38,38 0 0,1 88,52"
                 fill="none"
@@ -137,28 +137,28 @@ const meanDraft = computed(() => {
                 :stroke-dashoffset="119.4 * (1 - Math.min(1, Math.max(0, speedVal / 25)))"
               />
             </svg>
-            <div class="absolute bottom-0.5 flex flex-col items-center">
-              <span class="font-mono text-sm font-medium text-foreground/80 tabular-nums">{{ speedVal.toFixed(1) }}</span>
-              <span class="text-[10px] font-normal text-muted-foreground/70">kn</span>
+            <div class="absolute bottom-0 flex flex-col items-center">
+              <span class="font-mono text-xl font-bold text-foreground tabular-nums">{{ speedVal.toFixed(1) }}</span>
+              <span class="text-[11px] font-medium text-muted-foreground/75">kn</span>
             </div>
           </div>
 
-          <div class="w-full pt-1.5 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
+          <div class="w-full pt-2 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
             <span>STW: <span class="text-foreground font-mono font-medium">{{ stwVal.toFixed(1) }} kn</span></span>
-            <span class="text-emerald-500 font-medium text-[11px]">Optimal</span>
+            <span class="text-teal-400 font-medium">Optimal</span>
           </div>
         </div>
 
         <!-- Meter 2: Engine Load (% MCR) -->
-        <div class="flex flex-col items-center justify-between rounded-lg border bg-card/60 p-3 h-full shadow-xs">
+        <div class="flex flex-col items-center justify-between rounded-lg bg-muted/20 hover:bg-muted/30 border border-border/30 p-3 h-full transition-colors">
           <div class="w-full flex items-center justify-between text-xs">
-            <span class="text-xs font-normal text-muted-foreground">Engine load</span>
-            <span class="text-xs font-normal text-muted-foreground">% MCR</span>
+            <span class="font-medium text-muted-foreground">Engine load</span>
+            <span class="text-xs text-muted-foreground font-mono">% MCR</span>
           </div>
 
-          <div class="relative flex items-center justify-center my-1">
+          <div class="relative flex items-center justify-center my-1.5">
             <svg class="h-20 w-32" viewBox="0 0 100 60">
-              <path d="M 12,52 A 38,38 0 0,1 88,52" fill="none" stroke="currentColor" class="text-muted/40" stroke-width="7" stroke-linecap="round" />
+              <path d="M 12,52 A 38,38 0 0,1 88,52" fill="none" stroke="currentColor" class="text-muted/30" stroke-width="7" stroke-linecap="round" />
               <path
                 d="M 12,52 A 38,38 0 0,1 88,52"
                 fill="none"
@@ -170,28 +170,28 @@ const meanDraft = computed(() => {
                 :stroke-dashoffset="119.4 * (1 - Math.min(1, Math.max(0, mcrVal / 100)))"
               />
             </svg>
-            <div class="absolute bottom-0.5 flex flex-col items-center">
-              <span class="font-mono text-sm font-medium text-foreground/80 tabular-nums">{{ mcrVal.toFixed(1) }}%</span>
-              <span class="text-[10px] font-normal text-muted-foreground/70">MCR</span>
+            <div class="absolute bottom-0 flex flex-col items-center">
+              <span class="font-mono text-xl font-bold text-foreground tabular-nums">{{ mcrVal.toFixed(1) }}%</span>
+              <span class="text-[11px] font-medium text-muted-foreground/75">MCR</span>
             </div>
           </div>
 
-          <div class="w-full pt-1.5 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
-            <span>Zone: <span class="text-foreground font-medium">Continuous</span></span>
-            <span class="font-mono text-[11px] text-muted-foreground">Limit: 95%</span>
+          <div class="w-full pt-2 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
+            <span>Zone: <span class="text-teal-400 font-medium">Continuous</span></span>
+            <span class="font-mono text-xs text-muted-foreground">Limit: 95%</span>
           </div>
         </div>
 
         <!-- Meter 3: Shaft RPM -->
-        <div class="flex flex-col items-center justify-between rounded-lg border bg-card/60 p-3 h-full shadow-xs">
+        <div class="flex flex-col items-center justify-between rounded-lg bg-muted/20 hover:bg-muted/30 border border-border/30 p-3 h-full transition-colors">
           <div class="w-full flex items-center justify-between text-xs">
-            <span class="text-xs font-normal text-muted-foreground">Shaft speed</span>
-            <span class="text-xs font-normal text-muted-foreground">0–120 rpm</span>
+            <span class="font-medium text-muted-foreground">Shaft speed</span>
+            <span class="text-xs text-muted-foreground font-mono">0–120 rpm</span>
           </div>
 
-          <div class="relative flex items-center justify-center my-1">
+          <div class="relative flex items-center justify-center my-1.5">
             <svg class="h-20 w-32" viewBox="0 0 100 60">
-              <path d="M 12,52 A 38,38 0 0,1 88,52" fill="none" stroke="currentColor" class="text-muted/40" stroke-width="7" stroke-linecap="round" />
+              <path d="M 12,52 A 38,38 0 0,1 88,52" fill="none" stroke="currentColor" class="text-muted/30" stroke-width="7" stroke-linecap="round" />
               <path
                 d="M 12,52 A 38,38 0 0,1 88,52"
                 fill="none"
@@ -203,28 +203,28 @@ const meanDraft = computed(() => {
                 :stroke-dashoffset="119.4 * (1 - Math.min(1, Math.max(0, rpmVal / 120)))"
               />
             </svg>
-            <div class="absolute bottom-0.5 flex flex-col items-center">
-              <span class="font-mono text-sm font-medium text-foreground/80 tabular-nums">{{ rpmVal.toFixed(1) }}</span>
-              <span class="text-[10px] font-normal text-muted-foreground/70">rpm</span>
+            <div class="absolute bottom-0 flex flex-col items-center">
+              <span class="font-mono text-xl font-bold text-foreground tabular-nums">{{ rpmVal.toFixed(1) }}</span>
+              <span class="text-[11px] font-medium text-muted-foreground/75">rpm</span>
             </div>
           </div>
 
-          <div class="w-full pt-1.5 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
+          <div class="w-full pt-2 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
             <span>Torque: <span class="text-foreground font-mono font-medium">{{ torqueVal }} kNm</span></span>
-            <span class="text-[11px] text-muted-foreground font-medium">Nominal</span>
+            <span class="text-teal-400 font-medium">Nominal</span>
           </div>
         </div>
 
         <!-- Meter 4: Fuel Rate -->
-        <div class="flex flex-col items-center justify-between rounded-lg border bg-card/60 p-3 h-full shadow-xs">
+        <div class="flex flex-col items-center justify-between rounded-lg bg-muted/20 hover:bg-muted/30 border border-border/30 p-3 h-full transition-colors">
           <div class="w-full flex items-center justify-between text-xs">
-            <span class="text-xs font-normal text-muted-foreground">Fuel rate</span>
-            <span class="text-xs font-normal text-muted-foreground">t/day</span>
+            <span class="font-medium text-muted-foreground">Fuel rate</span>
+            <span class="text-xs text-muted-foreground font-mono">t/day</span>
           </div>
 
-          <div class="relative flex items-center justify-center my-1">
+          <div class="relative flex items-center justify-center my-1.5">
             <svg class="h-20 w-32" viewBox="0 0 100 60">
-              <path d="M 12,52 A 38,38 0 0,1 88,52" fill="none" stroke="currentColor" class="text-muted/40" stroke-width="7" stroke-linecap="round" />
+              <path d="M 12,52 A 38,38 0 0,1 88,52" fill="none" stroke="currentColor" class="text-muted/30" stroke-width="7" stroke-linecap="round" />
               <path
                 d="M 12,52 A 38,38 0 0,1 88,52"
                 fill="none"
@@ -236,15 +236,15 @@ const meanDraft = computed(() => {
                 :stroke-dashoffset="119.4 * (1 - Math.min(1, Math.max(0, fuelVal / 35)))"
               />
             </svg>
-            <div class="absolute bottom-0.5 flex flex-col items-center">
-              <span class="font-mono text-sm font-medium text-foreground/80 tabular-nums">{{ fuelVal.toFixed(1) }}</span>
-              <span class="text-[10px] font-normal text-muted-foreground/70">t/d</span>
+            <div class="absolute bottom-0 flex flex-col items-center">
+              <span class="font-mono text-xl font-bold text-foreground tabular-nums">{{ fuelVal.toFixed(1) }}</span>
+              <span class="text-[11px] font-medium text-muted-foreground/75">t/d</span>
             </div>
           </div>
 
-          <div class="w-full pt-1.5 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
+          <div class="w-full pt-2 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
             <span>SFOC: <span class="text-foreground font-mono font-medium">168.4 g/kWh</span></span>
-            <span class="text-[11px] text-muted-foreground font-medium">Economic</span>
+            <span class="text-teal-400 font-medium">Economic</span>
           </div>
         </div>
       </div>
@@ -252,15 +252,15 @@ const meanDraft = computed(() => {
       <!-- 4-Meter Grid: Sea State View -->
       <div v-else class="grid grid-cols-2 gap-3 flex-1 items-center">
         <!-- Wind Speed -->
-        <div class="flex flex-col items-center justify-between rounded-lg border bg-card/60 p-3 h-full shadow-xs">
+        <div class="flex flex-col items-center justify-between rounded-lg bg-muted/20 hover:bg-muted/30 border border-border/30 p-3 h-full transition-colors">
           <div class="w-full flex items-center justify-between text-xs">
-            <span class="text-xs font-normal text-muted-foreground">Relative wind speed</span>
-            <span class="text-xs font-normal text-muted-foreground">kn</span>
+            <span class="font-medium text-muted-foreground">Relative wind speed</span>
+            <span class="text-xs text-muted-foreground font-mono">kn</span>
           </div>
 
-          <div class="relative flex items-center justify-center my-1">
+          <div class="relative flex items-center justify-center my-1.5">
             <svg class="h-20 w-32" viewBox="0 0 100 60">
-              <path d="M 12,52 A 38,38 0 0,1 88,52" fill="none" stroke="currentColor" class="text-muted/40" stroke-width="7" stroke-linecap="round" />
+              <path d="M 12,52 A 38,38 0 0,1 88,52" fill="none" stroke="currentColor" class="text-muted/30" stroke-width="7" stroke-linecap="round" />
               <path
                 d="M 12,52 A 38,38 0 0,1 88,52"
                 fill="none"
@@ -272,50 +272,50 @@ const meanDraft = computed(() => {
                 :stroke-dashoffset="119.4 * (1 - Math.min(1, Math.max(0, windSpeed / 40)))"
               />
             </svg>
-            <div class="absolute bottom-0.5 flex flex-col items-center">
-              <span class="font-mono text-sm font-medium text-foreground/80 tabular-nums">{{ windSpeed.toFixed(1) }}</span>
-              <span class="text-[10px] font-normal text-muted-foreground/70">kn</span>
+            <div class="absolute bottom-0 flex flex-col items-center">
+              <span class="font-mono text-xl font-bold text-foreground tabular-nums">{{ windSpeed.toFixed(1) }}</span>
+              <span class="text-[11px] font-medium text-muted-foreground/75">kn</span>
             </div>
           </div>
 
-          <div class="w-full pt-1.5 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
+          <div class="w-full pt-2 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
             <span>Beaufort 4</span>
-            <span class="text-[11px] text-muted-foreground font-medium">Moderate</span>
+            <span class="text-teal-400 font-medium">Moderate</span>
           </div>
         </div>
 
         <!-- Wind Direction -->
-        <div class="flex flex-col items-center justify-between rounded-lg border bg-card/60 p-3 h-full shadow-xs">
+        <div class="flex flex-col items-center justify-between rounded-lg bg-muted/20 hover:bg-muted/30 border border-border/30 p-3 h-full transition-colors">
           <div class="w-full flex items-center justify-between text-xs">
-            <span class="text-xs font-normal text-muted-foreground">Wind direction</span>
-            <span class="text-xs font-normal text-muted-foreground">deg</span>
+            <span class="font-medium text-muted-foreground">Wind direction</span>
+            <span class="text-xs text-muted-foreground font-mono">deg</span>
           </div>
 
-          <div class="relative flex items-center justify-center my-1">
-            <div class="h-16 w-16 rounded-full border border-border flex items-center justify-center relative">
+          <div class="relative flex items-center justify-center my-1.5">
+            <div class="size-16 rounded-full border border-border/60 bg-muted/30 flex items-center justify-center relative">
               <Compass
-                class="h-8 w-8 text-primary transition-transform duration-700"
+                class="size-8 text-primary transition-transform duration-700"
                 :style="{ transform: `rotate(${windDir}deg)` }"
               />
             </div>
           </div>
 
-          <div class="w-full pt-1.5 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
+          <div class="w-full pt-2 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
             <span>Angle: <span class="text-foreground font-mono font-medium">{{ windDir.toFixed(0) }}°</span></span>
-            <span class="text-[11px] text-muted-foreground font-medium">Port bow</span>
+            <span class="text-teal-400 font-medium">Port bow</span>
           </div>
         </div>
 
         <!-- Wave Height -->
-        <div class="flex flex-col items-center justify-between rounded-lg border bg-card/60 p-3 h-full shadow-xs">
+        <div class="flex flex-col items-center justify-between rounded-lg bg-muted/20 hover:bg-muted/30 border border-border/30 p-3 h-full transition-colors">
           <div class="w-full flex items-center justify-between text-xs">
-            <span class="text-xs font-normal text-muted-foreground">Wave height</span>
-            <span class="text-xs font-normal text-muted-foreground">m</span>
+            <span class="font-medium text-muted-foreground">Wave height</span>
+            <span class="text-xs text-muted-foreground font-mono">m</span>
           </div>
 
-          <div class="relative flex items-center justify-center my-1">
+          <div class="relative flex items-center justify-center my-1.5">
             <svg class="h-20 w-32" viewBox="0 0 100 60">
-              <path d="M 12,52 A 38,38 0 0,1 88,52" fill="none" stroke="currentColor" class="text-muted/40" stroke-width="7" stroke-linecap="round" />
+              <path d="M 12,52 A 38,38 0 0,1 88,52" fill="none" stroke="currentColor" class="text-muted/30" stroke-width="7" stroke-linecap="round" />
               <path
                 d="M 12,52 A 38,38 0 0,1 88,52"
                 fill="none"
@@ -327,28 +327,28 @@ const meanDraft = computed(() => {
                 :stroke-dashoffset="119.4 * (1 - Math.min(1, Math.max(0, waveHeight / 6)))"
               />
             </svg>
-            <div class="absolute bottom-0.5 flex flex-col items-center">
-              <span class="font-mono text-sm font-medium text-foreground/80 tabular-nums">{{ waveHeight.toFixed(1) }}</span>
-              <span class="text-[10px] font-normal text-muted-foreground/70">m</span>
+            <div class="absolute bottom-0 flex flex-col items-center">
+              <span class="font-mono text-xl font-bold text-foreground tabular-nums">{{ waveHeight.toFixed(1) }}</span>
+              <span class="text-[11px] font-medium text-muted-foreground/75">m</span>
             </div>
           </div>
 
-          <div class="w-full pt-1.5 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
+          <div class="w-full pt-2 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
             <span>Swell: 1.9m</span>
-            <span class="text-[11px] text-muted-foreground font-medium">Slight</span>
+            <span class="text-teal-400 font-medium">Slight</span>
           </div>
         </div>
 
         <!-- Mean Draft -->
-        <div class="flex flex-col items-center justify-between rounded-lg border bg-card/60 p-3 h-full shadow-xs">
+        <div class="flex flex-col items-center justify-between rounded-lg bg-muted/20 hover:bg-muted/30 border border-border/30 p-3 h-full transition-colors">
           <div class="w-full flex items-center justify-between text-xs">
-            <span class="text-xs font-normal text-muted-foreground">Mean draft</span>
-            <span class="text-xs font-normal text-muted-foreground">m</span>
+            <span class="font-medium text-muted-foreground">Mean draft</span>
+            <span class="text-xs text-muted-foreground font-mono">m</span>
           </div>
 
-          <div class="relative flex items-center justify-center my-1">
+          <div class="relative flex items-center justify-center my-1.5">
             <svg class="h-20 w-32" viewBox="0 0 100 60">
-              <path d="M 12,52 A 38,38 0 0,1 88,52" fill="none" stroke="currentColor" class="text-muted/40" stroke-width="7" stroke-linecap="round" />
+              <path d="M 12,52 A 38,38 0 0,1 88,52" fill="none" stroke="currentColor" class="text-muted/30" stroke-width="7" stroke-linecap="round" />
               <path
                 d="M 12,52 A 38,38 0 0,1 88,52"
                 fill="none"
@@ -360,15 +360,15 @@ const meanDraft = computed(() => {
                 :stroke-dashoffset="119.4 * (1 - Math.min(1, Math.max(0, meanDraft / 14)))"
               />
             </svg>
-            <div class="absolute bottom-0.5 flex flex-col items-center">
-              <span class="font-mono text-sm font-medium text-foreground/80 tabular-nums">{{ meanDraft.toFixed(1) }}</span>
-              <span class="text-[10px] font-normal text-muted-foreground/70">m</span>
+            <div class="absolute bottom-0 flex flex-col items-center">
+              <span class="font-mono text-xl font-bold text-foreground tabular-nums">{{ meanDraft.toFixed(1) }}</span>
+              <span class="text-[11px] font-medium text-muted-foreground/75">m</span>
             </div>
           </div>
 
-          <div class="w-full pt-1.5 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
+          <div class="w-full pt-2 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
             <span>Trim: 0.2m</span>
-            <span class="text-[11px] text-muted-foreground font-medium">Even</span>
+            <span class="text-teal-400 font-medium">Even</span>
           </div>
         </div>
       </div>

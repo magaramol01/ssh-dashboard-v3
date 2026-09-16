@@ -1,13 +1,13 @@
 /**
  * Cylinder exhaust temperature status colors:
- * - Nominal in-range (<= 380°C): Cool teal (#0ea5e9) matching the cockpit gauges and operational theme
+ * - Nominal healthy (<= 380°C): Teal (#14b8a6)
  * - Elevated warning (380°C - 420°C): Amber (#f59e0b)
  * - Critical breach (> 420°C): Red (#ef4444) strictly reserved for actual threshold breaches
  */
 export function getCylinderStatusColor(temp: number): string {
   if (temp > 420) return '#ef4444' // Critical breach / Red
   if (temp >= 380) return '#f59e0b' // Warning elevated / Amber
-  return '#0ea5e9' // In-range nominal / Cool teal
+  return '#14b8a6' // Healthy nominal / Teal
 }
 
 /**

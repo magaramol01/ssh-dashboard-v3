@@ -3,7 +3,9 @@ import { computed } from 'vue'
 import {
   Gauge,
   RefreshCw,
-  Radio,
+  Bell,
+  PanelRightClose,
+  PanelRightOpen,
 } from 'lucide-vue-next'
 import {
   Select,
@@ -16,44 +18,57 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useVesselDashboard } from '~/composables/useVesselDashboard'
 
+const props = withDefaults(
+  defineProps<{
+    isAlarmsOpen?: boolean
+  }>(),
+  {
+    isAlarmsOpen: true,
+  }
+)
+
+const emit = defineEmits<{
+  (e: 'toggleAlarms'): void
+}>()
+
 const {
   selectedVesselId,
   selectedSisterGroup,
   sisterGroups,
   filteredVessels,
   selectedVessel,
-  connectivity,
+  activeAlarmsCount,
+  criticalAlarmsCount,
   isLoading,
   refreshAll,
 } = useVesselDashboard()
-
-const isOnline = computed(() => connectivity.value?.status !== false && connectivity.value?.code !== 'red')
 </script>
 
 <template>
   <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between w-full">
-    <!-- Title & Icon (Matches CII page header) -->
-    <div class="flex items-center gap-2.5">
-      <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
+    <!-- Title & Icon -->
+    <div class="flex items-center gap-3">
+      <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20 shrink-0">
         <Gauge class="size-5" />
       </div>
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-xl font-bold tracking-tight text-foreground">
-            {{ selectedVessel?.name || 'Vessel' }} Operations
+            {{ selectedVessel?.name || 'Avery Point' }} Operations
           </h1>
-          <Badge variant="outline" class="text-[10px] font-semibold border-primary/30 text-primary">
+          <Badge variant="outline" class="text-xs font-semibold border-teal-500/30 text-teal-400 bg-teal-500/10 flex items-center gap-1.5 px-2 py-0.5">
+            <span class="size-1.5 rounded-full bg-teal-400 animate-pulse" />
             Live Telemetry
           </Badge>
         </div>
-        <p class="text-xs text-muted-foreground">
+        <p class="text-xs text-muted-foreground mt-0.5">
           Real-time propulsion telemetry, 24h operational trends, and machinery diagnostics
         </p>
       </div>
     </div>
 
-    <!-- Controls Bar (Matches CII page controls) -->
-    <div class="flex flex-wrap items-center gap-2.5">
+    <!-- Controls Bar -->
+    <div class="flex flex-wrap items-center gap-2">
       <!-- Sister Group Select -->
       <div class="w-[140px]">
         <Select v-model="selectedSisterGroup">
@@ -96,12 +111,32 @@ const isOnline = computed(() => connectivity.value?.status !== false && connecti
       <Button
         variant="outline"
         size="sm"
-        class="h-8 text-xs gap-1.5 cursor-pointer"
+        class="h-8 text-xs gap-1.5 cursor-pointer px-3"
         :disabled="isLoading"
         @click="refreshAll"
       >
         <RefreshCw class="size-3.5" :class="{ 'animate-spin': isLoading }" />
         <span>Refresh</span>
+      </Button>
+
+      <!-- Toggle Alert Rail Button -->
+      <Button
+        variant="outline"
+        size="sm"
+        class="h-8 text-xs gap-1.5 cursor-pointer px-3 transition-colors"
+        :class="props.isAlarmsOpen ? 'border-primary/40 bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'"
+        :title="props.isAlarmsOpen ? 'Collapse Alert Rail' : 'Expand Alert Rail'"
+        @click="emit('toggleAlarms')"
+      >
+        <component :is="props.isAlarmsOpen ? PanelRightClose : PanelRightOpen" class="size-3.5" />
+        <span class="hidden sm:inline">Alerts</span>
+        <span
+          v-if="activeAlarmsCount > 0"
+          class="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded-full"
+          :class="criticalAlarmsCount > 0 ? 'bg-rose-500 text-white' : 'bg-amber-500 text-black'"
+        >
+          {{ activeAlarmsCount }}
+        </span>
       </Button>
     </div>
   </div>

@@ -98,86 +98,86 @@ const voyageProgressPct = computed(() => {
   <!-- 5-Tile Operational KPI Grid -->
   <div class="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
     <!-- Tile 1: Speed Over Ground -->
-    <Card class="shadow-xs">
-      <CardContent class="p-4 space-y-1.5">
+    <Card class="border border-border/50 bg-card/60 hover:bg-card/90 transition-colors shadow-xs">
+      <CardContent class="p-4 space-y-2">
         <div class="flex items-center justify-between text-xs">
-          <span class="text-xs font-normal text-muted-foreground">Speed over ground</span>
+          <span class="text-xs font-medium text-muted-foreground">Speed over ground</span>
           <Navigation class="size-4 text-primary" />
         </div>
-        <div class="text-2xl font-bold tracking-tight tabular-nums text-foreground">
+        <div class="text-3xl font-extrabold tracking-tight tabular-nums text-foreground flex items-baseline">
           {{ sogValue }}
-          <span class="text-xs font-normal text-muted-foreground">kn</span>
+          <span class="text-xs font-semibold text-muted-foreground ml-1.5">kn</span>
         </div>
-        <p class="text-[11px] text-muted-foreground truncate font-normal">
-          STW: {{ stwValue }} · Drift: 0.0 kn
+        <p class="text-xs text-muted-foreground/75 truncate font-normal">
+          STW: <span class="text-foreground/90 font-mono font-medium">{{ stwValue }}</span> · Drift: 0.0 kn
         </p>
       </CardContent>
     </Card>
 
     <!-- Tile 2: Fuel Rate -->
-    <Card class="shadow-xs">
-      <CardContent class="p-4 space-y-1.5">
+    <Card class="border border-border/50 bg-card/60 hover:bg-card/90 transition-colors shadow-xs">
+      <CardContent class="p-4 space-y-2">
         <div class="flex items-center justify-between text-xs">
-          <span class="text-xs font-normal text-muted-foreground">Fuel rate</span>
+          <span class="text-xs font-medium text-muted-foreground">Fuel rate</span>
           <Fuel class="size-4 text-primary" />
         </div>
-        <div class="text-2xl font-bold tracking-tight tabular-nums text-foreground">
+        <div class="text-3xl font-extrabold tracking-tight tabular-nums text-foreground flex items-baseline">
           {{ fuelRate }}
-          <span class="text-xs font-normal text-muted-foreground">t/day</span>
+          <span class="text-xs font-semibold text-muted-foreground ml-1.5">t/day</span>
         </div>
-        <p class="text-[11px] text-muted-foreground truncate font-normal">
-          SFOC: 168.4 g/kWh · Eco speed
+        <p class="text-xs text-muted-foreground/75 truncate font-normal">
+          SFOC: <span class="text-foreground/90 font-mono font-medium">168.4 g/kWh</span> · <span class="text-teal-400 font-medium">Eco speed</span>
         </p>
       </CardContent>
     </Card>
 
     <!-- Tile 3: Shaft Power -->
-    <Card class="shadow-xs">
-      <CardContent class="p-4 space-y-1.5">
+    <Card class="border border-border/50 bg-card/60 hover:bg-card/90 transition-colors shadow-xs">
+      <CardContent class="p-4 space-y-2">
         <div class="flex items-center justify-between text-xs">
-          <span class="text-xs font-normal text-muted-foreground">Shaft power</span>
+          <span class="text-xs font-medium text-muted-foreground">Shaft power</span>
           <Zap class="size-4 text-primary" />
         </div>
-        <div class="text-2xl font-bold tracking-tight tabular-nums text-foreground">
+        <div class="text-3xl font-extrabold tracking-tight tabular-nums text-foreground flex items-baseline">
           {{ shaftPower.kwFormatted }}
-          <span class="text-xs font-normal text-muted-foreground">kW</span>
+          <span class="text-xs font-semibold text-muted-foreground ml-1.5">kW</span>
         </div>
-        <p class="text-[11px] text-muted-foreground truncate font-normal">
-          Load: {{ shaftMcr }} MCR · {{ shaftPower.mwFormatted }} MW
+        <p class="text-xs text-muted-foreground/75 truncate font-normal">
+          Load: <span class="text-foreground/90 font-mono font-medium">{{ shaftMcr }}</span> MCR · <span class="text-foreground/90 font-mono font-medium">{{ shaftPower.mwFormatted }} MW</span>
         </p>
       </CardContent>
     </Card>
 
     <!-- Tile 4: Voyage Progress -->
-    <Card class="shadow-xs">
-      <CardContent class="p-4 space-y-1.5">
+    <Card class="border border-border/50 bg-card/60 hover:bg-card/90 transition-colors shadow-xs">
+      <CardContent class="p-4 space-y-2">
         <div class="flex items-center justify-between text-xs">
-          <span class="text-xs font-normal text-muted-foreground">Voyage progress</span>
+          <span class="text-xs font-medium text-muted-foreground">Voyage progress</span>
           <Compass class="size-4 text-primary" />
         </div>
-        <div class="text-2xl font-bold tracking-tight tabular-nums text-foreground">
+        <div class="text-3xl font-extrabold tracking-tight tabular-nums text-foreground flex items-baseline">
           {{ voyageProgressPct }}%
-          <span class="text-xs font-normal text-muted-foreground">sailed</span>
+          <span class="text-xs font-semibold text-muted-foreground ml-1.5">sailed</span>
         </div>
-        <p class="text-[11px] text-muted-foreground truncate font-normal">
-          {{ distTR }} / {{ distToGo }} NM · In transit
+        <p class="text-xs text-muted-foreground/75 truncate font-normal">
+          <span class="font-mono text-foreground/90 font-medium">{{ distTR }}</span> / <span class="font-mono text-foreground/90 font-medium">{{ distToGo }}</span> NM · <span class="text-teal-400 font-medium">In transit</span>
         </p>
       </CardContent>
     </Card>
 
     <!-- Tile 5: Exhaust Gas Temp -->
-    <Card class="shadow-xs">
-      <CardContent class="p-4 space-y-1.5">
+    <Card class="border border-border/50 bg-card/60 hover:bg-card/90 transition-colors shadow-xs">
+      <CardContent class="p-4 space-y-2">
         <div class="flex items-center justify-between text-xs">
-          <span class="text-xs font-normal text-muted-foreground">Exhaust temperature (avg)</span>
+          <span class="text-xs font-medium text-muted-foreground">Exhaust temperature (avg)</span>
           <Flame class="size-4 text-primary" />
         </div>
-        <div class="text-2xl font-bold tracking-tight tabular-nums text-foreground">
+        <div class="text-3xl font-extrabold tracking-tight tabular-nums text-foreground flex items-baseline">
           {{ exhaustStats.avg }}
-          <span class="text-xs font-normal text-muted-foreground">°C</span>
+          <span class="text-xs font-semibold text-muted-foreground ml-1.5">°C</span>
         </div>
-        <p class="text-[11px] text-muted-foreground truncate font-normal">
-          Spread: {{ exhaustStats.spread }}°C · Nominal (&lt;380°C)
+        <p class="text-xs text-muted-foreground/75 truncate font-normal">
+          Spread: <span class="font-mono text-foreground/90 font-medium">{{ exhaustStats.spread }}°C</span> · <span class="text-teal-400 font-medium">Nominal</span> (&lt;380°C)
         </p>
       </CardContent>
     </Card>
