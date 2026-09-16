@@ -39,6 +39,8 @@ const {
   routeStrategies,
   activeStrategy,
   advisories,
+  isCiiLoading,
+  ciiLoadError,
   setStrategy,
   applyAdvisory,
   selectDay,
@@ -189,7 +191,7 @@ function ciiRatingBadge(rating: string): { bg: string; text: string } {
                 </div>
               </div>
 
-              <!-- Fuel Consumption Breakdown -->
+              <!-- Fuel Consumption Breakdown (real per-fuel-type data from the CII API) -->
               <div class="p-3 rounded-lg bg-muted/30 border border-border/60 space-y-2">
                 <div class="flex items-center justify-between text-xs font-semibold">
                   <span class="flex items-center gap-1.5 text-foreground">
@@ -199,8 +201,9 @@ function ciiRatingBadge(rating: string): { bg: string; text: string } {
                   <span class="font-mono text-primary font-bold">{{ currentNoon.fuelConsumedMt.total }} MT</span>
                 </div>
                 <div class="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground pt-1 border-t border-border/60">
-                  <div>VLSFO: <strong class="text-foreground font-mono">{{ currentNoon.fuelConsumedMt.vlsfo }} MT</strong></div>
-                  <div>LSMGO: <strong class="text-foreground font-mono">{{ currentNoon.fuelConsumedMt.mgo }} MT</strong></div>
+                  <div v-for="(fuel, key) in currentNoon.fuelConsumedMt.byType" :key="key">
+                    {{ fuel.label }}: <strong class="text-foreground font-mono">{{ fuel.value }} MT</strong>
+                  </div>
                   <div>24h CO₂: <strong class="text-foreground font-mono">{{ currentNoon.totalCo2Mt }} MT</strong></div>
                   <div>Voyage Total: <strong class="text-foreground font-mono">{{ currentNoon.cumulativeFuelMt }} MT</strong></div>
                 </div>
@@ -226,6 +229,15 @@ function ciiRatingBadge(rating: string): { bg: string; text: string } {
             </CardContent>
           </Card>
         </template>
+        <div
+          v-else-if="!isCiiLoading"
+          class="p-4 rounded-lg border border-dashed border-border text-center text-xs text-muted-foreground"
+        >
+          {{ ciiLoadError ? 'Live CII data unavailable — upstream request failed.' : 'No noon report data for this vessel in the selected window.' }}
+        </div>
+        <div v-else class="p-4 text-center text-xs text-muted-foreground">
+          Loading live noon report data…
+        </div>
       </div>
 
       <!-- TAB 2: ROUTE STRATEGIES & ADVISORIES -->
@@ -238,6 +250,9 @@ function ciiRatingBadge(rating: string): { bg: string; text: string } {
               Route Strategies Comparison
             </span>
             <span class="text-[10px] text-muted-foreground">Select to simulate</span>
+          </div>
+          <div class="text-[10px] text-muted-foreground">
+            "Current" reflects live voyage data; alternates are modeled estimates.
           </div>
 
           <div class="space-y-2">
@@ -253,13 +268,16 @@ function ciiRatingBadge(rating: string): { bg: string; text: string } {
                   <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: strat.colorHex }"></span>
                   <span class="text-xs font-bold text-foreground">{{ strat.name }}</span>
                 </div>
-                <Badge
-                  variant="outline"
-                  class="font-mono text-[10px] font-bold"
-                  :class="strat.fuelSavingsMt > 0 ? 'text-emerald-600 border-emerald-500/40 bg-emerald-500/10' : 'text-muted-foreground'"
-                >
-                  {{ strat.fuelSavingsMt > 0 ? `-${strat.fuelSavingsMt} MT Fuel` : `${strat.totalFuelMt} MT` }}
-                </Badge>
+                <div class="flex items-center gap-1.5">
+                  <span v-if="strat.basis === 'modeled-estimate'" class="text-[9px] uppercase font-bold text-muted-foreground/70">Est.</span>
+                  <Badge
+                    variant="outline"
+                    class="font-mono text-[10px] font-bold"
+                    :class="strat.fuelSavingsMt > 0 ? 'text-emerald-600 border-emerald-500/40 bg-emerald-500/10' : 'text-muted-foreground'"
+                  >
+                    {{ strat.fuelSavingsMt > 0 ? `-${strat.fuelSavingsMt} MT Fuel` : `${strat.totalFuelMt} MT` }}
+                  </Badge>
+                </div>
               </div>
 
               <p class="text-[11px] text-muted-foreground mt-1">{{ strat.description }}</p>
