@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed } from 'vue'
 import { Activity, Flame, Zap, Wind, Maximize2, Minimize2, X } from 'lucide-vue-next'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -26,9 +26,7 @@ const { rechartData } = useVesselDashboard()
 type TelemetryMode = 'speed_fuel' | 'power' | 'scavenge' | 'exhaust'
 
 const activeMode = ref<TelemetryMode>('speed_fuel')
-const isHovered = ref(false)
 const isExpanded = ref(false)
-let rotationTimer: ReturnType<typeof setInterval> | null = null
 
 const modes: { key: TelemetryMode; label: string; icon: any }[] = [
   { key: 'speed_fuel', label: 'Speed vs Fuel', icon: Activity },
@@ -44,40 +42,9 @@ const modeDescriptions: Record<TelemetryMode, string> = {
   exhaust: 'Main engine cylinder exhaust temperatures over past 24 hours',
 }
 
-function nextMode() {
-  const currentIndex = modes.findIndex(m => m.key === activeMode.value)
-  const nextIndex = (currentIndex + 1) % modes.length
-  activeMode.value = modes[nextIndex].key
-}
-
-function startInterval() {
-  stopInterval()
-  rotationTimer = setInterval(() => {
-    if (!isHovered.value && !isExpanded.value) {
-      nextMode()
-    }
-  }, 5000)
-}
-
-function stopInterval() {
-  if (rotationTimer) {
-    clearInterval(rotationTimer)
-    rotationTimer = null
-  }
-}
-
 function selectMode(key: TelemetryMode) {
   activeMode.value = key
-  startInterval()
 }
-
-onMounted(() => {
-  startInterval()
-})
-
-onBeforeUnmount(() => {
-  stopInterval()
-})
 
 // 24h timeline markers
 const timelineHours = [
@@ -289,11 +256,7 @@ const expandedChartOption = computed(() => getChartConfig(true))
 </script>
 
 <template>
-  <Card
-    class="border border-border/50 bg-card shadow-xs flex flex-col h-full"
-    @mouseenter="isHovered = true"
-    @mouseleave="isHovered = false"
-  >
+  <Card class="border border-border/50 bg-card shadow-xs flex flex-col h-full">
     <CardHeader class="p-4 pb-2">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div>
@@ -309,14 +272,6 @@ const expandedChartOption = computed(() => getChartConfig(true))
 
         <!-- Quick Switcher Pills & Controls -->
         <div class="flex items-center gap-2">
-          <span
-            class="h-8 text-xs text-muted-foreground font-mono px-2 rounded-lg border border-border/40 bg-muted/30 flex items-center gap-1.5 select-none"
-            :title="isHovered ? 'Auto-cycle paused while cursor is over widget' : 'Auto-cycling every 5s (pauses on hover)'"
-          >
-            <span class="size-1.5 rounded-full" :class="isHovered ? 'bg-amber-500' : 'bg-primary animate-pulse'" />
-            {{ isHovered ? 'Paused' : 'Auto 5s' }}
-          </span>
-
           <div class="h-8 flex items-center bg-muted/50 p-1 rounded-lg border border-border/40">
             <button
               v-for="m in modes"
