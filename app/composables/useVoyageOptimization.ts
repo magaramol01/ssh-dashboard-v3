@@ -5,7 +5,6 @@ import {
   calculateRouteStrategies,
   deriveVoyageAdvisories,
   resolveVesselDeadweightMt,
-  isNoonReportRecord,
   EU_ETS_CARBON_PRICE_EUR_PER_TON,
   DEFAULT_LAYCAN_BUFFER_HOURS,
   CII_LOOKBACK_DAYS,
@@ -141,9 +140,12 @@ export function useVoyageOptimization() {
   // 3. Map real CII records into Daily Noon Reports — no synthetic data
   const dailyNoons = computed<DailyNoonReport[]>(() => mapCiiRecordsToDailyNoons(ciiRecords.value))
 
-  // 4. Compute comparative route strategies from real voyage/CII aggregates
+  // 4. Compute comparative route strategies from the same deduplicated daily
+  // noon data dailyNoons already derived — keeps this aggregate consistent
+  // with the Daily Noon Log's day count instead of re-filtering raw records
+  // independently.
   const routeStrategies = computed<RouteStrategyOption[]>(() => {
-    if (ciiRecords.value.length === 0) return []
+    if (dailyNoons.value.length === 0) return []
 
     const coords = effectiveCorridorCoords.value
     const totalDistRaw = parseFloat(String(mrvData.value?.totaldistrun || '').replace(/,/g, ''))
@@ -153,13 +155,11 @@ export function useVoyageOptimization() {
         ? totalDistRaw + distToGoRaw
         : 5400 // Fallback only when live voyage-distance telemetry is unavailable
 
-    // Only real noon/position reports (not zero-distance event markers) count toward these aggregates
-    const noonRecords = ciiRecords.value.filter(isNoonReportRecord)
-    const totalCiiDist = noonRecords.reduce((sum, r) => sum + (r.distance || 0), 0)
-    const totalCiiFuel = noonRecords.reduce((sum, r) => sum + (r.totalConsumption || 0), 0)
+    const totalCiiDist = dailyNoons.value.reduce((sum, d) => sum + d.distanceRunNm, 0)
+    const totalCiiFuel = dailyNoons.value.reduce((sum, d) => sum + d.fuelConsumedMt.total, 0)
     const avgSpeed =
       totalCiiDist > 0
-        ? noonRecords.reduce((sum, r) => sum + (Number(r.avgSpeed) || 0) * (r.distance || 0), 0) / totalCiiDist
+        ? dailyNoons.value.reduce((sum, d) => sum + d.sog * d.distanceRunNm, 0) / totalCiiDist
         : parsedVessel.value.sog || 13.5
 
     // Real fuel-burn rate (MT/NM) from the fetched noon-report window, scaled to the full voyage distance

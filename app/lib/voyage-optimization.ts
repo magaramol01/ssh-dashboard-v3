@@ -154,6 +154,15 @@ function resolveNoonCoordinate(value: string | number | null | undefined): numbe
 }
 
 /**
+ * Real CII values from the API arrive at full floating-point precision
+ * (e.g. 4.770194221727248) — round to 2 decimals for display everywhere
+ * this is consumed, rather than patching each template that renders it.
+ */
+function roundTo2(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
+/**
  * Calculates IMO Attained CII in g CO2 / (MT * NM).
  * Fallback only — real per-day records already carry `attainedCII` from the API.
  */
@@ -192,6 +201,27 @@ export function isNoonReportRecord(record: CiiDateRangeRecord): boolean {
 }
 
 /**
+ * Collapses records down to at most one per calendar day (UTC), keeping the
+ * one with the largest `distance`. A "Daily Noon Log" is one entry per day
+ * by definition — this is a generic safeguard independent of any specific
+ * vessel/reporting-app's reportType taxonomy: whatever duplicate, low-
+ * distance, or event-adjacent records `isNoonReportRecord` doesn't catch
+ * (taxonomies vary per vessel and can't all be enumerated in advance), the
+ * genuine highest-distance report for that day wins.
+ */
+function collapseToOnePerDay(records: CiiDateRangeRecord[]): CiiDateRangeRecord[] {
+  const byDate = new Map<string, CiiDateRangeRecord>()
+  for (const record of records) {
+    const dateKey = record.reportDateTime.slice(0, 10)
+    const existing = byDate.get(dateKey)
+    if (!existing || (record.distance || 0) > (existing.distance || 0)) {
+      byDate.set(dateKey, record)
+    }
+  }
+  return Array.from(byDate.values())
+}
+
+/**
  * Maps live CII date-range API records into the DailyNoonReport shape the
  * screen renders. The API interleaves real position/noon reports with
  * in-port event markers (sea-passage-end, anchorage, bunkering, arrival/
@@ -200,7 +230,7 @@ export function isNoonReportRecord(record: CiiDateRangeRecord): boolean {
  * are sorted chronologically and numbered D1..Dn.
  */
 export function mapCiiRecordsToDailyNoons(records: CiiDateRangeRecord[]): DailyNoonReport[] {
-  const noonRecords = records.filter(isNoonReportRecord)
+  const noonRecords = collapseToOnePerDay(records.filter(isNoonReportRecord))
 
   const sorted = [...noonRecords].sort(
     (a, b) => new Date(a.reportDateTime).getTime() - new Date(b.reportDateTime).getTime()
@@ -239,10 +269,15 @@ export function mapCiiRecordsToDailyNoons(records: CiiDateRangeRecord[]): DailyN
       cumulativeFuelMt: Math.round(cumulativeFuel * 10) / 10,
       totalCo2Mt: Math.round((record.massOfCo2 || 0) * 100) / 100,
       transportWork: Math.round(record.transportWork || 0),
-      attainedCii: record.attainedCII,
+      attainedCii: roundTo2(record.attainedCII),
       rating,
-      requiredCii: record.CIIRating?.requiredCII || 0,
-      ciiBoundaries: record.CIIRating?.ciiBoundaries || { superior: 0, lower: 0, upper: 0, inferior: 0 },
+      requiredCii: roundTo2(record.CIIRating?.requiredCII || 0),
+      ciiBoundaries: {
+        superior: roundTo2(record.CIIRating?.ciiBoundaries?.superior || 0),
+        lower: roundTo2(record.CIIRating?.ciiBoundaries?.lower || 0),
+        upper: roundTo2(record.CIIRating?.ciiBoundaries?.upper || 0),
+        inferior: roundTo2(record.CIIRating?.ciiBoundaries?.inferior || 0),
+      },
       draftFwdM: record.draftFwd || 0,
       draftAftM: record.draftAft || 0,
       weather: {

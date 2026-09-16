@@ -30,7 +30,7 @@ describe('Voyage Optimization Domain Engine', () => {
     const day1 = noons[0]!
     assert.equal(day1.dayNumber, 1)
     assert.equal(day1.rating, 'A')
-    assert.equal(day1.attainedCii, 3.390250870505968)
+    assert.equal(day1.attainedCii, 3.39, 'attainedCii is rounded to 2 decimals for display')
     assert.equal(day1.distanceRunNm, 320)
     assert.equal(day1.fuelConsumedMt.total, 24.3)
     assert.equal(day1.fuelConsumedMt.byType.hfo!.value, 24.21)
@@ -105,6 +105,24 @@ describe('Voyage Optimization Domain Engine', () => {
     const noons = mapCiiRecordsToDailyNoons([arrivalReport, ...sampleRecords])
     assert.equal(noons.length, 2, 'the arrival report must not become a Daily Noon Log entry')
     assert.ok(noons.every((n) => n.attainedCii !== 48.7))
+  })
+
+  test('mapCiiRecordsToDailyNoons collapses same-day duplicates to the largest-distance record, regardless of reportType', () => {
+    // Generic safeguard: two "sea"-classified records land on the same
+    // calendar date (a reporting-app quirk not covered by any specific
+    // portReportTypes allowlist — the whole point is this works without
+    // needing to know that vessel's exact taxonomy). Only the real,
+    // higher-distance noon report for that day should survive.
+    const duplicateSameDayRecord: CiiDateRangeRecord = {
+      ...sampleRecords[0]!,
+      reportDateTime: '2026-09-01T18:00:00.000Z', // same calendar date as sampleRecords[0]
+      distance: 4,
+      attainedCII: 999,
+    }
+    const noons = mapCiiRecordsToDailyNoons([duplicateSameDayRecord, ...sampleRecords])
+    assert.equal(noons.length, 2, 'only one entry per calendar day survives')
+    assert.equal(noons[0]!.distanceRunNm, 320, 'the higher-distance record for that day wins')
+    assert.ok(noons.every((n) => n.attainedCii !== 999))
   })
 
   test('calculateRouteStrategies returns 4 standard comparative strategies with basis labels', () => {
