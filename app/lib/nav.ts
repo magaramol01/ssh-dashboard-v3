@@ -67,6 +67,7 @@ export const NAV: NavSection[] = [
     label: "Fleet & Manning",
     items: [
       { label: "Vessel Roster", to: "/fleet", icon: "Ship", requires: "dispatcher" },
+      { label: "Ship Details", to: "/ships", icon: "Ship", requires: "dispatcher" },
       { label: "Captains & Crew", to: "/drivers", icon: "UserCheck", requires: "dispatcher" },
     ],
   },
