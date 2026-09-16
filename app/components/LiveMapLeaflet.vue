@@ -5,6 +5,7 @@ import type { ResolvedTrip } from '~/mocks/live'
 import type { Tone } from '~/mocks/shipments'
 import { STATUS_LABELS } from '~/mocks/shipments'
 import { NETWORK } from '~/mocks/network'
+import { useCameraStream } from '~/composables/useCameraStream'
 type Point = [number, number] // Leaflet order: [lat, lng]
 
 type RouteLayers = {
@@ -15,10 +16,15 @@ type RouteLayers = {
   marker: any
   truck: Point
   color: string
+  trip?: any
 }
 
 const props = defineProps<{ trips: (ResolvedTrip | any)[]; selectedId: string | null }>()
-const emit = defineEmits<{ (e: 'select', id: string): void }>()
+const emit = defineEmits<{
+  (e: 'select', id: string): void
+  (e: 'open-camera', vessel: any): void
+}>()
+const { hasCameras } = useCameraStream()
 
 const { theme, isDark } = useTheme()
 const el = ref<HTMLElement | null>(null)
@@ -98,10 +104,13 @@ function icon(html: string, size: [number, number], anchor: [number, number] = [
   return L.divIcon({ html, className: 'lm-leaflet-icon', iconSize: size, iconAnchor: anchor })
 }
 
-function vesselIcon(color: string, selected: boolean) {
+function vesselIcon(color: string, selected: boolean, hasCctv = false) {
   const size = selected ? 38 : 32
+  const cctvBadge = hasCctv
+    ? `<span class="lm-cam-badge" title="Live CCTV Available"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2"/></svg><span class="lm-cam-dot"></span></span>`
+    : ''
   return icon(
-    `<div class="lm-vessel-icon" style="width:${size}px;height:${size}px;border-color:${color};color:${color}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 17l2 3h16l2-3-4-2H6l-4 2zm10-15L4 13h16L12 2zm-1 4v4h2V6h-2z" /></svg></div>`,
+    `<div class="lm-vessel-icon ${hasCctv ? 'has-cctv' : ''}" style="width:${size}px;height:${size}px;border-color:${color};color:${color}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 17l2 3h16l2-3-4-2H6l-4 2zm10-15L4 13h16L12 2zm-1 4v4h2V6h-2z" /></svg>${cctvBadge}</div>`,
     [size, size],
   )
 }
@@ -166,7 +175,8 @@ function applyFocus() {
     if (route.origin) route.origin.setStyle({ opacity, fillOpacity: opacity })
     route.marker.setOpacity(dim ? 0.35 : 1)
     route.marker.setZIndexOffset(focused ? 1000 : 0)
-    route.marker.setIcon(vesselIcon(route.color, isSelected))
+    const hasCctv = hasCameras(id) || (route.trip?.vesselId ? hasCameras(route.trip.vesselId) : false)
+    route.marker.setIcon(vesselIcon(route.color, isSelected, hasCctv))
 
     if (isSelected || isHovered) {
       route.marker.openTooltip()
@@ -219,9 +229,13 @@ function drawRoutes() {
       origin = L.circleMarker(route[0], { radius: 4, color, weight: 2, fillColor: cssVar('--card'), fillOpacity: 1 }).addTo(map)
     }
 
-    const marker = L.marker(markerPos, { icon: vesselIcon(color, false), riseOnHover: true }).addTo(map)
+    const hasCctv = hasCameras(id) || ((trip as any).vesselId ? hasCameras((trip as any).vesselId) : false)
+    const marker = L.marker(markerPos, { icon: vesselIcon(color, false, hasCctv), riseOnHover: true }).addTo(map)
     marker.on('click', () => {
       emit('select', id)
+      if (hasCctv) {
+        emit('open-camera', trip)
+      }
       marker.openTooltip()
     })
     marker.on('mouseout', () => {
@@ -242,6 +256,9 @@ function drawRoutes() {
           : '<span style="color:#94a3b8">In port</span>'
       tooltipHtml += `<br/><span style="font-size:11px">${(trip as any).sog} kts · ${schedLabel}</span>`
     }
+    if (hasCctv) {
+      tooltipHtml += `<br/><span style="display:inline-flex;align-items:center;gap:4px;color:#10b981;font-weight:600;font-size:11px;margin-top:2px;">📹 CCTV Live Available</span>`
+    }
     marker.bindTooltip(tooltipHtml, {
       permanent: false,
       direction: 'top',
@@ -249,9 +266,14 @@ function drawRoutes() {
     })
     const tooltip = marker.getTooltip()
     if (tooltip) {
-      tooltip.on('click', () => emit('select', id))
+      tooltip.on('click', () => {
+        emit('select', id)
+        if (hasCctv) {
+          emit('open-camera', trip)
+        }
+      })
     }
-    routes.set(id, { base, travelled: travelledLine, remaining: remainingLine, origin, marker, truck: markerPos, color })
+    routes.set(id, { base, travelled: travelledLine, remaining: remainingLine, origin, marker, truck: markerPos, color, trip })
   }
 
   if (allPoints.length) {

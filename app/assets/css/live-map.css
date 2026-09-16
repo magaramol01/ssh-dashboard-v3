@@ -208,3 +208,41 @@
   margin-bottom: 2px;
 }
 
+/* Vessel Live CCTV Camera Indicator Badge */
+.lm-cam-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 17px;
+  height: 17px;
+  border-radius: 9999px;
+  background: var(--primary, #0e6e69);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px var(--card), 0 2px 5px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  z-index: 10;
+  transition: transform 0.15s ease-out;
+}
+.lm-cam-badge:hover {
+  transform: scale(1.18);
+}
+.lm-cam-badge svg {
+  width: 9px !important;
+  height: 9px !important;
+  stroke: #ffffff !important;
+  fill: none !important;
+}
+.lm-cam-dot {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: #ef4444;
+  box-shadow: 0 0 4px #ef4444;
+}
+

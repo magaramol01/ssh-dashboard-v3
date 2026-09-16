@@ -10,7 +10,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import {
   Target, X, Sparkles, Send, RotateCcw, ArrowUpRight,
   CloudRain, Compass, AlertTriangle, RefreshCw, ChevronDown, Maximize2, Minimize2,
-  Gauge, Clock, Search, Anchor, CheckCircle2, Wind, Waves, Navigation
+  Gauge, Clock, Search, Anchor, CheckCircle2, Wind, Waves, Navigation, Video
 } from 'lucide-vue-next'
 
 import { Badge } from '@/components/ui/badge'
@@ -21,6 +21,9 @@ import { OverlayScroll } from '@/components/ui/overlay-scroll'
 import { Skeleton } from '@/components/ui/skeleton'
 import LiveMapLeaflet from '@/components/LiveMapLeaflet.vue'
 import SentinelBlockRenderer from '@/components/sentinel/SentinelBlockRenderer.vue'
+import VesselCameraPipOverlay from '@/components/camera/VesselCameraPipOverlay.vue'
+import VesselCameraPlayer from '@/components/camera/VesselCameraPlayer.vue'
+import { useCameraStream } from '~/composables/useCameraStream'
 import { toneBadge, toneDot } from '@/lib/utils'
 
 import type { SentinelAction, SentinelBlock, SentinelChatResponse } from '#shared/types/sentinel'
@@ -227,11 +230,67 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
+// Live CCTV Streaming Setup
+const {
+  initSocket,
+  hasCameras,
+  getVesselCameras,
+  requestVesselStream,
+  stopVesselStream,
+} = useCameraStream()
+
+const isPipOpen = ref(false)
+const pipVessel = ref<any>(null)
+
+function openVesselCamera(vessel: any) {
+  pipVessel.value = vessel
+  isPipOpen.value = true
+}
+
+// Drawer CCTV stream state
+const selectedDrawerCamId = ref<string>('1')
+const drawerStreamUrl = ref<string>('')
+const drawerStreamId = ref<string>('')
+
+const selectedDrawerCamName = computed(() => {
+  if (!selected.value) return 'Vessel Camera'
+  const cams = getVesselCameras(selected.value.id || selected.value.vesselId)
+  const found = cams.find((c) => c.id === selectedDrawerCamId.value)
+  return found?.name || cams[0]?.name || 'Bridge Forward'
+})
+
+async function startDrawerStream() {
+  if (!selected.value) return
+  const vId = selected.value.vesselId || selected.value.id
+  const cams = getVesselCameras(vId)
+  if (cams.length === 0) return
+
+  if (!cams.some((c) => c.id === selectedDrawerCamId.value)) {
+    selectedDrawerCamId.value = cams[0]?.id || '1'
+  }
+
+  if (drawerStreamId.value) {
+    stopVesselStream(drawerStreamId.value)
+  }
+
+  const { streamId, streamUrl } = await requestVesselStream(vId, selectedDrawerCamId.value, 'sd')
+  drawerStreamId.value = streamId
+  drawerStreamUrl.value = streamUrl
+}
+
 onMounted(() => {
-  if (!import.meta.server) window.addEventListener('keydown', handleKeydown)
+  if (!import.meta.server) {
+    window.addEventListener('keydown', handleKeydown)
+    initSocket()
+  }
 })
 onUnmounted(() => {
-  if (!import.meta.server) window.removeEventListener('keydown', handleKeydown)
+  if (!import.meta.server) {
+    window.removeEventListener('keydown', handleKeydown)
+    if (drawerStreamId.value) {
+      stopVesselStream(drawerStreamId.value)
+    }
+  }
 })
 
 function scheduleBadgeText(item: LiveVesselItem): string {
@@ -324,6 +383,21 @@ const legend: { label: string; tone: Tone }[] = [
 
 const selected = computed(() => {
   return liveVessels.value.find((v) => v.id === selectedId.value) ?? null
+})
+
+watch(selected, (newSel, oldSel) => {
+  if (oldSel && drawerStreamId.value) {
+    stopVesselStream(drawerStreamId.value)
+    drawerStreamId.value = ''
+    drawerStreamUrl.value = ''
+  }
+  if (newSel && (hasCameras(newSel.id) || (newSel.vesselId && hasCameras(newSel.vesselId)))) {
+    const cams = getVesselCameras(newSel.vesselId || newSel.id)
+    if (cams.length > 0) {
+      selectedDrawerCamId.value = cams[0]?.id || '1'
+      startDrawerStream()
+    }
+  }
 })
 </script>
 
@@ -432,7 +506,19 @@ const selected = computed(() => {
                 @blur="onHover(null)"
               >
                 <div class="flex items-center justify-between gap-2">
-                  <span class="font-semibold text-[13px] tracking-tight truncate">{{ t.name }}</span>
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="font-semibold text-[13px] tracking-tight truncate">{{ t.name }}</span>
+                    <button
+                      v-if="hasCameras(t.id) || (t.vesselId && hasCameras(t.vesselId))"
+                      type="button"
+                      class="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-semibold shrink-0 cursor-pointer transition-colors"
+                      title="Open Live CCTV Stream"
+                      @click.stop="openVesselCamera(t)"
+                    >
+                      <Video class="size-2.5" />
+                      CCTV
+                    </button>
+                  </div>
                   <Badge :variant="scheduleBadgeVariant(t)" class="shrink-0 text-xs font-medium">
                     {{ scheduleBadgeText(t) }}
                   </Badge>
@@ -540,7 +626,20 @@ const selected = computed(() => {
       <div class="relative flex-1 overflow-hidden isolate">
         <ClientOnly>
           <div class="size-full z-0 relative">
-            <LiveMapLeaflet ref="mapRef" :trips="liveVessels" :selected-id="selectedId" @select="select" />
+            <LiveMapLeaflet
+              ref="mapRef"
+              :trips="liveVessels"
+              :selected-id="selectedId"
+              @select="select"
+              @open-camera="openVesselCamera"
+            />
+
+            <!-- God's Eye View Floating PiP Overlay -->
+            <VesselCameraPipOverlay
+              :vessel="pipVessel"
+              :is-open="isPipOpen"
+              @close="isPipOpen = false"
+            />
           </div>
           <template #fallback>
             <div class="size-full flex flex-col items-center justify-center bg-muted/30 p-6">
@@ -759,6 +858,68 @@ const selected = computed(() => {
                     </p>
                   </div>
                 </div>
+              </div>
+
+              <!-- Live CCTV Surveillance Section (Available when vessel has cameras) -->
+              <div
+                v-if="hasCameras(selected.id) || (selected.vesselId && hasCameras(selected.vesselId))"
+                class="rounded-xl border border-primary/30 bg-primary/5 p-3.5 space-y-3"
+              >
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <div class="size-6 rounded-md bg-primary/15 flex items-center justify-center text-primary">
+                      <Video class="size-3.5" />
+                    </div>
+                    <div>
+                      <span class="text-xs font-semibold text-foreground tracking-tight">Live CCTV Feeds</span>
+                      <span class="block text-[10px] text-muted-foreground">Onboard Satellite Streaming</span>
+                    </div>
+                  </div>
+
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-destructive/15 text-destructive text-[10px] font-bold uppercase tracking-wider">
+                    <span class="size-1.5 rounded-full bg-destructive animate-pulse" />
+                    LIVE
+                  </span>
+                </div>
+
+                <!-- Multi-Camera Selector Pills -->
+                <div class="flex flex-wrap gap-1.5">
+                  <button
+                    v-for="cam in getVesselCameras(selected.id || selected.vesselId)"
+                    :key="cam.id"
+                    type="button"
+                    class="text-[11px] font-medium px-2 py-0.5 rounded-md transition-all cursor-pointer"
+                    :class="
+                      selectedDrawerCamId === cam.id
+                        ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
+                        : 'bg-card/70 hover:bg-card text-muted-foreground hover:text-foreground border border-border/50'
+                    "
+                    @click="selectedDrawerCamId = cam.id; startDrawerStream()"
+                  >
+                    {{ cam.name }}
+                  </button>
+                </div>
+
+                <!-- Embedded Video Stream Canvas -->
+                <div class="rounded-lg overflow-hidden border border-border/60 shadow-inner">
+                  <VesselCameraPlayer
+                    :stream-url="drawerStreamUrl"
+                    :camera-name="selectedDrawerCamName"
+                    :is-live="true"
+                    :auto-play="true"
+                  />
+                </div>
+
+                <!-- Pop out to Floating PiP Overlay -->
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  class="w-full h-7 text-xs gap-1.5 font-medium cursor-pointer"
+                  @click="openVesselCamera(selected)"
+                >
+                  <Maximize2 class="size-3" />
+                  <span>Pop out God's Eye View PiP</span>
+                </Button>
               </div>
 
               <!-- Ask Copilot for this Vessel Button -->

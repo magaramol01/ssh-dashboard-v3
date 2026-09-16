@@ -28,7 +28,7 @@ Thumbs.db
 !.env.example
 
 # Local Claude
-.claude/settings.local.json
+.claude/
 .playwright-mcp/
 
 # AI working docs (internal, not shipped)
