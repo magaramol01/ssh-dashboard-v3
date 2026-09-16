@@ -1,20 +1,22 @@
 import { ref, computed, watch, shallowRef } from 'vue'
 import { useVesselDashboard } from '~/composables/useVesselDashboard'
 import {
-  computeDailyNoonProgression,
+  mapCiiRecordsToDailyNoons,
   calculateRouteStrategies,
   deriveVoyageAdvisories,
-  haversineNm,
+  resolveVesselDeadweightMt,
+  EU_ETS_CARBON_PRICE_EUR_PER_TON,
+  DEFAULT_LAYCAN_BUFFER_HOURS,
   type DailyNoonReport,
   type RouteStrategyOption,
   type VoyageAdvisory,
   type CIIRating,
+  type CiiDateRangeRecord,
 } from '~/lib/voyage-optimization'
 import {
   parsePlannedCorridor,
   parseVesselCurrentPosition,
   parseTravelledTrack,
-  resolvePortCoordinates,
 } from '~/lib/vessel-voyage'
 import type { MarineWeatherForecast } from '~~/server/utils/weather-adapter'
 
@@ -41,6 +43,9 @@ const selectedDay = ref<DailyNoonReport | null>(null)
 const advisoriesList = ref<VoyageAdvisory[]>([])
 const weatherAlongRoute = shallowRef<MarineWeatherForecast[]>([])
 const isWeatherLoading = ref(false)
+const ciiRecords = shallowRef<CiiDateRangeRecord[]>([])
+const isCiiLoading = ref(false)
+const ciiLoadError = ref(false)
 
 export function useVoyageOptimization() {
   const {
@@ -59,11 +64,11 @@ export function useVoyageOptimization() {
   const parsedTravelled = computed(() => parseTravelledTrack(windyMapData.value))
 
   // Fallback corridor points if API is still loading or sparse
+  // (unrelated to CII data — this drives the live map's polyline, not the KPI/log numbers)
   const effectiveCorridorCoords = computed<[number, number][]>(() => {
     if (parsedCorridor.value.coords && parsedCorridor.value.coords.length >= 2) {
       return parsedCorridor.value.coords
     }
-    // High-fidelity fallback corridor (Pacific crossing: Callao -> Ningde)
     return [
       [-12.05, -77.15],
       [-8.2, -85.4],
@@ -78,39 +83,71 @@ export function useVoyageOptimization() {
     ]
   })
 
-  // 2. Compute 24-hour Daily Noon Reports along traveled track
-  const dailyNoons = computed<DailyNoonReport[]>(() => {
-    const coords = effectiveCorridorCoords.value
-    const depTime = mrvData.value?.rptdate || '2026-09-10T12:00:00Z'
-    const dwt = 75000 // Standard Panamax / Ultramax bulk deadweight
-    const speed = parsedVessel.value.sog > 5 ? parsedVessel.value.sog : 13.5
-    return computeDailyNoonProgression(coords, dwt, depTime, speed)
-  })
+  // 2. Fetch real per-day CII noon report data for the active vessel.
+  // Window is a trailing 14 days ending at the latest known noon report date
+  // (the API has no "whole voyage" query; true voyage-start-aware ranging is
+  // a documented follow-up, not implemented here to avoid guessing at data
+  // this composable doesn't have).
+  async function fetchCiiDateRange() {
+    isCiiLoading.value = true
+    ciiLoadError.value = false
+    try {
+      const endDate = (mrvData.value?.rptdate || new Date().toISOString()).slice(0, 10)
+      const endDt = new Date(endDate)
+      const startDt = new Date(endDt.getTime() - 13 * 24 * 3600 * 1000)
+      const startDate = startDt.toISOString().slice(0, 10)
+      const year = endDt.getUTCFullYear()
 
-  // 3. Compute comparative route strategies (Current, Lowest-Fuel, Safest, Fastest)
+      const res = await $fetch<{ success: boolean; records: CiiDateRangeRecord[] }>(
+        '/api/vessels/cii-date-range',
+        { params: { vesselId: selectedVesselId.value, startDate, endDate, year } }
+      )
+      ciiRecords.value = res.success ? res.records : []
+      ciiLoadError.value = !res.success
+    } catch {
+      ciiRecords.value = []
+      ciiLoadError.value = true
+    } finally {
+      isCiiLoading.value = false
+    }
+  }
+
+  // 3. Map real CII records into Daily Noon Reports — no synthetic data
+  const dailyNoons = computed<DailyNoonReport[]>(() => mapCiiRecordsToDailyNoons(ciiRecords.value))
+
+  // 4. Compute comparative route strategies from real voyage/CII aggregates
   const routeStrategies = computed<RouteStrategyOption[]>(() => {
+    if (ciiRecords.value.length === 0) return []
+
     const coords = effectiveCorridorCoords.value
     const totalDistRaw = parseFloat(String(mrvData.value?.totaldistrun || '').replace(/,/g, ''))
     const distToGoRaw = parseFloat(String(mrvData.value?.disttogo || '').replace(/,/g, ''))
-    const baseDist = !isNaN(totalDistRaw) && !isNaN(distToGoRaw) && totalDistRaw + distToGoRaw > 500
-      ? totalDistRaw + distToGoRaw
-      : 5400
+    const baseDist =
+      !isNaN(totalDistRaw) && !isNaN(distToGoRaw) && totalDistRaw + distToGoRaw > 500
+        ? totalDistRaw + distToGoRaw
+        : 5400 // Fallback only when live voyage-distance telemetry is unavailable
 
-    const speed = parsedVessel.value.sog > 5 ? parsedVessel.value.sog : 13.5
-    const baseFuel = Math.round((baseDist / (speed * 24)) * 26.5) // ~26.5 MT/day baseline
-    const dwt = 75000
+    const totalCiiDist = ciiRecords.value.reduce((sum, r) => sum + (r.distance || 0), 0)
+    const totalCiiFuel = ciiRecords.value.reduce((sum, r) => sum + (r.totalConsumption || 0), 0)
+    const avgSpeed =
+      totalCiiDist > 0
+        ? ciiRecords.value.reduce((sum, r) => sum + (r.avgSpeed || 0) * (r.distance || 0), 0) / totalCiiDist
+        : parsedVessel.value.sog || 13.5
 
-    return calculateRouteStrategies(baseDist, baseFuel, speed, dwt, coords)
+    // Real fuel-burn rate (MT/NM) from the fetched noon-report window, scaled to the full voyage distance
+    const fuelBurnRateMtPerNm = totalCiiDist > 0 ? totalCiiFuel / totalCiiDist : 0
+    const baseFuel = Math.round(fuelBurnRateMtPerNm * baseDist * 10) / 10
+    const dwt = resolveVesselDeadweightMt(ciiRecords.value)
+
+    return calculateRouteStrategies(baseDist, baseFuel, avgSpeed, dwt, coords)
   })
 
-  const activeStrategyOption = computed<RouteStrategyOption>(() => {
-    return (
-      routeStrategies.value.find((s) => s.id === activeStrategy.value) ||
-      routeStrategies.value[0]!
-    )
+  const activeStrategyOption = computed<RouteStrategyOption | null>(() => {
+    if (routeStrategies.value.length === 0) return null
+    return routeStrategies.value.find((s) => s.id === activeStrategy.value) || routeStrategies.value[0]!
   })
 
-  // 4. Update advisories reactively when vessel or noons change
+  // 5. Update advisories reactively when vessel or noons change
   watch(
     [dailyNoons, activeStrategy],
     () => {
@@ -125,19 +162,22 @@ export function useVoyageOptimization() {
     { immediate: true }
   )
 
-  // 5. Compute Advisory KPI Summary HUD
+  // 6. Compute Advisory KPI Summary HUD
   const kpiSummary = computed<VoyageOptimizationKpiSummary>(() => {
     const latestNoon = dailyNoons.value[dailyNoons.value.length - 1]
-    const currentCii = latestNoon?.attainedCii || 4.28
-    const currentRating = latestNoon?.rating || 'C'
-    const requiredCii = 3.92 // IMO Required boundary for Band B
-    const marginPct = Math.round(((requiredCii - currentCii) / requiredCii) * 1000) / 10
-
     const activeOpt = activeStrategyOption.value
+    const currentOpt = routeStrategies.value.find((s) => s.id === 'current')
     const isEco = activeStrategy.value === 'lowest-fuel'
-    const speedDelta = isEco ? 1.2 : 0
-    const recSpeed = Math.round((activeOpt.avgSpeedKts) * 10) / 10
-    const fuelSavings = isEco ? 4.8 : 0
+
+    const currentCii = latestNoon?.attainedCii ?? 0
+    const currentRating = latestNoon?.rating ?? 'C'
+    const requiredCii = latestNoon?.requiredCii || 0
+    const marginPct = requiredCii > 0 ? Math.round(((requiredCii - currentCii) / requiredCii) * 1000) / 10 : 0
+
+    const recSpeed = Math.round((activeOpt?.avgSpeedKts || 0) * 10) / 10
+    const speedDelta =
+      isEco && activeOpt && currentOpt ? Math.round((currentOpt.avgSpeedKts - activeOpt.avgSpeedKts) * 10) / 10 : 0
+    const fuelSavings = isEco && activeOpt ? activeOpt.fuelSavingsMt : 0
 
     const weatherLevel: 'low' | 'moderate' | 'high' =
       (latestNoon?.weather.beaufort || 3) >= 6 ? 'high' : (latestNoon?.weather.beaufort || 3) >= 5 ? 'moderate' : 'low'
@@ -159,19 +199,18 @@ export function useVoyageOptimization() {
           : 'Favorable passage weather',
       weatherAlertSubtext: latestNoon?.weather.shortForecast || 'Nominal resistance',
       weatherRiskLevel: weatherLevel,
-      laycanBufferHours: 8.5,
-      carbonSavingsEur: activeOpt.carbonSavingsEur > 0 ? activeOpt.carbonSavingsEur : 0,
-      projectedVoyageFuelMt: activeOpt.totalFuelMt,
+      laycanBufferHours: DEFAULT_LAYCAN_BUFFER_HOURS,
+      carbonSavingsEur: activeOpt && activeOpt.carbonSavingsEur > 0 ? activeOpt.carbonSavingsEur : 0,
+      projectedVoyageFuelMt: activeOpt?.totalFuelMt || 0,
     }
   })
 
-  // 6. Fetch live meteorological forecast along passage
+  // 7. Fetch live meteorological forecast along passage
   async function fetchRouteWeather() {
     if (isWeatherLoading.value) return
     isWeatherLoading.value = true
     try {
       const coords = effectiveCorridorCoords.value
-      // Sample 3 strategic points: origin/past, current vessel, ahead waypoint
       const pointsToSample: [number, number][] = []
       if (coords.length > 0) pointsToSample.push(coords[0]!)
       if (parsedVessel.value.isValid) pointsToSample.push([parsedVessel.value.lat, parsedVessel.value.lng])
@@ -218,11 +257,12 @@ export function useVoyageOptimization() {
     }
   }
 
-  // Auto-fetch weather when vessel or corridor changes
+  // Auto-fetch CII data and weather when vessel changes
   watch(
     () => selectedVesselId.value,
     () => {
       selectedDay.value = null
+      fetchCiiDateRange()
       fetchRouteWeather()
     },
     { immediate: true }
@@ -241,6 +281,8 @@ export function useVoyageOptimization() {
     parsedTravelled,
     effectiveCorridorCoords,
     dailyNoons,
+    isCiiLoading,
+    ciiLoadError,
     routeStrategies,
     activeStrategy,
     activeStrategyOption,
@@ -253,6 +295,7 @@ export function useVoyageOptimization() {
     selectDay,
     applyAdvisory,
     fetchRouteWeather,
+    fetchCiiDateRange,
     refreshAll,
   }
 }

@@ -6,6 +6,7 @@ import {
   parseTravelledTrack,
   deriveWaypoints,
   resolvePortCoordinates,
+  parseDmsCoordinate,
   KNOWN_PORT_COORDS,
 } from '../../app/lib/vessel-voyage'
 
@@ -162,4 +163,24 @@ test('resolvePortCoordinates returns known coordinates for standard UN/LOCODEs',
   assert.deepEqual(resolvePortCoordinates('SNDKR'), KNOWN_PORT_COORDS.SNDKR)
   assert.deepEqual(resolvePortCoordinates('DKSKA'), KNOWN_PORT_COORDS.DKSKA)
   assert.deepEqual(resolvePortCoordinates('UNKNOWN_PORT', [10, 20]), [10, 20])
+})
+
+test('parseDmsCoordinate converts a southern-hemisphere DMS latitude to negative decimal degrees', () => {
+  const result = parseDmsCoordinate("24°13'5''S")
+  assert.ok(Math.abs(result - -24.218056) < 0.001)
+})
+
+test('parseDmsCoordinate converts an eastern DMS longitude to positive decimal degrees', () => {
+  const result = parseDmsCoordinate("050°31'0''E")
+  assert.ok(Math.abs(result - 50.516667) < 0.001)
+})
+
+test('parseDmsCoordinate handles northern and western hemispheres', () => {
+  assert.ok(Math.abs(parseDmsCoordinate("10°0'0''N") - 10) < 0.001)
+  assert.ok(Math.abs(parseDmsCoordinate("10°0'0''W") - -10) < 0.001)
+})
+
+test('parseDmsCoordinate returns NaN for unparseable input', () => {
+  assert.ok(Number.isNaN(parseDmsCoordinate('')))
+  assert.ok(Number.isNaN(parseDmsCoordinate('not a coordinate')))
 })

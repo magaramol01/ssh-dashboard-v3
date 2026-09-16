@@ -259,3 +259,18 @@ export function deriveWaypoints(coords: [number, number][]): WaypointItem[] {
     { name: 'WP 03', pos: coords[step3]!, label: formatCoordLabel(coords[step3]!) },
   ]
 }
+
+/**
+ * Parses a degrees-minutes-seconds coordinate string (e.g. "24°13'5''S")
+ * into signed decimal degrees. Returns NaN for unparseable input.
+ */
+export function parseDmsCoordinate(dms: string): number {
+  const match = /^(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D*([NSEW])$/.exec((dms || '').trim())
+  if (!match) return NaN
+  const [, degStr, minStr, secStr, dir] = match
+  const deg = Number(degStr)
+  const min = Number(minStr)
+  const sec = Number(secStr)
+  const decimal = deg + min / 60 + sec / 3600
+  return dir === 'S' || dir === 'W' ? -decimal : decimal
+}
