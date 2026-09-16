@@ -140,6 +140,10 @@ export function useVoyageOptimization() {
   // 3. Map real CII records into Daily Noon Reports — no synthetic data
   const dailyNoons = computed<DailyNoonReport[]>(() => mapCiiRecordsToDailyNoons(ciiRecords.value))
 
+  // Real voyage number the Daily Noon Log is scoped to (all ciiRecords share
+  // the same voyage after filtering in fetchCiiDateRange)
+  const currentVoyage = computed<string | null>(() => ciiRecords.value[0]?.voyage || null)
+
   // 4. Compute comparative route strategies from the same deduplicated daily
   // noon data dailyNoons already derived — keeps this aggregate consistent
   // with the Daily Noon Log's day count instead of re-filtering raw records
@@ -320,6 +324,7 @@ export function useVoyageOptimization() {
     parsedTravelled,
     effectiveCorridorCoords,
     dailyNoons,
+    currentVoyage,
     isCiiLoading,
     ciiLoadError,
     routeStrategies,

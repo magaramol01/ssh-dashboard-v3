@@ -103,12 +103,18 @@ function ciiRatingColor(rating: string): string {
           <span class="text-base sm:text-lg font-bold font-mono tracking-tight text-foreground">
             {{ kpiSummary.recommendedSpeedKts }} kts
           </span>
-          <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
-            -4.8 MT/d
+          <span
+            v-if="kpiSummary.dailyFuelSavingsMt > 0"
+            class="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold"
+          >
+            -{{ kpiSummary.dailyFuelSavingsMt }} MT/d
+          </span>
+          <span v-else class="text-[10px] text-muted-foreground font-semibold">
+            Baseline
           </span>
         </div>
         <div class="mt-1 text-[10px] text-muted-foreground truncate">
-          Target ME RPM 82 · Secures Band B
+          {{ activeStrategy === 'lowest-fuel' ? `Secures Band ${kpiSummary.targetRating}` : 'Current active speed profile' }}
         </div>
       </div>
 

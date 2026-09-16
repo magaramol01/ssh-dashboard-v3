@@ -39,6 +39,7 @@ const {
   routeStrategies,
   activeStrategy,
   advisories,
+  currentVoyage,
   isCiiLoading,
   ciiLoadError,
   setStrategy,
@@ -85,7 +86,12 @@ function ciiRatingBadge(rating: string): { bg: string; text: string } {
           <Sliders class="w-4 h-4" />
         </div>
         <div>
-          <h3 class="text-sm font-semibold text-foreground leading-tight">Voyage Inspection</h3>
+          <div class="flex items-center gap-1.5">
+            <h3 class="text-sm font-semibold text-foreground leading-tight">Voyage Inspection</h3>
+            <Badge v-if="currentVoyage" variant="outline" class="text-[10px] font-mono px-1.5 py-0">
+              Voy. {{ currentVoyage }}
+            </Badge>
+          </div>
           <p class="text-[11px] text-muted-foreground">Daily telemetry & route optimization</p>
         </div>
       </div>
