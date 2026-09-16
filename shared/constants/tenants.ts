@@ -21,6 +21,7 @@ export const RESERVED_TENANT_NAMES = new Set([
   'distribution-centers',
   'routes',
   'fleet',
+  'ships',
   'drivers',
   'customers',
   'analytics',

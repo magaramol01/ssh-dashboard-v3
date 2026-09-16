@@ -10,6 +10,7 @@ import rhsPanelFlagsPostHandler from '../../server/api/vessels/rhs-panel-flags.p
 import rechartDataHandler from '../../server/api/vessels/rechart-data.post'
 import graphAvgValuesHandler from '../../server/api/vessels/graph-avg-values.get'
 import alarmsHandler from '../../server/api/vessels/alarms.get'
+import shipDataHandler from '../../server/api/vessels/ship-data.get'
 
 test('Vessel API Server Proxies defines all route handlers properly', () => {
   assert.equal(typeof sisterGroupHandler, 'function')
@@ -22,4 +23,5 @@ test('Vessel API Server Proxies defines all route handlers properly', () => {
   assert.equal(typeof rechartDataHandler, 'function')
   assert.equal(typeof graphAvgValuesHandler, 'function')
   assert.equal(typeof alarmsHandler, 'function')
+  assert.equal(typeof shipDataHandler, 'function')
 })
