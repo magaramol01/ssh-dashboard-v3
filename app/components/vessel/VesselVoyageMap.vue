@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { Navigation, Compass, MapPin, Focus, Anchor, Crosshair } from 'lucide-vue-next'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
+import { Navigation, Focus } from 'lucide-vue-next'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { useVesselDashboard } from '~/composables/useVesselDashboard'
 import { useTheme } from '~/composables/useTheme'
+import {
+  parseVesselCurrentPosition,
+  parsePlannedCorridor,
+  parseTravelledTrack,
+  deriveWaypoints,
+  resolvePortCoordinates,
+  KNOWN_PORT_COORDS,
+} from '~/lib/vessel-voyage'
 
 const { mrvData, windyMapData, selectedVessel, isMapLoading } = useVesselDashboard()
 const { isDark } = useTheme()
@@ -35,51 +42,44 @@ function formatEta(rawEta?: string) {
   }
 }
 
+// Parse live corridor and route data from backend
+const parsedCorridor = computed(() => parsePlannedCorridor(windyMapData.value))
+const parsedVesselPos = computed(() => parseVesselCurrentPosition(windyMapData.value))
+const parsedTravelled = computed(() => parseTravelledTrack(windyMapData.value))
+
 const mrvInfo = computed(() => {
+  const pStart = parsedCorridor.value.startPort
+  const pEnd = parsedCorridor.value.endPort
   return {
-    vesselName: mrvData.value?.vessel || selectedVessel.value?.name || 'Avery Point',
-    voyageNo: mrvData.value?.voyage || '635N',
-    sourcePort: mrvData.value?.scr || 'AUBNE',
-    destPort: mrvData.value?.destination || 'JPYOK',
+    vesselName: mrvData.value?.vessel || selectedVessel.value?.name || 'ASIA UNITY',
+    voyageNo: mrvData.value?.voyage || '2604',
+    sourcePort: pStart || mrvData.value?.scr || 'PECLL',
+    destPort: pEnd || mrvData.value?.destination || 'CNNDE',
     eta: formatEta(mrvData.value?.etanextport),
-    distTR: mrvData.value?.totaldistrun || '1,620',
-    distDTG: mrvData.value?.disttogo || '2,560',
+    distTR: mrvData.value?.totaldistrun || '2,277',
+    distDTG: mrvData.value?.disttogo || '809',
     timezone: mrvData.value?.timezone || '+0000',
+    routeName: parsedCorridor.value.routeName || '',
   }
 })
 
-// Western Pacific / Asia-Australia Navigation Corridor (AUBNE → JPYOK)
-const DEFAULT_CORRIDOR_COORDS: [number, number][] = [
-  [-27.4698, 153.0251], // Brisbane (AUBNE) - Departure
-  [-24.2, 153.6],       // Offshore Break
-  [-18.5, 152.8],       // Coral Sea Waypoint
-  [-11.2, 154.2],       // Louisiade Archipelago
-  [-4.1, 153.5],        // Solomon Sea Corridor
-  [3.5, 150.6],         // Caroline Islands Transit
-  [12.8, 146.2],        // Marianas Basin Waypoint
-  [21.2, 143.0],        // Ogasawara Ridge
-  [28.6, 140.5],        // Izu Islands Transit
-  [34.1, 139.8],        // Sagami Bay / Tokyo Bay Approach
-  [35.4437, 139.6380],  // Yokohama (JPYOK) - Destination
-]
-
-const WAYPOINTS: { name: string; pos: [number, number]; label: string }[] = [
-  { name: 'WP 01', pos: [-18.5, 152.8], label: 'Coral Sea' },
-  { name: 'WP 02', pos: [-4.1, 153.5], label: 'Solomon Passage' },
-  { name: 'WP 03', pos: [12.8, 146.2], label: 'Marianas Basin' },
-  { name: 'WP 04', pos: [28.6, 140.5], label: 'Izu Ridge' },
-]
-
-const activeCoords = computed<[number, number][]>(() => {
-  const geojson = windyMapData.value
-  if (geojson?.features && Array.isArray(geojson.features)) {
-    const lineFeature = geojson.features.find((f: any) => f.geometry?.type === 'LineString')
-    if (lineFeature?.geometry?.coordinates && lineFeature.geometry.coordinates.length >= 2) {
-      return lineFeature.geometry.coordinates.map((pt: [number, number]) => [pt[1], pt[0]])
+function findClosestCoordIndex(coords: [number, number][], target: [number, number]): number {
+  if (!coords.length) return 0
+  let minDist = Infinity
+  let bestIdx = 0
+  for (let i = 0; i < coords.length; i++) {
+    const pt = coords[i]
+    if (!pt) continue
+    const dLat = pt[0] - target[0]
+    const dLng = pt[1] - target[1]
+    const distSq = dLat * dLat + dLng * dLng
+    if (distSq < minDist) {
+      minDist = distSq
+      bestIdx = i
     }
   }
-  return DEFAULT_CORRIDOR_COORDS
-})
+  return bestIdx
+}
 
 function updateTileLayer() {
   if (!mapInstance || !L) return
@@ -100,13 +100,36 @@ function updateTileLayer() {
 function fitCorridorBounds() {
   if (!mapInstance || !L) return
   mapInstance.invalidateSize()
-  const coords = activeCoords.value
-  if (coords.length < 2) return
 
-  const bounds = L.latLngBounds(coords)
+  const allPoints: [number, number][] = []
+  if (vesselMarker?.getLatLng()) {
+    const ll = vesselMarker.getLatLng()
+    allPoints.push([ll.lat, ll.lng])
+  }
+  if (sourceMarker?.getLatLng()) {
+    const ll = sourceMarker.getLatLng()
+    allPoints.push([ll.lat, ll.lng])
+  }
+  if (destMarker?.getLatLng()) {
+    const ll = destMarker.getLatLng()
+    allPoints.push([ll.lat, ll.lng])
+  }
+  if (routePolyline?.getLatLngs()) {
+    const lls = routePolyline.getLatLngs()
+    lls.forEach((pt: any) => allPoints.push([pt.lat, pt.lng]))
+  }
+
+  if (allPoints.length < 2) {
+    if (allPoints.length === 1 && allPoints[0]) {
+      mapInstance.setView(allPoints[0], 6)
+    }
+    return
+  }
+
+  const bounds = L.latLngBounds(allPoints)
   mapInstance.fitBounds(bounds, {
-    padding: [32, 32],
-    maxZoom: 6,
+    padding: [36, 36],
+    maxZoom: 7,
     animate: false,
   })
 }
@@ -124,38 +147,109 @@ function updateMapLayers() {
   waypointMarkers.forEach((m) => mapInstance.removeLayer(m))
   waypointMarkers = []
 
-  const coords = activeCoords.value
-  const splitIdx = Math.max(1, Math.floor(coords.length * 0.38))
-  const sailedCoords = coords.slice(0, splitIdx + 1)
-  const remainingCoords = coords.slice(splitIdx)
-  const currentPos = coords[splitIdx] || coords[0]
+  const planned = parsedCorridor.value
+  const vesselPosData = parsedVesselPos.value
+  const travelled = parsedTravelled.value
 
-  // 1. Navigation Safety Corridor Envelope (15 NM Translucent Safety Buffer)
-  corridorBuffer = L.polyline(coords, {
-    color: '#0284c7',
-    weight: 22,
-    opacity: 0.12,
-    lineCap: 'round',
-    lineJoin: 'round',
-  }).addTo(mapInstance)
+  // 1. Resolve source and destination coordinates
+  const sPort = mrvInfo.value.sourcePort
+  const dPort = mrvInfo.value.destPort
 
-  // 2. Sailed Track (Solid Vivid Accent)
-  routePolyline = L.polyline(sailedCoords, {
-    color: '#0284c7',
-    weight: 3.5,
-    opacity: 0.95,
-    smoothFactor: 1,
-  }).addTo(mapInstance)
+  let sourcePos: [number, number]
+  let destPos: [number, number]
 
-  // 3. Remaining Track (Dashed Navigational Line)
-  remainingPolyline = L.polyline(remainingCoords, {
-    color: '#64748b',
-    weight: 2.5,
-    dashArray: '5, 8',
-    opacity: 0.75,
-  }).addTo(mapInstance)
+  if (planned.coords.length >= 2) {
+    sourcePos = planned.coords[0]!
+    destPos = planned.coords[planned.coords.length - 1]!
+  } else {
+    sourcePos = resolvePortCoordinates(sPort, [14.68, -17.42])
+    destPos = resolvePortCoordinates(dPort, [26.66, 119.52])
+  }
 
-  // 4. Passage Waypoint Markers (Nautical Diamond Pins)
+  // 2. Resolve actual current vessel position, speed, and heading
+  let currentPos: [number, number]
+  let heading = 0
+  let sog = 0
+  let packetTs = ''
+
+  if (vesselPosData.isValid) {
+    currentPos = [vesselPosData.lat, vesselPosData.lng]
+    heading = vesselPosData.heading
+    sog = vesselPosData.sog
+    packetTs = vesselPosData.packetTs
+  } else if (planned.coords.length >= 2) {
+    const run = parseFloat(mrvInfo.value.distTR.replace(/,/g, '')) || 0
+    const dtg = parseFloat(mrvInfo.value.distDTG.replace(/,/g, '')) || 0
+    const ratio = run + dtg > 0 ? Math.min(0.98, Math.max(0.02, run / (run + dtg))) : 0.5
+    const idx = Math.floor(planned.coords.length * ratio)
+    currentPos = planned.coords[idx] || sourcePos
+    sog = 13.5
+    heading = 45
+  } else {
+    currentPos = sourcePos
+    sog = 0.2
+    heading = 7
+  }
+
+  // 3. Construct corridor, sailed, and remaining route tracks
+  let fullCorridorCoords: [number, number][] = []
+  let sailedCoords: [number, number][] = []
+  let remainingCoords: [number, number][] = []
+
+  if (planned.coords.length >= 2) {
+    fullCorridorCoords = planned.coords
+    const splitIdx = findClosestCoordIndex(planned.coords, currentPos)
+
+    if (travelled.length >= 2) {
+      sailedCoords = [...travelled, currentPos]
+    } else {
+      sailedCoords = [...planned.coords.slice(0, splitIdx + 1), currentPos]
+    }
+    remainingCoords = [currentPos, ...planned.coords.slice(splitIdx + 1)]
+  } else {
+    if (travelled.length >= 2) {
+      sailedCoords = [...travelled, currentPos]
+      fullCorridorCoords = [...travelled, currentPos, destPos]
+    } else {
+      sailedCoords = [sourcePos, currentPos]
+      fullCorridorCoords = [sourcePos, currentPos, destPos]
+    }
+    remainingCoords = [currentPos, destPos]
+  }
+
+  // 4. Navigation Safety Corridor Envelope (15 NM Translucent Safety Buffer)
+  if (fullCorridorCoords.length >= 2) {
+    corridorBuffer = L.polyline(fullCorridorCoords, {
+      color: '#0284c7',
+      weight: 22,
+      opacity: 0.12,
+      lineCap: 'round',
+      lineJoin: 'round',
+    }).addTo(mapInstance)
+  }
+
+  // 5. Sailed Track (Solid Accent Line)
+  if (sailedCoords.length >= 2) {
+    routePolyline = L.polyline(sailedCoords, {
+      color: '#0284c7',
+      weight: 3.5,
+      opacity: 0.95,
+      smoothFactor: 1,
+    }).addTo(mapInstance)
+  }
+
+  // 6. Remaining Track (Dashed Navigational Line)
+  if (remainingCoords.length >= 2) {
+    remainingPolyline = L.polyline(remainingCoords, {
+      color: '#64748b',
+      weight: 2.5,
+      dashArray: '5, 8',
+      opacity: 0.75,
+    }).addTo(mapInstance)
+  }
+
+  // 7. Passage Waypoints (Dynamically generated along planned route)
+  const waypoints = deriveWaypoints(fullCorridorCoords)
   const wpIcon = (wpName: string) =>
     L.divIcon({
       className: 'wp-pin',
@@ -168,20 +262,20 @@ function updateMapLayers() {
       iconAnchor: [6, 6],
     })
 
-  WAYPOINTS.forEach((wp) => {
+  waypoints.forEach((wp) => {
     const marker = L.marker(wp.pos, { icon: wpIcon(wp.name) }).addTo(mapInstance)
-    marker.bindTooltip(`
+    marker.bindTooltip(
+      `
       <div class="text-[10px] font-mono px-1">
         <strong>${wp.name}</strong> · ${wp.label}
       </div>
-    `, { direction: 'right', offset: [8, 0], opacity: 0.9 })
+    `,
+      { direction: 'right', offset: [8, 0], opacity: 0.9 }
+    )
     waypointMarkers.push(marker)
   })
 
-  // 5. Port Badges (Departure & Destination)
-  const sourcePos = coords[0]
-  const destPos = coords[coords.length - 1]
-
+  // 8. Port Badges (Departure & Destination)
   const portIcon = (code: string, isSource: boolean) =>
     L.divIcon({
       className: 'port-pin',
@@ -195,15 +289,10 @@ function updateMapLayers() {
       iconAnchor: [35, 12],
     })
 
-  if (sourcePos) {
-    sourceMarker = L.marker(sourcePos, { icon: portIcon(mrvInfo.value.sourcePort, true) }).addTo(mapInstance)
-  }
-  if (destPos) {
-    destMarker = L.marker(destPos, { icon: portIcon(mrvInfo.value.destPort, false) }).addTo(mapInstance)
-  }
+  sourceMarker = L.marker(sourcePos, { icon: portIcon(sPort, true) }).addTo(mapInstance)
+  destMarker = L.marker(destPos, { icon: portIcon(dPort, false) }).addTo(mapInstance)
 
-  // 6. Rotated Vessel Marker with Live Telemetry Tag & Pulsing Radar Ring
-  const heading = 345
+  // 9. Rotated Vessel Marker with Actual Telemetry & Pulsing Radar Ring
   const vesselIcon = L.divIcon({
     className: 'vessel-heading-pin',
     html: `
@@ -219,7 +308,7 @@ function updateMapLayers() {
           <path d="M12 2L19 21L12 17L5 21L12 2Z" />
         </svg>
         <div class="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap bg-background/90 text-primary border border-primary/30 px-1 py-0.2 rounded text-[9px] font-mono font-bold shadow-xs">
-          14.2 kn · ${heading}°
+          ${sog.toFixed(1)} kn · ${Math.round(heading)}°
         </div>
       </div>
     `,
@@ -227,29 +316,35 @@ function updateMapLayers() {
     iconAnchor: [20, 20],
   })
 
-  if (currentPos) {
-    vesselMarker = L.marker(currentPos, { icon: vesselIcon }).addTo(mapInstance)
-    vesselMarker.bindPopup(`
-      <div class="p-2 text-xs font-sans">
-        <div class="font-bold text-foreground text-sm">${mrvInfo.value.vesselName}</div>
-        <div class="text-muted-foreground mt-0.5">Voyage: ${mrvInfo.value.voyageNo}</div>
-        <div class="text-primary font-mono font-bold mt-1.5 flex items-center gap-2">
-          <span>SOG: 14.2 kn</span>
-          <span>Course: ${heading}°</span>
-        </div>
-        <div class="text-muted-foreground text-[10px] font-mono mt-1">
-          Corridor: ${mrvInfo.value.sourcePort} → ${mrvInfo.value.destPort}
-        </div>
+  const latLabel = `${Math.abs(currentPos[0]).toFixed(3)}° ${currentPos[0] >= 0 ? 'N' : 'S'}`
+  const lngLabel = `${Math.abs(currentPos[1]).toFixed(3)}° ${currentPos[1] >= 0 ? 'E' : 'W'}`
+
+  vesselMarker = L.marker(currentPos, { icon: vesselIcon }).addTo(mapInstance)
+  vesselMarker.bindPopup(`
+    <div class="p-2 text-xs font-sans">
+      <div class="font-bold text-foreground text-sm">${mrvInfo.value.vesselName}</div>
+      <div class="text-muted-foreground mt-0.5">Voyage: ${mrvInfo.value.voyageNo}</div>
+      <div class="text-primary font-mono font-bold mt-1.5 flex items-center gap-2">
+        <span>SOG: ${sog.toFixed(1)} kn</span>
+        <span>Course: ${Math.round(heading)}°</span>
       </div>
-    `)
-  }
+      <div class="text-foreground font-mono text-[10px] mt-1 font-semibold">
+        Position: ${latLabel}, ${lngLabel}
+      </div>
+      <div class="text-muted-foreground text-[10px] font-mono mt-0.5">
+        Corridor: ${sPort} → ${dPort}
+      </div>
+      ${packetTs ? `<div class="text-muted-foreground/80 text-[9px] font-mono mt-1">Telemetry: ${packetTs}</div>` : ''}
+    </div>
+  `)
 
   fitCorridorBounds()
 }
 
-watch(windyMapData, () => {
+// Watch data updates
+watch([windyMapData, mrvData, selectedVessel], () => {
   updateMapLayers()
-})
+}, { deep: true })
 
 watch(isDark, () => {
   updateTileLayer()
@@ -266,9 +361,9 @@ onMounted(async () => {
     mapInstance = L.map(mapContainer.value, {
       zoomControl: true,
       attributionControl: false,
-      minZoom: 3,
+      minZoom: 2,
       maxZoom: 14,
-    }).setView([5, 146], 4)
+    }).setView([15, 0], 3)
 
     updateTileLayer()
     updateMapLayers()
@@ -277,7 +372,6 @@ onMounted(async () => {
       fitCorridorBounds()
     })
 
-    // ResizeObserver ensures map automatically re-frames corridor when Alarms sidebar toggles
     if (typeof ResizeObserver !== 'undefined' && mapContainer.value) {
       resizeObserver = new ResizeObserver(() => {
         if (mapInstance) {
@@ -311,7 +405,7 @@ onBeforeUnmount(() => {
             <span>Voyage Corridor</span>
           </CardTitle>
           <Badge variant="outline" class="text-[11px] font-mono font-medium px-2 py-0.5 border-border text-muted-foreground">
-            {{ mrvData?.scr || 'PECLL' }} &rarr; {{ mrvData?.destination || 'CNNDE' }}
+            {{ mrvInfo.sourcePort }} &rarr; {{ mrvInfo.destPort }}
           </Badge>
         </div>
 
@@ -340,7 +434,9 @@ onBeforeUnmount(() => {
         <div class="text-xs text-muted-foreground flex items-center justify-between gap-2 pt-1 border-t border-border/40 font-normal">
           <span>Sailed: <span class="font-mono font-semibold text-foreground">{{ mrvInfo.distTR }} NM</span></span>
           <span>DTG: <span class="font-mono font-semibold text-foreground">{{ mrvInfo.distDTG }} NM</span></span>
-          <span class="text-teal-400 font-semibold text-xs">In track</span>
+          <span class="text-teal-400 font-semibold text-xs">
+            {{ parsedVesselPos.isValid && parsedVesselPos.sog < 0.5 ? 'Moored / In Port' : 'In track' }}
+          </span>
         </div>
       </div>
 
@@ -349,7 +445,7 @@ onBeforeUnmount(() => {
         type="button"
         @click="fitCorridorBounds"
         class="h-8 absolute bottom-3 right-3 z-[1000] flex items-center gap-1.5 px-3 rounded-lg bg-background/90 hover:bg-background border border-border/60 shadow-md text-xs font-medium text-foreground backdrop-blur-xs cursor-pointer transition-all hover:border-primary/50"
-        title="Re-center and fit Pacific corridor to frame"
+        title="Re-center and fit voyage corridor to frame"
       >
         <Focus class="size-3.5 text-primary" />
         <span>Fit Corridor</span>
