@@ -144,6 +144,17 @@ function renderDailyNoonPins() {
   noonMarkersGroup.clearLayers()
 
   const noons = dailyNoons.value
+
+  // Actual real-world track connecting each day's real noon-report position,
+  // distinct from the planned corridor (which is the idealized route between
+  // ports, not where the vessel actually was — the two commonly diverge)
+  if (noons.length >= 2) {
+    L.polyline(
+      noons.map((n) => n.coords),
+      { color: '#ffffff', weight: 2, opacity: 0.6, dashArray: '1 6' }
+    ).addTo(noonMarkersGroup)
+  }
+
   for (const noon of noons) {
     const isSelected = selectedDay.value?.dayNumber === noon.dayNumber
     const color = ciiHexColor(noon.rating)
