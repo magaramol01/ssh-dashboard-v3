@@ -95,12 +95,27 @@ function getStatusBadgeClass(status: TelemetryParameter['status']) {
             <span class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               SENSOR BUS TELEMETRY
             </span>
-            <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border border-teal-500/30 bg-teal-500/10 text-teal-400">
+            <div
+              class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border"
+              :class="[
+                health.criticalCount > 0
+                  ? 'border-rose-500/30 bg-rose-500/10 text-rose-400'
+                  : health.warningCount > 0
+                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-400'
+                    : 'border-teal-500/30 bg-teal-500/10 text-teal-400'
+              ]"
+            >
               <span class="font-semibold">{{ health.nominalCount }} Nominal</span>
-              <span class="text-teal-400/40">•</span>
-              <span :class="health.warningCount > 0 ? 'text-amber-400 font-semibold' : 'text-teal-400/80'">
-                {{ health.warningCount }} Warnings
-              </span>
+              <template v-if="health.criticalCount > 0">
+                <span class="opacity-40">•</span>
+                <span class="font-semibold">{{ health.criticalCount }} Critical</span>
+              </template>
+              <template v-else>
+                <span class="opacity-40">•</span>
+                <span :class="health.warningCount > 0 ? 'font-semibold' : 'opacity-80'">
+                  {{ health.warningCount }} Warnings
+                </span>
+              </template>
             </div>
           </div>
 
