@@ -8,7 +8,7 @@
     "build": "nuxt build",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "test": "tsx --test tests/**/*.test.ts",
+    "test": "tsx --test tests/*.test.ts tests/**/*.test.ts",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
@@ -25,11 +25,13 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "echarts": "^6.0.0",
+    "hls.js": "^1.7.3",
     "leaflet": "^1.9.4",
     "lucide-vue-next": "^1.0.0",
     "nuxt": "^4.4.4",
     "pg": "^8.23.0",
     "reka-ui": "^2.9.7",
+    "socket.io-client": "^4.8.3",
     "tailwind-merge": "^2.6.1",
     "vue": "^3.5.33",
     "vue-echarts": "^8.0.1",
