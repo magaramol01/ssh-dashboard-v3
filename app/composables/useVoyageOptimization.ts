@@ -87,27 +87,45 @@ export function useVoyageOptimization() {
   })
 
   // 2. Fetch real per-day CII noon report data for the active vessel, scoped
-  // to the current voyage. Real noon-report data does not reliably carry a
-  // Voyage_Start_Date (observed null on live data), so the fetch window is
-  // widened to CII_LOOKBACK_DAYS and the results are filtered down to
-  // records matching the vessel's current voyage number (from mrvData) —
-  // Day 1 ends up being the earliest real noon report of that voyage.
+  // to the current voyage. The real voyage start date and voyage identifier
+  // are resolved authoritatively from Postgres (shipping_db.std_enoonreporttable
+  // via /api/vessels/current-voyage — MIN(report_date_time_utc) for the
+  // latest voyage), not guessed: real noon-report data does not reliably
+  // carry a Voyage_Start_Date field (observed null on live data), so a
+  // date-range guess against the external CII API alone can't be trusted.
+  // If that DB lookup fails, falls back to a CII_LOOKBACK_DAYS window
+  // filtered by mrvData's voyage number — a documented degraded path, not
+  // the primary source.
   async function fetchCiiDateRange() {
     isCiiLoading.value = true
     ciiLoadError.value = false
     try {
-      const endDate = (mrvData.value?.rptdate || new Date().toISOString()).slice(0, 10)
-      const endDt = new Date(endDate)
-      const startDt = new Date(endDt.getTime() - CII_LOOKBACK_DAYS * 24 * 3600 * 1000)
-      const startDate = startDt.toISOString().slice(0, 10)
-      const year = endDt.getUTCFullYear()
+      let startDate: string
+      let endDate: string
+      let currentVoyage: string | undefined
+
+      const voyageInfo = await $fetch<{ success: boolean; voyage: string | null; startDate: string | null; endDate: string | null }>(
+        '/api/vessels/current-voyage',
+        { params: { vesselId: selectedVesselId.value } }
+      ).catch(() => null)
+
+      if (voyageInfo?.success && voyageInfo.voyage && voyageInfo.startDate && voyageInfo.endDate) {
+        startDate = voyageInfo.startDate
+        endDate = voyageInfo.endDate
+        currentVoyage = voyageInfo.voyage
+      } else {
+        endDate = (mrvData.value?.rptdate || new Date().toISOString()).slice(0, 10)
+        const endDt = new Date(endDate)
+        startDate = new Date(endDt.getTime() - CII_LOOKBACK_DAYS * 24 * 3600 * 1000).toISOString().slice(0, 10)
+        currentVoyage = mrvData.value?.voyage
+      }
+      const year = new Date(endDate).getUTCFullYear()
 
       const res = await $fetch<{ success: boolean; records: CiiDateRangeRecord[] }>(
         '/api/vessels/cii-date-range',
         { params: { vesselId: selectedVesselId.value, startDate, endDate, year } }
       )
       const fetchedRecords = res.success ? res.records : []
-      const currentVoyage = mrvData.value?.voyage
       ciiRecords.value = currentVoyage
         ? fetchedRecords.filter((r) => r.voyage === currentVoyage)
         : fetchedRecords

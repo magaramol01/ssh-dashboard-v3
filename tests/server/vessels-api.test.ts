@@ -12,6 +12,7 @@ import graphAvgValuesHandler from '../../server/api/vessels/graph-avg-values.get
 import alarmsHandler from '../../server/api/vessels/alarms.get'
 import shipDataHandler from '../../server/api/vessels/ship-data.get'
 import ciiDateRangeHandler from '../../server/api/vessels/cii-date-range.get'
+import currentVoyageHandler from '../../server/api/vessels/current-voyage.get'
 
 test('Vessel API Server Proxies defines all route handlers properly', () => {
   assert.equal(typeof sisterGroupHandler, 'function')
@@ -26,4 +27,5 @@ test('Vessel API Server Proxies defines all route handlers properly', () => {
   assert.equal(typeof alarmsHandler, 'function')
   assert.equal(typeof shipDataHandler, 'function')
   assert.equal(typeof ciiDateRangeHandler, 'function')
+  assert.equal(typeof currentVoyageHandler, 'function')
 })
