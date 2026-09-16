@@ -6,12 +6,12 @@ test('findNavItem matches standard and tenant-prefixed routes', () => {
   // Unprefixed match
   const liveItem = findNavItem('/live')
   assert.ok(liveItem)
-  assert.equal(liveItem?.label, 'Live tracking')
+  assert.equal(liveItem?.label, 'AIS Fleet Radar')
 
   // Tenant-prefixed match
   const tenantLiveItem = findNavItem('/asiaticlloyd/live', 'asiaticlloyd')
   assert.ok(tenantLiveItem)
-  assert.equal(tenantLiveItem?.label, 'Live tracking')
+  assert.equal(tenantLiveItem?.label, 'AIS Fleet Radar')
 
   const xyzLiveItem = findNavItem('/xyz/control-tower', 'xyz')
   assert.ok(xyzLiveItem)
@@ -29,13 +29,13 @@ test('navForPersona prefixes item routes with active tenant', () => {
 
   const tenantLiveItem = sectionsWithTenant
     .flatMap((s) => s.items)
-    .find((i) => i.label === 'Live tracking')
+    .find((i) => i.label === 'AIS Fleet Radar')
   assert.equal(tenantLiveItem?.to, '/asiaticlloyd/live')
 
   const xyzSections = navForPersona('dispatcher', 'xyz')
   const xyzLive = xyzSections
     .flatMap((s) => s.items)
-    .find((i) => i.label === 'Live tracking')
+    .find((i) => i.label === 'AIS Fleet Radar')
   assert.equal(xyzLive?.to, '/xyz/live')
 })
 

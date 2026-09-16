@@ -40,43 +40,43 @@ export const NAV: NavSection[] = [
     items: [{ label: "CII Tracking", to: "/emissions", icon: "Gauge", requires: "dispatcher" }],
   },
   {
-    label: "Inventory",
+    label: "Inventory & Stores",
     items: [
-      { label: "Stock", to: "/inventory", icon: "Boxes", requires: "dispatcher" },
-      { label: "Catalog", to: "/catalog", icon: "Bike", requires: "dispatcher" },
+      { label: "Bunker & Provisions", to: "/inventory", icon: "Fuel", requires: "dispatcher" },
+      { label: "Machinery & Equipment", to: "/catalog", icon: "Ship", requires: "dispatcher" },
     ],
   },
   {
-    label: "Fulfilment",
+    label: "Voyage Operations",
     items: [
-      { label: "Movements", to: "/shipments", icon: "Package", requires: "dispatcher" },
-      { label: "Live tracking", to: "/live", icon: "Radar", requires: "dispatcher" },
-      { label: "New order", to: "/shipments/new", icon: "PackagePlus", requires: "dispatcher" },
-      { label: "Track my bike", to: "/tracking", icon: "Search" },
+      { label: "Voyage Logs", to: "/shipments", icon: "FileText", requires: "dispatcher" },
+      { label: "AIS Fleet Radar", to: "/live", icon: "Radar", requires: "dispatcher" },
+      { label: "New Charter Fixture", to: "/shipments/new", icon: "FilePlus", requires: "dispatcher" },
+      { label: "Track Consignment", to: "/tracking", icon: "Search" },
     ],
   },
   {
-    label: "Network",
+    label: "Maritime Network",
     items: [
-      { label: "Warehouses", to: "/warehouses", icon: "Warehouse", requires: "dispatcher" },
-      { label: "Distribution centers", to: "/distribution-centers", icon: "Store", requires: "dispatcher" },
-      { label: "Routes", to: "/routes", icon: "Route", requires: "dispatcher" },
+      { label: "Seaports & Terminals", to: "/warehouses", icon: "Anchor", requires: "dispatcher" },
+      { label: "Dry Docks & Shipyards", to: "/distribution-centers", icon: "Wrench", requires: "dispatcher" },
+      { label: "Shipping Corridors", to: "/routes", icon: "Compass", requires: "dispatcher" },
     ],
   },
   {
-    label: "Fleet",
+    label: "Fleet & Manning",
     items: [
-      { label: "Vehicles", to: "/fleet", icon: "Truck", requires: "dispatcher" },
-      { label: "Drivers", to: "/drivers", icon: "IdCard", requires: "dispatcher" },
+      { label: "Vessel Roster", to: "/fleet", icon: "Ship", requires: "dispatcher" },
+      { label: "Captains & Crew", to: "/drivers", icon: "UserCheck", requires: "dispatcher" },
     ],
   },
   {
-    label: "Customers",
-    items: [{ label: "Customers", to: "/customers", icon: "Users", requires: "dispatcher" }],
+    label: "Commercial",
+    items: [{ label: "Charterers & Shippers", to: "/customers", icon: "Briefcase", requires: "dispatcher" }],
   },
   {
     label: "Insights",
-    items: [{ label: "Analytics", to: "/analytics", icon: "BarChart3", requires: "dispatcher" }],
+    items: [{ label: "Fleet Analytics", to: "/analytics", icon: "BarChart3", requires: "dispatcher" }],
   },
   {
     label: "Settings",
