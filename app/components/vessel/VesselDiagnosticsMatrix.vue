@@ -61,6 +61,30 @@ const filteredMeParams = computed(() => {
   )
 })
 
+const displayedMeParams = computed(() => {
+  return filteredMeParams.value.map((p) => ({
+    ...p,
+    range: calculateRangePercentages(
+      p.value,
+      p.nominalMin,
+      p.nominalMax,
+      p.absMin,
+      p.absMax
+    ),
+  }))
+})
+
+const displayedDgGenerators = computed(() => {
+  return dgGenerators.value.map((dg) => ({
+    ...dg,
+    windingVariance: calculateWindingVariance(
+      dg.windings.u,
+      dg.windings.v,
+      dg.windings.w
+    ),
+  }))
+})
+
 function clearFilters() {
   searchQuery.value = ''
   selectedCategory.value = 'All'
@@ -69,7 +93,7 @@ function clearFilters() {
 function getStatusBadgeClass(status: TelemetryParameter['status']) {
   switch (status) {
     case 'nominal':
-      return 'bg-teal-500/10 text-teal-400 border border-teal-500/20'
+      return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
     case 'warning':
       return 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
     case 'critical':
@@ -102,7 +126,7 @@ function getStatusBadgeClass(status: TelemetryParameter['status']) {
                   ? 'border-rose-500/30 bg-rose-500/10 text-rose-400'
                   : health.warningCount > 0
                     ? 'border-amber-500/30 bg-amber-500/10 text-amber-400'
-                    : 'border-teal-500/30 bg-teal-500/10 text-teal-400'
+                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
               ]"
             >
               <span class="font-semibold">{{ health.nominalCount }} Nominal</span>
@@ -216,11 +240,11 @@ function getStatusBadgeClass(status: TelemetryParameter['status']) {
         <!-- Responsive 2-Column Grid with Scrollable Container -->
         <div class="max-h-[320px] overflow-y-auto pr-1">
           <div
-            v-if="filteredMeParams.length > 0"
+            v-if="displayedMeParams.length > 0"
             class="grid grid-cols-1 md:grid-cols-2 gap-3"
           >
             <div
-              v-for="p in filteredMeParams"
+              v-for="p in displayedMeParams"
               :key="p.id"
               class="rounded-lg bg-muted/20 hover:bg-muted/30 border border-border/40 p-3 flex flex-col justify-between transition-colors gap-2"
             >
@@ -237,7 +261,7 @@ function getStatusBadgeClass(status: TelemetryParameter['status']) {
                     class="size-1.5 rounded-full shrink-0"
                     :class="
                       p.status === 'nominal'
-                        ? 'bg-teal-400'
+                        ? 'bg-emerald-400'
                         : p.status === 'warning'
                           ? 'bg-amber-400 animate-pulse'
                           : 'bg-rose-500 animate-ping'
@@ -253,14 +277,14 @@ function getStatusBadgeClass(status: TelemetryParameter['status']) {
 
                 <div class="flex items-center gap-1.5 shrink-0">
                   <span
-                    class="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded capitalize font-medium"
+                    class="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded font-medium"
                     :class="getStatusBadgeClass(p.status)"
                   >
                     {{ p.status }}
                   </span>
                   <TrendingUp
                     v-if="p.trend === 'up'"
-                    class="size-3.5 text-teal-400 shrink-0"
+                    class="size-3.5 text-emerald-400 shrink-0"
                     title="Trending Up"
                   />
                   <TrendingDown
@@ -291,10 +315,10 @@ function getStatusBadgeClass(status: TelemetryParameter['status']) {
                 <div class="relative h-2 w-full bg-muted/40 rounded-full border border-border/30">
                   <!-- Safe envelope band -->
                   <div
-                    class="absolute top-0 bottom-0 bg-teal-500/20 border-x border-teal-500/40 rounded-xs"
+                    class="absolute top-0 bottom-0 bg-emerald-500/20 border-x border-emerald-500/40 rounded-xs"
                     :style="{
-                      left: `${calculateRangePercentages(p.value, p.nominalMin, p.nominalMax, p.absMin, p.absMax).safeStartPct}%`,
-                      width: `${calculateRangePercentages(p.value, p.nominalMin, p.nominalMax, p.absMin, p.absMax).safeWidthPct}%`,
+                      left: `${p.range.safeStartPct}%`,
+                      width: `${p.range.safeWidthPct}%`,
                     }"
                     title="Safe Operating Envelope"
                   />
@@ -303,13 +327,13 @@ function getStatusBadgeClass(status: TelemetryParameter['status']) {
                     class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-2.5 rounded-full shadow-xs ring-1 ring-background z-10 transition-all duration-300"
                     :class="
                       p.status === 'nominal'
-                        ? 'bg-teal-400 border border-teal-200'
+                        ? 'bg-emerald-400 border border-emerald-200'
                         : p.status === 'warning'
                           ? 'bg-amber-400 border border-amber-200'
                           : 'bg-rose-500 border border-rose-200'
                     "
                     :style="{
-                      left: `${calculateRangePercentages(p.value, p.nominalMin, p.nominalMax, p.absMin, p.absMax).markerPct}%`,
+                      left: `${p.range.markerPct}%`,
                     }"
                     :title="`Current: ${p.value} ${p.unit}`"
                   />
@@ -351,7 +375,7 @@ function getStatusBadgeClass(status: TelemetryParameter['status']) {
       <div v-else class="max-h-[320px] overflow-y-auto pr-1">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
           <div
-            v-for="dg in dgGenerators"
+            v-for="dg in displayedDgGenerators"
             :key="dg.id"
             class="rounded-lg border border-border/40 bg-muted/20 hover:bg-muted/30 p-3.5 flex flex-col justify-between transition-colors space-y-3"
           >
@@ -371,7 +395,7 @@ function getStatusBadgeClass(status: TelemetryParameter['status']) {
                 :class="[
                   'text-[10px] font-medium capitalize px-2 py-0.5 flex items-center gap-1',
                   dg.status === 'online'
-                    ? 'text-teal-400 border-teal-500/30 bg-teal-500/10'
+                    ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10'
                     : dg.status === 'standby'
                       ? 'text-muted-foreground border-border/50 bg-muted/40'
                       : 'text-rose-400 border-rose-500/30 bg-rose-500/10',
@@ -379,7 +403,7 @@ function getStatusBadgeClass(status: TelemetryParameter['status']) {
               >
                 <span
                   class="size-1.5 rounded-full"
-                  :class="dg.status === 'online' ? 'bg-teal-400' : 'bg-muted-foreground'"
+                  :class="dg.status === 'online' ? 'bg-emerald-400' : 'bg-muted-foreground'"
                 />
                 {{ dg.status }}
               </Badge>
@@ -405,7 +429,7 @@ function getStatusBadgeClass(status: TelemetryParameter['status']) {
                     dg.electrical.loadPercentage > 85
                       ? 'bg-amber-400'
                       : dg.electrical.loadPercentage > 0
-                        ? 'bg-teal-400'
+                        ? 'bg-emerald-400'
                         : 'bg-muted-foreground/30',
                   ]"
                   :style="{ width: `${Math.min(100, Math.max(0, dg.electrical.loadPercentage))}%` }"
@@ -415,7 +439,7 @@ function getStatusBadgeClass(status: TelemetryParameter['status']) {
                 <span>Load Factor</span>
                 <span
                   class="font-semibold"
-                  :class="dg.electrical.loadPercentage > 0 ? 'text-teal-400' : 'text-muted-foreground'"
+                  :class="dg.electrical.loadPercentage > 0 ? 'text-emerald-400' : 'text-muted-foreground'"
                 >
                   {{ dg.electrical.loadPercentage.toFixed(1) }}%
                 </span>
@@ -476,12 +500,12 @@ function getStatusBadgeClass(status: TelemetryParameter['status']) {
                 <span
                   class="font-medium"
                   :class="
-                    calculateWindingVariance(dg.windings.u, dg.windings.v, dg.windings.w).isBalanced
-                      ? 'text-teal-400'
+                    dg.windingVariance.isBalanced
+                      ? 'text-emerald-400'
                       : 'text-amber-400'
                   "
                 >
-                  Δ {{ calculateWindingVariance(dg.windings.u, dg.windings.v, dg.windings.w).spread.toFixed(1) }}°C • {{ calculateWindingVariance(dg.windings.u, dg.windings.v, dg.windings.w).isBalanced ? 'Balanced' : 'Imbalanced' }}
+                  Δ {{ dg.windingVariance.spread.toFixed(1) }}°C • {{ dg.windingVariance.isBalanced ? 'Balanced' : 'Imbalanced' }}
                 </span>
               </div>
             </div>
