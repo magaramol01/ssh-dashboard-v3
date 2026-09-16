@@ -37,6 +37,11 @@ describe('Voyage Optimization Domain Engine', () => {
     assert.equal(day1.fuelConsumedMt.byType.hfo!.label, 'Heavy Fuel Oil')
     assert.ok(Math.abs(day1.coords[0] - -24.218056) < 0.001, 'parses southern latitude correctly')
     assert.ok(Math.abs(day1.coords[1] - 50.516667) < 0.001, 'parses eastern longitude correctly')
+    assert.equal(
+      day1.weather.shortForecast,
+      '12kt wind, 3.4m seas, 135° swell',
+      'weather summary is built from structured fields, not the free-text Remarks field'
+    )
 
     const day2 = noons[1]!
     assert.equal(day2.dayNumber, 2)

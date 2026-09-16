@@ -163,6 +163,37 @@ function roundTo2(value: number): number {
 }
 
 /**
+ * Builds the noon-report weather summary from structured fields only.
+ * `Remarks` varies wildly per vessel/reporting-app — sometimes a real
+ * free-text note ("Ship clock 1 HR retard"), sometimes a raw data dump
+ * ("Force 5/swell 2.5/wave 2.0/current 0.8") — so it's unsafe to surface
+ * directly as a "forecast" description. A sentence built from the numeric
+ * fields is reliable across every vessel's data.
+ */
+function buildNoonWeather(noon: CiiDateRangeRecord['noonreportdata']): DailyNoonReport['weather'] {
+  const beaufort = noon?.Wind_Force || 0
+  const windSpeedKts = noon?.Wind_Speed || 0
+  const windDirectionDeg = Number(noon?.Wind_Direction) || 0
+  const waveHeightM = noon?.Wave_Height || 0
+  const swellDirection = String(noon?.Swell_Direction ?? '')
+
+  const parts: string[] = []
+  if (windSpeedKts > 0) parts.push(`${windSpeedKts}kt wind`)
+  if (waveHeightM > 0) parts.push(`${waveHeightM}m seas`)
+  if (swellDirection) parts.push(`${swellDirection}° swell`)
+
+  return {
+    beaufort,
+    windSpeedKts,
+    windDirectionDeg,
+    waveHeightM,
+    swellDirection,
+    shortForecast: parts.length > 0 ? parts.join(', ') : 'Calm conditions',
+    source: 'cii-api',
+  }
+}
+
+/**
  * Calculates IMO Attained CII in g CO2 / (MT * NM).
  * Fallback only — real per-day records already carry `attainedCII` from the API.
  */
@@ -280,15 +311,7 @@ export function mapCiiRecordsToDailyNoons(records: CiiDateRangeRecord[]): DailyN
       },
       draftFwdM: record.draftFwd || 0,
       draftAftM: record.draftAft || 0,
-      weather: {
-        beaufort: record.noonreportdata?.Wind_Force || 0,
-        windSpeedKts: record.noonreportdata?.Wind_Speed || 0,
-        windDirectionDeg: Number(record.noonreportdata?.Wind_Direction) || 0,
-        waveHeightM: record.noonreportdata?.Wave_Height || 0,
-        swellDirection: String(record.noonreportdata?.Swell_Direction ?? ''),
-        shortForecast: record.noonreportdata?.Remarks || record.reportType || '',
-        source: 'cii-api',
-      },
+      weather: buildNoonWeather(record.noonreportdata),
     }
   })
 }
