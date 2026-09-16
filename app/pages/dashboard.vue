@@ -4,7 +4,7 @@
  * Aligned 1:1 with the CII Intelligence page (app/pages/emissions.vue)
  * design tokens, card hierarchy, 6-tile KPI grid, and responsive drawer.
  */
-import { ref } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { ChevronLeft } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import VesselHeaderBar from '~/components/vessel/VesselHeaderBar.vue'
@@ -21,12 +21,61 @@ import { useVesselDashboard } from '~/composables/useVesselDashboard'
 definePageMeta({ middleware: 'require-dispatcher' })
 useHead({ title: 'Vessel Operations & Telemetry | Smart Ship Hub' })
 
-const { activeAlarmsCount, criticalAlarmsCount } = useVesselDashboard()
+const {
+  selectedVesselId,
+  selectedTelemetryParam,
+  fetchVesselsList,
+  fetchRHSFlags,
+  refreshAll,
+  fetchRechartData,
+  fetchConnectivity,
+  fetchDashboardState,
+  activeAlarmsCount,
+  criticalAlarmsCount,
+} = useVesselDashboard()
+
 const isAlarmsOpen = ref(true)
 
 function toggleAlarms() {
   isAlarmsOpen.value = !isAlarmsOpen.value
 }
+
+// Reactively refresh dashboard data when vessel selection changes
+watch(selectedVesselId, (newId, oldId) => {
+  if (newId && newId !== oldId) {
+    refreshAll()
+  }
+})
+
+// Reactively update rechart when telemetry parameter changes
+watch(selectedTelemetryParam, (newParam, oldParam) => {
+  if (newParam && newParam !== oldParam) {
+    fetchRechartData(selectedVesselId.value, newParam)
+  }
+})
+
+let timer: ReturnType<typeof setInterval> | null = null
+
+onMounted(async () => {
+  await fetchVesselsList()
+  await Promise.allSettled([
+    refreshAll(),
+    fetchRHSFlags(),
+  ])
+
+  // Single page-level 30s polling timer for live connectivity and telemetry
+  timer = setInterval(() => {
+    fetchConnectivity()
+    fetchDashboardState()
+  }, 30000)
+})
+
+onBeforeUnmount(() => {
+  if (timer) {
+    clearInterval(timer)
+    timer = null
+  }
+})
 </script>
 
 <template>

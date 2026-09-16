@@ -1,4 +1,20 @@
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
+
+// Module-level in-flight deduplication cache
+const inFlightRequests = new Map<string, Promise<any>>()
+let inFlightRefresh: Promise<void> | null = null
+
+export function runDeduplicated<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+  const existing = inFlightRequests.get(key)
+  if (existing) {
+    return existing as Promise<T>
+  }
+  const promise = fetcher().finally(() => {
+    inFlightRequests.delete(key)
+  })
+  inFlightRequests.set(key, promise)
+  return promise
+}
 
 export interface VesselItem {
   id: number
@@ -308,97 +324,109 @@ export function useVesselDashboard() {
   )
 
   async function fetchVesselsList() {
-    try {
-      const data = await $fetch<VesselItem[]>('/api/vessels/sister-group', {
-        method: 'POST',
-        body: { id: 'Select All' },
-      })
-      if (Array.isArray(data) && data.length > 0) {
-        vesselsList.value = data
-        if (!selectedVesselId.value || !data.some((v) => String(v.id) === String(selectedVesselId.value))) {
-          selectedVesselId.value = String(data[0]?.id || '28')
+    return runDeduplicated('vessels-list', async () => {
+      try {
+        const data = await $fetch<VesselItem[]>('/api/vessels/sister-group', {
+          method: 'POST',
+          body: { id: 'Select All' },
+        })
+        if (Array.isArray(data) && data.length > 0) {
+          vesselsList.value = data
+          if (!selectedVesselId.value || !data.some((v) => String(v.id) === String(selectedVesselId.value))) {
+            selectedVesselId.value = String(data[0]?.id || '28')
+          }
+        }
+      } catch {
+        // Fallback defaults
+        if (!vesselsList.value.length) {
+          vesselsList.value = [
+            { id: 28, name: 'ASIA UNITY', mappingname: 'nova-asia-unity', sistergroup: 'CX 5.0' },
+            { id: 1, name: 'CHINA EXPRESS', mappingname: 'nova-china-express', sistergroup: 'CX 5.0' },
+            { id: 10, name: 'MEDAN EXPRESS', mappingname: 'nova-medan-express', sistergroup: 'YZJ 4.7m' },
+          ]
         }
       }
-    } catch {
-      // Fallback defaults
-      if (!vesselsList.value.length) {
-        vesselsList.value = [
-          { id: 28, name: 'ASIA UNITY', mappingname: 'nova-asia-unity', sistergroup: 'CX 5.0' },
-          { id: 1, name: 'CHINA EXPRESS', mappingname: 'nova-china-express', sistergroup: 'CX 5.0' },
-          { id: 10, name: 'MEDAN EXPRESS', mappingname: 'nova-medan-express', sistergroup: 'YZJ 4.7m' },
-        ]
-      }
-    }
+    })
   }
 
   async function fetchDashboardState(vId = selectedVesselId.value) {
     if (!vId) return
-    try {
-      const data = await $fetch<any>('/api/vessels/dashboard-state', {
-        query: { vesselId: vId },
-      })
-      if (data?.dashboardStateJson) {
-        dashboardState.value = data.dashboardStateJson
+    return runDeduplicated(`dashboard-state:${vId}`, async () => {
+      try {
+        const data = await $fetch<any>('/api/vessels/dashboard-state', {
+          query: { vesselId: vId },
+        })
+        if (data?.dashboardStateJson) {
+          dashboardState.value = data.dashboardStateJson
+        }
+      } catch {
+        // Retain previous or default
       }
-    } catch {
-      // Retain previous or default
-    }
+    })
   }
 
   async function fetchVoyageData(vId = selectedVesselId.value) {
     if (!vId) return
-    try {
-      const data = await $fetch<MRVLData>('/api/vessels/mrv-latest', {
-        query: { vesselId: vId },
-      })
-      if (data) {
-        mrvData.value = data
+    return runDeduplicated(`mrv:${vId}`, async () => {
+      try {
+        const data = await $fetch<MRVLData>('/api/vessels/mrv-latest', {
+          query: { vesselId: vId },
+        })
+        if (data) {
+          mrvData.value = data
+        }
+      } catch {
+        // Fallback
       }
-    } catch {
-      // Fallback
-    }
+    })
   }
 
   async function fetchWindyMap(vId = selectedVesselId.value) {
     if (!vId) return
-    isMapLoading.value = true
-    try {
-      const data = await $fetch<any>('/api/vessels/windy-geojson', {
-        query: { vesselId: vId },
-      })
-      if (data) {
-        windyMapData.value = data
+    return runDeduplicated(`windy:${vId}`, async () => {
+      isMapLoading.value = true
+      try {
+        const data = await $fetch<any>('/api/vessels/windy-geojson', {
+          query: { vesselId: vId },
+        })
+        if (data) {
+          windyMapData.value = data
+        }
+      } catch {
+        // Fallback
+      } finally {
+        isMapLoading.value = false
       }
-    } catch {
-      // Fallback
-    } finally {
-      isMapLoading.value = false
-    }
+    })
   }
 
   async function fetchConnectivity(vId = selectedVesselId.value) {
     if (!vId) return
-    try {
-      const data = await $fetch<ConnectivityData>('/api/vessels/connectivity-status', {
-        query: { vesselId: vId },
-      })
-      if (data) {
-        connectivity.value = data
+    return runDeduplicated(`connectivity:${vId}`, async () => {
+      try {
+        const data = await $fetch<ConnectivityData>('/api/vessels/connectivity-status', {
+          query: { vesselId: vId },
+        })
+        if (data) {
+          connectivity.value = data
+        }
+      } catch {
+        // Fallback
       }
-    } catch {
-      // Fallback
-    }
+    })
   }
 
   async function fetchRHSFlags() {
-    try {
-      const data = await $fetch<RHSPanelFlag[]>('/api/vessels/rhs-panel-flags')
-      if (Array.isArray(data) && data.length > 0) {
-        rhsFlags.value = data
+    return runDeduplicated('rhs-flags', async () => {
+      try {
+        const data = await $fetch<RHSPanelFlag[]>('/api/vessels/rhs-panel-flags')
+        if (Array.isArray(data) && data.length > 0) {
+          rhsFlags.value = data
+        }
+      } catch {
+        // Keep defaults
       }
-    } catch {
-      // Keep defaults
-    }
+    })
   }
 
   async function updateRHSFlags(flags: RHSPanelFlag[]) {
@@ -415,80 +443,59 @@ export function useVesselDashboard() {
 
   async function fetchGraphAvgValues(vId = selectedVesselId.value) {
     if (!vId) return
-    try {
-      const data = await $fetch<any[]>('/api/vessels/graph-avg-values', {
-        query: { vesselId: vId },
-      })
-      if (Array.isArray(data)) {
-        graphAvgValues.value = data
+    return runDeduplicated(`graph-avg:${vId}`, async () => {
+      try {
+        const data = await $fetch<any[]>('/api/vessels/graph-avg-values', {
+          query: { vesselId: vId },
+        })
+        if (Array.isArray(data)) {
+          graphAvgValues.value = data
+        }
+      } catch {
+        // Fallback
       }
-    } catch {
-      // Fallback
-    }
+    })
   }
 
   async function fetchRechartData(vId = selectedVesselId.value, paramId = selectedTelemetryParam.value) {
     if (!vId || !paramId) return
-    try {
-      const data = await $fetch<any[]>('/api/vessels/rechart-data', {
-        method: 'POST',
-        body: { vesselId: Number(vId), parameterId: paramId },
-      })
-      if (Array.isArray(data)) {
-        rechartData.value = data
+    return runDeduplicated(`rechart:${vId}:${paramId}`, async () => {
+      try {
+        const data = await $fetch<any[]>('/api/vessels/rechart-data', {
+          method: 'POST',
+          body: { vesselId: Number(vId), parameterId: paramId },
+        })
+        if (Array.isArray(data)) {
+          rechartData.value = data
+        }
+      } catch {
+        // Fallback
       }
-    } catch {
-      // Fallback
-    }
+    })
   }
 
   async function refreshAll() {
+    if (inFlightRefresh) {
+      return inFlightRefresh
+    }
     isLoading.value = true
-    try {
-      await Promise.allSettled([
-        fetchDashboardState(),
-        fetchVoyageData(),
-        fetchWindyMap(),
-        fetchConnectivity(),
-        fetchGraphAvgValues(),
-        fetchRechartData(),
-      ])
-    } finally {
-      isLoading.value = false
-    }
+    inFlightRefresh = (async () => {
+      try {
+        await Promise.allSettled([
+          fetchDashboardState(),
+          fetchVoyageData(),
+          fetchWindyMap(),
+          fetchConnectivity(),
+          fetchGraphAvgValues(),
+          fetchRechartData(),
+        ])
+      } finally {
+        isLoading.value = false
+        inFlightRefresh = null
+      }
+    })()
+    return inFlightRefresh
   }
-
-  // Reactive watcher on vesselId change
-  watch(selectedVesselId, (newId) => {
-    if (newId) {
-      refreshAll()
-    }
-  })
-
-  // Reactive watcher on parameter selection
-  watch(selectedTelemetryParam, (newParam) => {
-    if (newParam) {
-      fetchRechartData(selectedVesselId.value, newParam)
-    }
-  })
-
-  // Polling setup for real-time telemetry (30s intervals)
-  let timer: any = null
-  onMounted(() => {
-    fetchVesselsList().then(() => {
-      refreshAll()
-    })
-    fetchRHSFlags()
-
-    timer = setInterval(() => {
-      fetchConnectivity()
-      fetchDashboardState()
-    }, 30000)
-  })
-
-  onUnmounted(() => {
-    if (timer) clearInterval(timer)
-  })
 
   return {
     selectedVesselId,
