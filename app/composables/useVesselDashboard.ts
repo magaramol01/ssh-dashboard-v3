@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue'
+import { normalizeVesselAlarms } from '~/lib/vessel-alarms'
 
 // Module-level in-flight deduplication cache
 const inFlightRequests = new Map<string, Promise<any>>()
@@ -474,6 +475,29 @@ export function useVesselDashboard() {
     })
   }
 
+  async function fetchAlarms(vId = selectedVesselId.value) {
+    if (!vId) return
+    return runDeduplicated(`alarms:${vId}`, async () => {
+      try {
+        const currentVessel = vesselsList.value.find((v) => String(v.id) === String(vId))
+        const query: Record<string, string> = { vesselId: String(vId) }
+        if (currentVessel?.mappingname) {
+          query.vesselName = currentVessel.mappingname
+        }
+        const data = await $fetch<any>('/api/vessels/alarms', { query })
+        if (data && typeof data === 'object') {
+          const liveAlarms = normalizeVesselAlarms(data)
+          alarmsList.value = liveAlarms
+        }
+      } catch {
+        // Fallback defaults if offline
+        if (!alarmsList.value.length) {
+          alarmsList.value = [...DEFAULT_VESSEL_ALARMS]
+        }
+      }
+    })
+  }
+
   async function refreshAll() {
     if (inFlightRefresh) {
       return inFlightRefresh
@@ -488,6 +512,7 @@ export function useVesselDashboard() {
           fetchConnectivity(),
           fetchGraphAvgValues(),
           fetchRechartData(),
+          fetchAlarms(),
         ])
       } finally {
         isLoading.value = false
@@ -536,6 +561,7 @@ export function useVesselDashboard() {
     updateRHSFlags,
     fetchGraphAvgValues,
     fetchRechartData,
+    fetchAlarms,
     refreshAll,
   }
 }
