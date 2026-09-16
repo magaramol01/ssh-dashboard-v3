@@ -82,6 +82,13 @@ export default defineNuxtConfig({
         path: '/:tenant',
         redirect: (to: any) => `/${to.params.tenant}/dashboard`,
       })
+
+      // Allow /live directly to redirect to default tenant
+      pages.push({
+        name: 'live-unprefixed',
+        path: '/live',
+        redirect: '/aesm/live',
+      })
     },
   },
 });

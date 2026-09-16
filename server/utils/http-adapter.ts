@@ -88,10 +88,12 @@ export async function backendFetch<T = any>(
   const headers: Record<string, string> = {
     'accept': 'application/json, text/plain, */*',
     'content-type': 'application/json;charset=UTF-8',
-    'x-tenant-id': tenant,
-    'x-request-id': requestId,
-    'x-auth-id': authToken,
-    'x-refresh-id': refreshToken,
+    'X-Tenant-ID': tenant,
+    'X-Request-ID': requestId,
+    'X-Auth-ID': authToken,
+    'X-Refresh-ID': refreshToken || authToken,
+    'AuthorizationJWTToken': authToken,
+    'RefreshJWTToken': refreshToken || authToken,
     'Referer': 'https://www.smartshipweb.com/',
     ...options.headers,
   }

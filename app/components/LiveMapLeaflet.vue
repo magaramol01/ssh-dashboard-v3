@@ -175,7 +175,7 @@ function applyFocus() {
     if (route.origin) route.origin.setStyle({ opacity, fillOpacity: opacity })
     route.marker.setOpacity(dim ? 0.35 : 1)
     route.marker.setZIndexOffset(focused ? 1000 : 0)
-    const hasCctv = hasCameras(id) || (route.trip?.vesselId ? hasCameras(route.trip.vesselId) : false)
+    const hasCctv = hasCameras(route.trip) || hasCameras(id) || (route.trip?.vesselId ? hasCameras(route.trip.vesselId) : false) || (route.trip?.name ? hasCameras(route.trip.name) : false)
     route.marker.setIcon(vesselIcon(route.color, isSelected, hasCctv))
 
     if (isSelected || isHovered) {
@@ -229,7 +229,7 @@ function drawRoutes() {
       origin = L.circleMarker(route[0], { radius: 4, color, weight: 2, fillColor: cssVar('--card'), fillOpacity: 1 }).addTo(map)
     }
 
-    const hasCctv = hasCameras(id) || ((trip as any).vesselId ? hasCameras((trip as any).vesselId) : false)
+    const hasCctv = hasCameras(trip) || hasCameras(id) || ((trip as any).vesselId ? hasCameras((trip as any).vesselId) : false) || ((trip as any).name ? hasCameras((trip as any).name) : false)
     const marker = L.marker(markerPos, { icon: vesselIcon(color, false, hasCctv), riseOnHover: true }).addTo(map)
     marker.on('click', () => {
       emit('select', id)

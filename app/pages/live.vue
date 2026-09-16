@@ -73,10 +73,28 @@ const { tenant } = useTenant()
 // Fetch real vessel data dynamically forwarding the user's active session
 const { data: vesselResponse, status: vesselStatus, refresh: refreshVessels } = await useAsyncData(
   () => `vessels-geojson-${tenant.value}`,
-  () =>
-    $fetch<{ success: boolean; vessels: LiveVesselItem[] }>('/api/vessels/geojson', {
+  () => {
+    const headers: Record<string, string> = {}
+    if (!import.meta.server) {
+      try {
+        const token =
+          localStorage.getItem('authToken') ||
+          localStorage.getItem('auth_token') ||
+          localStorage.getItem('rduin_auth') ||
+          ''
+        if (token) {
+          headers['X-Auth-ID'] = token
+          headers['X-Refresh-ID'] = token
+        }
+      } catch {
+        // localStorage unavailable in SSR
+      }
+    }
+    return $fetch<{ success: boolean; vessels: LiveVesselItem[] }>('/api/vessels/geojson', {
       params: { tenant: tenant.value },
-    }).catch(() => null),
+      headers,
+    }).catch(() => null)
+  },
   {
     watch: [tenant],
     default: () => null,
@@ -254,15 +272,14 @@ const drawerStreamId = ref<string>('')
 
 const selectedDrawerCamName = computed(() => {
   if (!selected.value) return 'Vessel Camera'
-  const cams = getVesselCameras(selected.value.id || selected.value.vesselId)
+  const cams = getVesselCameras(selected.value)
   const found = cams.find((c) => c.id === selectedDrawerCamId.value)
   return found?.name || cams[0]?.name || 'Bridge Forward'
 })
 
 async function startDrawerStream() {
   if (!selected.value) return
-  const vId = selected.value.vesselId || selected.value.id
-  const cams = getVesselCameras(vId)
+  const cams = getVesselCameras(selected.value)
   if (cams.length === 0) return
 
   if (!cams.some((c) => c.id === selectedDrawerCamId.value)) {
@@ -273,7 +290,7 @@ async function startDrawerStream() {
     stopVesselStream(drawerStreamId.value)
   }
 
-  const { streamId, streamUrl } = await requestVesselStream(vId, selectedDrawerCamId.value, 'sd')
+  const { streamId, streamUrl } = await requestVesselStream(selected.value, selectedDrawerCamId.value, 'sd')
   drawerStreamId.value = streamId
   drawerStreamUrl.value = streamUrl
 }
@@ -391,8 +408,8 @@ watch(selected, (newSel, oldSel) => {
     drawerStreamId.value = ''
     drawerStreamUrl.value = ''
   }
-  if (newSel && (hasCameras(newSel.id) || (newSel.vesselId && hasCameras(newSel.vesselId)))) {
-    const cams = getVesselCameras(newSel.vesselId || newSel.id)
+  if (newSel && hasCameras(newSel)) {
+    const cams = getVesselCameras(newSel)
     if (cams.length > 0) {
       selectedDrawerCamId.value = cams[0]?.id || '1'
       startDrawerStream()
@@ -509,9 +526,9 @@ watch(selected, (newSel, oldSel) => {
                   <div class="flex items-center gap-1.5 min-w-0">
                     <span class="font-semibold text-[13px] tracking-tight truncate">{{ t.name }}</span>
                     <button
-                      v-if="hasCameras(t.id) || (t.vesselId && hasCameras(t.vesselId))"
+                      v-if="hasCameras(t)"
                       type="button"
-                      class="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-semibold shrink-0 cursor-pointer transition-colors"
+                      class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/15 hover:bg-primary/25 text-primary text-[10px] font-bold shrink-0 cursor-pointer transition-colors shadow-xs"
                       title="Open Live CCTV Stream"
                       @click.stop="openVesselCamera(t)"
                     >
@@ -862,7 +879,7 @@ watch(selected, (newSel, oldSel) => {
 
               <!-- Live CCTV Surveillance Section (Available when vessel has cameras) -->
               <div
-                v-if="hasCameras(selected.id) || (selected.vesselId && hasCameras(selected.vesselId))"
+                v-if="hasCameras(selected)"
                 class="rounded-xl border border-primary/30 bg-primary/5 p-3.5 space-y-3"
               >
                 <div class="flex items-center justify-between">
@@ -885,7 +902,7 @@ watch(selected, (newSel, oldSel) => {
                 <!-- Multi-Camera Selector Pills -->
                 <div class="flex flex-wrap gap-1.5">
                   <button
-                    v-for="cam in getVesselCameras(selected.id || selected.vesselId)"
+                    v-for="cam in getVesselCameras(selected)"
                     :key="cam.id"
                     type="button"
                     class="text-[11px] font-medium px-2 py-0.5 rounded-md transition-all cursor-pointer"

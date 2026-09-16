@@ -42,8 +42,7 @@ const dragOffset = ref({ x: 0, y: 0 })
 
 const cameras = computed<CameraInfo[]>(() => {
   if (!props.vessel) return []
-  const vId = props.vessel.vesselId || props.vessel.id
-  return getVesselCameras(vId)
+  return getVesselCameras(props.vessel)
 })
 
 const activeCamera = computed<CameraInfo | undefined>(() => {
@@ -55,12 +54,11 @@ const activeCamera = computed<CameraInfo | undefined>(() => {
 
 const uploadSpeed = computed<number | null>(() => {
   if (!props.vessel) return null
-  return getVesselUploadSpeed(props.vessel.vesselId || props.vessel.id)
+  return getVesselUploadSpeed(props.vessel)
 })
 
 async function startCurrentStream() {
   if (!props.vessel || cameras.value.length === 0) return
-  const vId = props.vessel.vesselId || props.vessel.id
   const camId = selectedCameraId.value || cameras.value[0]?.id || '1'
 
   // Stop previous stream if different
@@ -68,7 +66,7 @@ async function startCurrentStream() {
     stopVesselStream(activeStreamId.value)
   }
 
-  const { streamId, streamUrl } = await requestVesselStream(vId, camId, 'sd')
+  const { streamId, streamUrl } = await requestVesselStream(props.vessel, camId, 'sd')
   activeStreamId.value = streamId
   activeStreamUrl.value = streamUrl
 }
