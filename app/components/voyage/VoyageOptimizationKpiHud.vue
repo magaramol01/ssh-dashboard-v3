@@ -142,8 +142,8 @@ function ciiRatingColor(rating: string): string {
             <Clock class="w-3.5 h-3.5 text-blue-500" />
             Charter Laycan
           </span>
-          <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-600 dark:text-blue-400">
-            Safe
+          <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+            Estimated
           </span>
         </div>
         <div class="mt-2 flex items-baseline justify-between">
@@ -155,7 +155,7 @@ function ciiRatingColor(rating: string): string {
           </span>
         </div>
         <div class="mt-1 text-[10px] text-muted-foreground truncate">
-          Arrival well within charter party
+          Modeled — no live charter-party feed connected
         </div>
       </div>
 
@@ -166,8 +166,8 @@ function ciiRatingColor(rating: string): string {
             <Coins class="w-3.5 h-3.5 text-amber-500" />
             EU ETS / Carbon
           </span>
-          <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-            Savings
+          <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+            Estimated
           </span>
         </div>
         <div class="mt-2 flex items-baseline justify-between">
@@ -179,7 +179,7 @@ function ciiRatingColor(rating: string): string {
           </span>
         </div>
         <div class="mt-1 text-[10px] text-muted-foreground truncate">
-          Allowance savings vs standard speed
+          Modeled at €85/ton EU ETS — no live price feed connected
         </div>
       </div>
     </div>
