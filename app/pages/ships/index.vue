@@ -23,7 +23,7 @@ useHead({ title: 'Ship Details · Smart Ship Hub' })
 const { ships, isLoading, hasLoaded, fetchShips } = useShipData()
 
 onMounted(() => {
-  if (!hasLoaded.value) fetchShips()
+  fetchShips()
 })
 
 const totals = computed(() => {

@@ -22,7 +22,7 @@ const id = computed(() => String(route.params.id))
 const { hasLoaded, isLoading, fetchShips, findShip } = useShipData()
 
 onMounted(() => {
-  if (!hasLoaded.value) fetchShips()
+  fetchShips()
 })
 
 const ship = computed(() => findShip(id.value))
