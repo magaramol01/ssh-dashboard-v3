@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path'
 import {
   mapCiiRecordsToDailyNoons,
   resolveVesselDeadweightMt,
+  isNoonReportRecord,
   calculateRouteStrategies,
   deriveVoyageAdvisories,
   type CiiDateRangeRecord,
@@ -62,6 +63,48 @@ describe('Voyage Optimization Domain Engine', () => {
     const day2 = noons[1]!
     assert.equal(day2.dayNumber, 2)
     assert.equal(day2.cumulativeDistanceNm, 512)
+  })
+
+  test('isNoonReportRecord excludes small-distance in-port events like arrival reports', () => {
+    // Modeled on a real observed record: a port-arrival report with a small
+    // nonzero distance (0.5 NM shift), which a distance-only filter missed
+    // and produced a nonsensical CII value (near-zero transport work).
+    const arrivalReport: CiiDateRangeRecord = {
+      ...sampleRecords[0]!,
+      distance: 0.5,
+      reportType: 'report_arrival',
+      utilizationType: {
+        seaReportTypes: ['report_position'],
+        portReportTypes: ['report_arrival', 'report_position_in_port'],
+      },
+    }
+    assert.equal(isNoonReportRecord(arrivalReport), false)
+
+    const genuineNoonReport: CiiDateRangeRecord = {
+      ...sampleRecords[0]!,
+      utilizationType: {
+        seaReportTypes: ['Noon Report'],
+        portReportTypes: ['Arrival Report'],
+      },
+    }
+    assert.equal(isNoonReportRecord(genuineNoonReport), true)
+  })
+
+  test('mapCiiRecordsToDailyNoons excludes a small-distance arrival report even though distance > 0', () => {
+    const arrivalReport: CiiDateRangeRecord = {
+      ...sampleRecords[0]!,
+      reportDateTime: '2026-09-03T00:00:00.000Z',
+      distance: 0.5,
+      attainedCII: 48.7,
+      reportType: 'report_arrival',
+      utilizationType: {
+        seaReportTypes: ['report_position'],
+        portReportTypes: ['report_arrival'],
+      },
+    }
+    const noons = mapCiiRecordsToDailyNoons([arrivalReport, ...sampleRecords])
+    assert.equal(noons.length, 2, 'the arrival report must not become a Daily Noon Log entry')
+    assert.ok(noons.every((n) => n.attainedCii !== 48.7))
   })
 
   test('calculateRouteStrategies returns 4 standard comparative strategies with basis labels', () => {

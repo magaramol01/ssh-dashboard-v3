@@ -5,6 +5,7 @@ import {
   calculateRouteStrategies,
   deriveVoyageAdvisories,
   resolveVesselDeadweightMt,
+  isNoonReportRecord,
   EU_ETS_CARBON_PRICE_EUR_PER_TON,
   DEFAULT_LAYCAN_BUFFER_HOURS,
   CII_LOOKBACK_DAYS,
@@ -135,7 +136,7 @@ export function useVoyageOptimization() {
         : 5400 // Fallback only when live voyage-distance telemetry is unavailable
 
     // Only real noon/position reports (not zero-distance event markers) count toward these aggregates
-    const noonRecords = ciiRecords.value.filter((r) => (r.distance || 0) > 0)
+    const noonRecords = ciiRecords.value.filter(isNoonReportRecord)
     const totalCiiDist = noonRecords.reduce((sum, r) => sum + (r.distance || 0), 0)
     const totalCiiFuel = noonRecords.reduce((sum, r) => sum + (r.totalConsumption || 0), 0)
     const avgSpeed =

@@ -37,6 +37,15 @@ export interface CiiDateRangeRecord {
   }
   consumptionData: Record<string, { value: number; label: string; coefficient: number }>
   vesselInfo?: { deadweight?: string }
+  // The API's own classification of which reportType strings count as
+  // in-port activity (arrival, departure, anchorage, bunkering, etc.) vs
+  // at-sea — used to exclude port events, which can have a small nonzero
+  // `distance` (e.g. a 0.5 NM arrival shift) that a distance-only filter
+  // would miss.
+  utilizationType?: {
+    seaReportTypes?: string[]
+    portReportTypes?: string[]
+  }
   noonreportdata?: {
     // Position format varies by vessel/reporting app: DMS string
     // ("24°13'5''S") for some, plain decimal degrees (number or numeric
@@ -167,15 +176,31 @@ export function resolveCiiRating(cii: number): CIIRating {
 }
 
 /**
+ * Whether a CII date-range record represents a real at-sea noon/position
+ * report rather than an in-port event (arrival, departure, anchorage,
+ * bunkering, etc.). Port events can carry a small nonzero `distance` (e.g.
+ * a 0.5 NM arrival shift), so distance alone isn't a reliable filter — this
+ * also checks the record's own `utilizationType.portReportTypes`
+ * classification, which is authoritative and self-describing per vessel/
+ * reporting-app convention rather than a guessed string allowlist.
+ */
+export function isNoonReportRecord(record: CiiDateRangeRecord): boolean {
+  if ((record.distance || 0) <= 0) return false
+  const portTypes = record.utilizationType?.portReportTypes
+  if (portTypes && portTypes.includes(record.reportType)) return false
+  return true
+}
+
+/**
  * Maps live CII date-range API records into the DailyNoonReport shape the
  * screen renders. The API interleaves real position/noon reports with
- * zero-distance event markers (sea-passage-end, anchorage, bunkering,
- * arrival/departure, etc. — observed as ~64% of records on live data) in
- * the same response; only records with an actual distance run represent a
- * real day. Records are sorted chronologically and numbered D1..Dn.
+ * in-port event markers (sea-passage-end, anchorage, bunkering, arrival/
+ * departure, etc. — observed as ~64% of records on live data) in the same
+ * response; only genuine at-sea noon reports represent a real day. Records
+ * are sorted chronologically and numbered D1..Dn.
  */
 export function mapCiiRecordsToDailyNoons(records: CiiDateRangeRecord[]): DailyNoonReport[] {
-  const noonRecords = records.filter((r) => (r.distance || 0) > 0)
+  const noonRecords = records.filter(isNoonReportRecord)
 
   const sorted = [...noonRecords].sort(
     (a, b) => new Date(a.reportDateTime).getTime() - new Date(b.reportDateTime).getTime()
