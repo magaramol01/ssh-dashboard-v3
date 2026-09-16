@@ -56,6 +56,7 @@ export function useVoyageOptimization() {
     windyMapData,
     isMapLoading,
     refreshAll,
+    fetchVesselsList,
   } = useVesselDashboard()
 
   // 1. Parse current passage and vessel geometry
@@ -296,6 +297,7 @@ export function useVoyageOptimization() {
     applyAdvisory,
     fetchRouteWeather,
     fetchCiiDateRange,
+    fetchVesselsList,
     refreshAll,
   }
 }

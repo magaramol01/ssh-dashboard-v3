@@ -11,6 +11,7 @@ definePageMeta({ middleware: 'require-dispatcher' })
 useHead({ title: 'Voyage Optimization & Weather Routing · Smart Ship Hub' })
 
 const {
+  fetchVesselsList,
   fetchRouteWeather,
   refreshAll,
   vesselsList,
@@ -28,6 +29,7 @@ function handleSelectDay() {
 }
 
 onMounted(async () => {
+  await fetchVesselsList()
   await Promise.allSettled([
     refreshAll(),
     fetchRouteWeather(),
