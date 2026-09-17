@@ -9,6 +9,8 @@ import {
   Gauge,
   Wifi,
   GripHorizontal,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-vue-next'
 import VesselCameraPlayer from './VesselCameraPlayer.vue'
 import { useCameraStream } from '~/composables/useCameraStream'
@@ -28,15 +30,24 @@ const {
   getVesselUploadSpeed,
   requestVesselStream,
   stopVesselStream,
+  lastStreamError,
+  latestStartedStream,
 } = useCameraStream()
 
 const isMinimized = ref(false)
 const selectedCameraId = ref<string>('1')
 const activeStreamUrl = ref<string>('')
 const activeStreamId = ref<string>('')
+const failoverNotice = ref<string>('')
+const failedCameraIds = ref<Set<string>>(new Set())
+let failoverTimer: any = null
 
-// Position dragging state
-const overlayPosition = ref({ x: 24, y: 70 })
+// Position dragging state - defaults to top-right on desktop over map
+const hasDragged = ref(false)
+const overlayPosition = ref({
+  x: typeof window !== 'undefined' && window.innerWidth > 1024 ? Math.max(380, window.innerWidth - 430) : 24,
+  y: 76,
+})
 const isDragging = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
 
@@ -44,6 +55,9 @@ const cameras = computed<CameraInfo[]>(() => {
   if (!props.vessel) return []
   return getVesselCameras(props.vessel)
 })
+
+const onlineCameras = computed(() => cameras.value.filter((c) => c.status === 'ONLINE'))
+const offlineCameras = computed(() => cameras.value.filter((c) => c.status === 'OFFLINE'))
 
 const activeCamera = computed<CameraInfo | undefined>(() => {
   return (
@@ -72,9 +86,86 @@ async function startCurrentStream() {
 }
 
 function handleSelectCamera(camId: string) {
+  failedCameraIds.value.delete(camId)
+  const targetCam = cameras.value.find((c) => c.id === camId)
+  if (targetCam?.status === 'OFFLINE') {
+    failoverNotice.value = `${targetCam.name} is OFFLINE · Requesting onboard wake-up...`
+  } else {
+    failoverNotice.value = ''
+  }
   selectedCameraId.value = camId
   startCurrentStream()
 }
+
+function goToPrevCamera() {
+  if (cameras.value.length <= 1) return
+  const currentIndex = cameras.value.findIndex((c) => c.id === selectedCameraId.value)
+  const prevIndex = (currentIndex - 1 + cameras.value.length) % cameras.value.length
+  const prevCam = cameras.value[prevIndex]
+  if (prevCam) {
+    handleSelectCamera(prevCam.id)
+  }
+}
+
+function goToNextCamera() {
+  if (cameras.value.length <= 1) return
+  const currentIndex = cameras.value.findIndex((c) => c.id === selectedCameraId.value)
+  const nextIndex = (currentIndex + 1) % cameras.value.length
+  const nextCam = cameras.value[nextIndex]
+  if (nextCam) {
+    handleSelectCamera(nextCam.id)
+  }
+}
+
+function switchToNextCamera(reason = 'Camera offline') {
+  if (!props.vessel || cameras.value.length <= 1) return
+  const currentCam = activeCamera.value
+  if (currentCam) {
+    failedCameraIds.value.add(currentCam.id)
+  }
+
+  const currentIndex = cameras.value.findIndex((c) => c.id === selectedCameraId.value)
+  let nextCam = cameras.value.slice(currentIndex + 1).find((c) => !failedCameraIds.value.has(c.id))
+  
+  if (!nextCam) {
+    nextCam = cameras.value.find((c) => !failedCameraIds.value.has(c.id))
+  }
+
+  if (nextCam) {
+    const currentName = currentCam?.name || 'Camera'
+    failoverNotice.value = `${currentName} offline · Switching to ${nextCam.name}...`
+    clearTimeout(failoverTimer)
+    failoverTimer = setTimeout(() => {
+      failoverNotice.value = ''
+    }, 4500)
+
+    selectedCameraId.value = nextCam.id
+    startCurrentStream()
+  } else {
+    failoverNotice.value = `All ${cameras.value.length} vessel cameras queried. Satellite uplink in standby.`
+  }
+}
+
+function handleCameraReady() {
+  failoverNotice.value = ''
+}
+
+function handlePlayerError(_err: any) {
+  switchToNextCamera('HLS stream unreachable')
+}
+
+// Watch socket-level stream errors
+watch(lastStreamError, (err) => {
+  if (!err || !props.isOpen || !props.vessel) return
+  const currentCam = activeCamera.value
+  if (
+    currentCam &&
+    (err.cameraId === currentCam.id ||
+      (err.streamId && err.streamId.includes(currentCam.id)))
+  ) {
+    switchToNextCamera(err.message || 'Satellite transponder error')
+  }
+})
 
 function handleClose() {
   if (activeStreamId.value) {
@@ -88,6 +179,7 @@ function handleClose() {
 // Dragging handlers
 function onMouseDown(e: MouseEvent) {
   isDragging.value = true
+  hasDragged.value = true
   dragOffset.value = {
     x: e.clientX - overlayPosition.value.x,
     y: e.clientY - overlayPosition.value.y,
@@ -109,13 +201,28 @@ function onMouseUp() {
   window.removeEventListener('mouseup', onMouseUp)
 }
 
+watch(latestStartedStream, (started) => {
+  if (!started || !props.isOpen || !props.vessel) return
+  const vName = props.vessel.name || props.vessel.id || ''
+  if (
+    started.shipId === vName ||
+    started.streamId.startsWith(String(vName).replace(/[\s\-_]+/g, '').toUpperCase())
+  ) {
+    activeStreamId.value = started.streamId
+    activeStreamUrl.value = started.url
+  }
+})
+
 watch(
   () => props.vessel,
   (newVessel) => {
     if (newVessel) {
-      const cams = getVesselCameras(newVessel.vesselId || newVessel.id)
+      failedCameraIds.value.clear()
+      failoverNotice.value = ''
+      const cams = getVesselCameras(newVessel)
       if (cams.length > 0) {
-        selectedCameraId.value = cams[0]?.id || '1'
+        const preferred = cams.find((c) => c.status === 'ONLINE') || cams[0]
+        selectedCameraId.value = preferred?.id || '1'
       }
       if (props.isOpen) {
         startCurrentStream()
@@ -126,26 +233,50 @@ watch(
 )
 
 watch(
+  cameras,
+  (newCams) => {
+    if (!newCams || newCams.length === 0) return
+    const currentCam = newCams.find((c) => c.id === selectedCameraId.value)
+    if (!currentCam || currentCam.status === 'OFFLINE') {
+      const firstOnline = newCams.find((c) => c.status === 'ONLINE')
+      if (firstOnline && firstOnline.id !== selectedCameraId.value) {
+        selectedCameraId.value = firstOnline.id
+        if (props.isOpen) {
+          startCurrentStream()
+        }
+      }
+    }
+  }
+)
+
+watch(
   () => props.isOpen,
   (open) => {
     if (open && props.vessel) {
+      failedCameraIds.value.clear()
+      failoverNotice.value = ''
       startCurrentStream()
     } else if (!open && activeStreamId.value) {
       stopVesselStream(activeStreamId.value)
       activeStreamId.value = ''
     }
   }
+
 )
 </script>
 
 <template>
   <div
-    v-if="isOpen && vessel"
+    v-if="isOpen && vessel && cameras.length > 0"
     class="fixed z-[1050] transition-all duration-150 select-none shadow-2xl"
-    :style="{
+    :style="hasDragged ? {
       left: `${overlayPosition.x}px`,
       top: `${overlayPosition.y}px`,
-      width: isMinimized ? 'auto' : '380px',
+      width: isMinimized ? 'auto' : '410px',
+    } : {
+      right: '20px',
+      top: '76px',
+      width: isMinimized ? 'auto' : '410px',
     }"
   >
     <!-- Minimized Compact Badge View -->
@@ -211,36 +342,105 @@ watch(
         </div>
       </div>
 
-      <!-- Multi-Camera Selector Pills (If multiple cameras available) -->
+      <!-- Camera Health & Quick Navigation Ribbon -->
+      <div class="flex items-center justify-between px-3 py-1.5 bg-muted/40 border-b border-border/50 text-[10px] font-mono">
+        <div class="flex items-center gap-1.5 min-w-0">
+          <span class="text-muted-foreground uppercase tracking-wider text-[9px] font-semibold shrink-0">Cams:</span>
+          <span class="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 font-bold shrink-0">
+            <span class="size-1.5 rounded-full bg-emerald-400"></span>
+            {{ onlineCameras.length }} Online
+          </span>
+          <span v-if="offlineCameras.length > 0" class="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-rose-500/15 text-rose-400 font-bold shrink-0">
+            <span class="size-1.5 rounded-full bg-rose-400"></span>
+            {{ offlineCameras.length }} Offline
+          </span>
+        </div>
+
+        <div v-if="cameras.length > 1" class="flex items-center gap-1 shrink-0 ml-2">
+          <button
+            type="button"
+            class="size-5 rounded hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+            title="Previous Camera"
+            @click="goToPrevCamera"
+          >
+            <ChevronLeft class="size-3" />
+          </button>
+          <span class="text-[9px] text-muted-foreground tabular-nums">
+            {{ (cameras.findIndex((c) => c.id === selectedCameraId) + 1) || 1 }}/{{ cameras.length }}
+          </span>
+          <button
+            type="button"
+            class="size-5 rounded hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+            title="Next Camera"
+            @click="goToNextCamera"
+          >
+            <ChevronRight class="size-3" />
+          </button>
+        </div>
+      </div>
+
+      <!-- Multi-Camera Selector Pills -->
       <div
         v-if="cameras.length > 1"
-        class="flex items-center gap-1.5 px-3 py-1.5 bg-background/80 border-b border-border/40 overflow-x-auto"
+        class="flex items-center gap-1 px-2.5 py-1.5 bg-background/80 border-b border-border/40 overflow-x-auto"
       >
         <button
           v-for="cam in cameras"
           :key="cam.id"
           type="button"
-          class="text-[11px] font-medium px-2 py-0.5 rounded-md transition-all shrink-0 cursor-pointer"
+          class="text-[10.5px] font-medium px-2 py-0.5 rounded-md transition-all shrink-0 cursor-pointer flex items-center gap-1.5 border"
           :class="
             selectedCameraId === cam.id
-              ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
-              : 'bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground'
+              ? 'bg-primary text-primary-foreground font-semibold shadow-xs border-primary'
+              : cam.status === 'OFFLINE'
+              ? 'bg-muted/20 text-muted-foreground/60 border-border/30 hover:border-border/60'
+              : 'bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground border-border/40'
           "
+          :title="`${cam.name} · ${cam.status === 'ONLINE' ? 'Online' : 'Offline'}`"
           @click="handleSelectCamera(cam.id)"
         >
-          {{ cam.name }}
+          <span
+            class="size-1.5 rounded-full shrink-0"
+            :class="
+              selectedCameraId === cam.id
+                ? 'bg-white animate-pulse'
+                : cam.status === 'ONLINE'
+                ? 'bg-emerald-400'
+                : 'bg-rose-500'
+            "
+          />
+          <span>{{ cam.name }}</span>
+          <span
+            v-if="cam.status === 'OFFLINE'"
+            class="text-[8.5px] uppercase px-1 py-0 rounded bg-rose-500/20 text-rose-300 font-mono font-bold leading-tight"
+          >
+            OFF
+          </span>
         </button>
       </div>
 
-      <!-- Main Video Feed Canvas -->
+      <!-- Realtime Camera Failover Notice Banner -->
+      <div
+        v-if="failoverNotice"
+        class="flex items-center gap-1.5 px-3 py-1 bg-amber-500/15 border-b border-amber-500/30 text-[10px] text-amber-300 font-medium"
+      >
+        <span class="size-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+        <span class="truncate">{{ failoverNotice }}</span>
+      </div>
+
+      <!-- Main Video Feed Stage -->
       <div class="p-2 bg-black/90">
         <VesselCameraPlayer
           :stream-url="activeStreamUrl"
           :camera-name="activeCamera?.name || 'Vessel Camera'"
+          :vessel-name="vessel?.name || ''"
           :is-live="true"
           :auto-play="true"
+          @ready="handleCameraReady"
+          @error="handlePlayerError"
         />
       </div>
+
 
       <!-- Bottom Telemetry HUD Ribbon -->
       <div class="grid grid-cols-3 divide-x divide-border/60 bg-muted/40 border-t border-border/80 px-2 py-1.5 text-center text-[10px]">

@@ -11,17 +11,20 @@ import {
   AlertTriangle,
   Radio,
   Video,
+  ArrowRight,
 } from 'lucide-vue-next'
 
 const props = withDefaults(
   defineProps<{
     streamUrl: string
     cameraName?: string
+    vesselName?: string
     isLive?: boolean
     autoPlay?: boolean
   }>(),
   {
     cameraName: 'CCTV Camera',
+    vesselName: '',
     isLive: true,
     autoPlay: true,
   }
@@ -34,6 +37,8 @@ const emit = defineEmits<{
 
 const videoRef = ref<HTMLVideoElement | null>(null)
 const playerContainerRef = ref<HTMLElement | null>(null)
+
+
 
 const isPlaying = ref(false)
 const isMuted = ref(true)
@@ -94,10 +99,22 @@ async function initHls() {
         debug: false,
         enableWorker: true,
         lowLatencyMode: true,
-        backBufferLength: 15,
-        maxBufferLength: 30,
+        backBufferLength: 10,
+        maxBufferLength: 20,
         liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 8,
+        liveMaxLatencyDurationCount: 6,
+        manifestLoadingTimeOut: 15000,
+        manifestLoadingMaxRetry: 8,
+        manifestLoadingRetryDelay: 1500,
+        manifestLoadingMaxRetryTimeout: 20000,
+        levelLoadingTimeOut: 15000,
+        levelLoadingMaxRetry: 8,
+        levelLoadingRetryDelay: 1500,
+        levelLoadingMaxRetryTimeout: 20000,
+        fragLoadingTimeOut: 15000,
+        fragLoadingMaxRetry: 8,
+        fragLoadingRetryDelay: 1500,
+        fragLoadingMaxRetryTimeout: 20000,
       })
       hlsInstance = hls
 
@@ -111,7 +128,6 @@ async function initHls() {
           video.play().then(() => {
             isPlaying.value = true
           }).catch(() => {
-            // Autoplay blocked without user interaction
             isPlaying.value = false
           })
         }
@@ -119,49 +135,26 @@ async function initHls() {
 
       hls.on(HlsModule.Events.ERROR, (_event: any, data: any) => {
         if (data.fatal) {
-          switch (data.type) {
-            case HlsModule.ErrorTypes.NETWORK_ERROR:
-              if (retryCount.value < maxRetries) {
-                retryCount.value++
-                retryTimeout = setTimeout(() => {
-                  if (hlsInstance) {
-                    if (data.details === HlsModule.ErrorDetails.MANIFEST_LOAD_ERROR) {
-                      hlsInstance.loadSource(props.streamUrl)
-                    } else {
-                      hlsInstance.startLoad()
-                    }
-                  }
-                }, 2000)
-              } else {
-                stopLoadingMessages()
-                isLoading.value = false
-                hasError.value = true
-                emit('error', data)
+          if (data.type === HlsModule.ErrorTypes.NETWORK_ERROR && retryCount.value < maxRetries) {
+            retryCount.value++
+            clearTimeout(retryTimeout)
+            retryTimeout = setTimeout(() => {
+              if (hlsInstance) {
+                hlsInstance.startLoad()
               }
-              break
-            case HlsModule.ErrorTypes.MEDIA_ERROR:
-              try {
-                hls.recoverMediaError()
-              } catch (e) {
-                stopLoadingMessages()
-                isLoading.value = false
-                hasError.value = true
-              }
-              break
-            default:
-              stopLoadingMessages()
-              isLoading.value = false
-              hasError.value = true
-              emit('error', data)
-              break
+            }, 1800)
+            return
           }
+          stopLoadingMessages()
+          isLoading.value = false
+          hasError.value = true
+          emit('error', data)
         }
       })
 
       hls.attachMedia(video)
       hls.loadSource(props.streamUrl)
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      // Native Apple HLS (Safari)
       video.src = props.streamUrl
       video.addEventListener('loadedmetadata', () => {
         stopLoadingMessages()
@@ -181,6 +174,7 @@ async function initHls() {
       stopLoadingMessages()
       isLoading.value = false
       hasError.value = true
+      emit('error', new Error('HLS not supported in browser'))
     }
   } catch (err) {
     stopLoadingMessages()
@@ -263,7 +257,7 @@ onBeforeUnmount(() => {
     ref="playerContainerRef"
     class="relative w-full aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center select-none group border border-border/40 shadow-inner"
   >
-    <!-- HTML5 Video Element -->
+    <!-- HTML5 Video Element (Live HLS Video Stream) -->
     <video
       ref="videoRef"
       class="w-full h-full object-cover"
@@ -272,6 +266,39 @@ onBeforeUnmount(() => {
       @play="isPlaying = true"
       @pause="isPlaying = false"
     />
+
+    <!-- Tactical scanlines overlay -->
+    <div class="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_50%,rgba(0,0,0,0.35)_51%)] bg-[length:100%_4px] pointer-events-none z-10 opacity-50" />
+
+    <!-- Live Satellite Search / Standby HUD when waiting for camera signal -->
+    <div
+      v-if="hasError"
+      class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/90 px-4 text-center select-none backdrop-blur-xs"
+    >
+      <div class="relative flex items-center justify-center size-12 mb-2.5">
+        <div class="absolute inset-0 rounded-full border border-amber-500/30 animate-ping" />
+        <div class="size-9 rounded-full border border-amber-500/60 flex items-center justify-center bg-amber-500/10">
+          <AlertTriangle class="size-4 text-amber-400" />
+        </div>
+      </div>
+      <p class="text-xs font-semibold text-white/90">
+        Camera Signal Offline on Vessel
+      </p>
+      <p class="text-[10px] text-white/60 mt-0.5 max-w-[260px]">
+        {{ cameraName }} unreachable. Attempting transponder failover...
+      </p>
+
+      <button
+        type="button"
+        class="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded bg-primary/25 hover:bg-primary/40 border border-primary/40 text-[11px] font-medium text-primary-foreground transition-colors cursor-pointer"
+        @click="emit('error', { type: 'NEXT_CAMERA_REQUESTED' })"
+      >
+        <span>Try Next Camera</span>
+        <ArrowRight class="size-3" />
+      </button>
+    </div>
+
+
 
     <!-- Top Status Overlay (Always Visible) -->
     <div class="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between z-10 pointer-events-none">
@@ -304,30 +331,6 @@ onBeforeUnmount(() => {
       <p class="text-[10px] text-white/50 mt-1">
         Satellite bandwidth optimization active
       </p>
-    </div>
-
-    <!-- Error / Offline State Overlay -->
-    <div
-      v-else-if="hasError"
-      class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/90 backdrop-blur-xs px-4 text-center space-y-2"
-    >
-      <div class="size-10 rounded-full bg-destructive/15 border border-destructive/30 flex items-center justify-center text-destructive">
-        <AlertTriangle class="size-5" />
-      </div>
-      <div>
-        <p class="text-xs font-semibold text-white">Camera Feed Standby</p>
-        <p class="text-[11px] text-white/60 mt-0.5 max-w-[240px]">
-          Uplink handshake awaiting vessel transmission.
-        </p>
-      </div>
-      <button
-        type="button"
-        class="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-medium text-white transition-colors cursor-pointer"
-        @click="retryStream"
-      >
-        <RefreshCw class="size-3" />
-        <span>Reconnect</span>
-      </button>
     </div>
 
     <!-- Interactive Control Bar (Appears on Hover) -->

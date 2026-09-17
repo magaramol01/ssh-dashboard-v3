@@ -3,110 +3,32 @@ import type { Socket } from 'socket.io-client'
 import type { CameraInfo } from '#shared/types/camera'
 import { buildHlsStreamUrl, buildStreamId } from '~/utils/camera-stream'
 
-// Known baseline cameras for vessels with CCTV installed
-const DEFAULT_VESSEL_CAMERAS: Record<string, CameraInfo[]> = {
-  'LOWLANDS HOPE': [
-    { id: 'forward_mast_FA', name: 'Forward Mast FA', status: 'ONLINE' },
-    { id: 'forward_mast_FF', name: 'Forward Mast FF', status: 'ONLINE' },
-    { id: 'steering_gear_room', name: 'Steering Gear Room', status: 'ONLINE' },
-    { id: 'oil_distribution_room', name: 'Oil Distribution Room', status: 'ONLINE' },
-  ],
-  'LOWLANDS DAWN': [
-    { id: 'forward_mast_FF', name: 'Forward Mast FF', status: 'ONLINE' },
-    { id: 'Forward_Mast_STBD_Side', name: 'Forward Mast STBD Side', status: 'ONLINE' },
-  ],
-  'LOWLANDS FUTURE': [
-    { id: 'Forward_Mast_STBD_Side', name: 'Forward Mast STBD Side', status: 'ONLINE' },
-    { id: 'forward_mast_FA', name: 'Forward Mast FA', status: 'ONLINE' },
-  ],
-  'LOWLANDS OBERLIN': [
-    { id: 'forward_mast_FA', name: 'Forward Mast FA', status: 'ONLINE' },
-    { id: 'forward_mast_FF', name: 'Forward Mast FF', status: 'ONLINE' },
-    { id: 'steering_gear_rudder_angle', name: 'Steering Gear Rudder Angle', status: 'ONLINE' },
-    { id: 'oil_distribution_room', name: 'Oil Distribution Room', status: 'ONLINE' },
-  ],
-  'LOWLANDS AMBER': [
-    { id: 'Forward_Mast_STBD_Side', name: 'Forward Mast STBD Side', status: 'ONLINE' },
-  ],
-  'ASIA UNITY': [
-    { id: 'Oil_Distribution', name: 'Oil Distribution', status: 'ONLINE' },
-    { id: 'Auxiliary_Engine_(AE)_Platform', name: 'Auxiliary Engine (AE) Platform', status: 'ONLINE' },
-    { id: 'Main_Engine_TC', name: 'Main Engine TC', status: 'ONLINE' },
-    { id: 'me_bottom_platform', name: 'ME Bottom Platform', status: 'ONLINE' },
-    { id: 'Steering_Gear_Room', name: 'Steering Gear Room', status: 'ONLINE' },
-    { id: 'Forecastle', name: 'Forecastle', status: 'ONLINE' },
-  ],
-  '10': [
-    { id: 'forward_mast_FA', name: 'Forward Mast FA', status: 'ONLINE' },
-    { id: 'forward_mast_FF', name: 'Forward Mast FF', status: 'ONLINE' },
-    { id: 'steering_gear_room', name: 'Steering Gear Room', status: 'ONLINE' },
-    { id: 'oil_distribution_room', name: 'Oil Distribution Room', status: 'ONLINE' },
-  ],
-  '11': [
-    { id: 'Forward_Mast_STBD_Side', name: 'Forward Mast STBD Side', status: 'ONLINE' },
-  ],
-  '14': [
-    { id: 'forward_mast_FF', name: 'Forward Mast FF', status: 'ONLINE' },
-  ],
-  '15': [
-    { id: 'Forward_Mast_STBD_Side', name: 'Forward Mast STBD Side', status: 'ONLINE' },
-  ],
-  '16': [
-    { id: 'forward_mast_FA', name: 'Forward Mast FA', status: 'ONLINE' },
-    { id: 'forward_mast_FF', name: 'Forward Mast FF', status: 'ONLINE' },
-  ],
-  '28': [
-    { id: 'Oil_Distribution', name: 'Oil Distribution', status: 'ONLINE' },
-    { id: 'Steering_Gear_Room', name: 'Steering Gear Room', status: 'ONLINE' },
-  ],
-  '58': [
-    { id: 'forward_mast_FA', name: 'Forward Mast FA', status: 'ONLINE' },
-    { id: 'steering_gear_room', name: 'Steering Gear Room', status: 'ONLINE' },
-  ],
-  'VESSEL-10': [
-    { id: 'forward_mast_FA', name: 'Forward Mast FA', status: 'ONLINE' },
-    { id: 'forward_mast_FF', name: 'Forward Mast FF', status: 'ONLINE' },
-    { id: 'steering_gear_room', name: 'Steering Gear Room', status: 'ONLINE' },
-    { id: 'oil_distribution_room', name: 'Oil Distribution Room', status: 'ONLINE' },
-  ],
-  'VESSEL-11': [
-    { id: 'Forward_Mast_STBD_Side', name: 'Forward Mast STBD Side', status: 'ONLINE' },
-  ],
-  'VESSEL-14': [
-    { id: 'forward_mast_FF', name: 'Forward Mast FF', status: 'ONLINE' },
-  ],
-  'VESSEL-15': [
-    { id: 'Forward_Mast_STBD_Side', name: 'Forward Mast STBD Side', status: 'ONLINE' },
-  ],
-  'VESSEL-16': [
-    { id: 'forward_mast_FA', name: 'Forward Mast FA', status: 'ONLINE' },
-  ],
-  'VESSEL-28': [
-    { id: 'Oil_Distribution', name: 'Oil Distribution', status: 'ONLINE' },
-    { id: 'Steering_Gear_Room', name: 'Steering Gear Room', status: 'ONLINE' },
-  ],
-}
+// Dynamic camera registry - populated via socket events or real backend data
+const DEFAULT_VESSEL_CAMERAS: Record<string, CameraInfo[]> = {}
 
-// Known vessel name to ID mapping for cross-referencing
-const VESSEL_NAME_TO_ID: Record<string, string> = {
-  'LOWLANDS HOPE': '10',
-  'LOWLANDS AMBER': '11',
-  'LOWLANDS DAWN': '14',
-  'LOWLANDS FUTURE': '15',
-  'LOWLANDS OBERLIN': '16',
-  'ASIA UNITY': '28',
-}
+// Vessel name to ID mapping dynamically populated
+const VESSEL_NAME_TO_ID: Record<string, string> = {}
 
 function normalizeKey(str: string | number): string {
   return String(str).trim().toUpperCase().replace(/[\s\-_]+/g, '')
 }
 
 // Global singleton state so all components (Map, PiP, Drawer) share stream status
+export interface StreamErrorEvent {
+  streamId?: string
+  shipId?: string
+  cameraId?: string
+  message: string
+  timestamp: number
+}
+
 const isSocketConnected = ref(false)
 const shipCamerasMap = ref<Map<string, CameraInfo[]>>(new Map())
 const onlineShips = ref<Set<string>>(new Set())
 const activeStreams = ref<Map<string, string>>(new Map()) // key: shipId-cameraId -> streamId
 const vesselUploadSpeeds = ref<Map<string, number>>(new Map())
+const lastStreamError = ref<StreamErrorEvent | null>(null)
+const latestStartedStream = ref<{ streamId: string; shipId?: string; url: string; timestamp: number } | null>(null)
 const socketInstance = shallowRef<Socket | null>(null)
 let isInitialized = false
 
@@ -114,19 +36,21 @@ function indexCameras(key: string, cams: CameraInfo[]) {
   if (!key || !Array.isArray(cams)) return
   const raw = key.trim()
   const norm = normalizeKey(raw)
-  shipCamerasMap.value.set(raw, cams)
-  shipCamerasMap.value.set(norm, cams)
-  shipCamerasMap.value.set(raw.toLowerCase(), cams)
+  const next = new Map(shipCamerasMap.value)
+  next.set(raw, cams)
+  next.set(norm, cams)
+  next.set(raw.toLowerCase(), cams)
 
   // Map known vessel IDs
   const vId = VESSEL_NAME_TO_ID[raw] || VESSEL_NAME_TO_ID[raw.toUpperCase()]
   if (vId) {
-    shipCamerasMap.value.set(vId, cams)
-    shipCamerasMap.value.set(`VESSEL-${vId}`, cams)
+    next.set(vId, cams)
+    next.set(`VESSEL-${vId}`, cams)
   }
   if (/^\d+$/.test(raw)) {
-    shipCamerasMap.value.set(`VESSEL-${raw}`, cams)
+    next.set(`VESSEL-${raw}`, cams)
   }
+  shipCamerasMap.value = next
 }
 
 // Initialize map with default cameras
@@ -220,8 +144,10 @@ export function useCameraStream() {
         }
         const speed = payload.uploadSpeed ?? payload.speedInKibips
         if (speed !== undefined) {
-          vesselUploadSpeeds.value.set(shipKey, Number(speed))
-          vesselUploadSpeeds.value.set(normalizeKey(shipKey), Number(speed))
+          const nextSpeeds = new Map(vesselUploadSpeeds.value)
+          nextSpeeds.set(shipKey, Number(speed))
+          nextSpeeds.set(normalizeKey(shipKey), Number(speed))
+          vesselUploadSpeeds.value = nextSpeeds
         }
       })
 
@@ -239,8 +165,10 @@ export function useCameraStream() {
         }
         const speed = payload.uploadSpeed ?? payload.speedInKibips ?? payload.networkInformation?.uploadSpeed
         if (speed !== undefined) {
-          vesselUploadSpeeds.value.set(vKey, Number(speed))
-          vesselUploadSpeeds.value.set(normalizeKey(vKey), Number(speed))
+          const nextSpeeds = new Map(vesselUploadSpeeds.value)
+          nextSpeeds.set(vKey, Number(speed))
+          nextSpeeds.set(normalizeKey(vKey), Number(speed))
+          vesselUploadSpeeds.value = nextSpeeds
         }
       })
 
@@ -251,6 +179,12 @@ export function useCameraStream() {
         if (shipId) {
           activeStreams.value.set(`${shipId}`, streamId)
         }
+        latestStartedStream.value = {
+          streamId,
+          shipId,
+          url: buildHlsStreamUrl(streamId),
+          timestamp: Date.now(),
+        }
       })
 
       socket.on('stream-ended', (endedStreamId: string) => {
@@ -260,6 +194,16 @@ export function useCameraStream() {
           }
         }
       })
+
+      socket.on('stream-error', (payload: any) => {
+        lastStreamError.value = {
+          streamId: payload?.streamId,
+          shipId: payload?.shipId,
+          cameraId: payload?.cameraId ? String(payload.cameraId) : undefined,
+          message: payload?.error?.message || 'Camera stream offline or unreachable from vessel transponder',
+          timestamp: Date.now(),
+        }
+      })
     } catch (err) {
       console.warn('[useCameraStream] Socket initialization skipped or failed:', err)
     }
@@ -267,6 +211,13 @@ export function useCameraStream() {
 
   function getVesselCameras(vesselOrId: any): CameraInfo[] {
     if (!vesselOrId) return []
+
+    // If vessel explicitly has has_camera_ai: false from shipping_db.ship, return []
+    if (typeof vesselOrId === 'object' && vesselOrId !== null) {
+      if (vesselOrId.hasCameraAi === false || vesselOrId.has_camera_ai === false) {
+        return []
+      }
+    }
 
     const candidates: string[] = []
     if (typeof vesselOrId === 'object' && vesselOrId !== null) {
@@ -302,6 +253,7 @@ export function useCameraStream() {
       if (defaultCams && defaultCams.length > 0) return defaultCams
     }
 
+    // Return empty array if vessel has no real or configured cameras
     return []
   }
 
@@ -392,5 +344,8 @@ export function useCameraStream() {
     getVesselUploadSpeed,
     requestVesselStream,
     stopVesselStream,
+    lastStreamError,
+    latestStartedStream,
   }
 }
+

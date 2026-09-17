@@ -40,3 +40,19 @@ export function filterVesselsWithCameras<T extends { id: string | number; vessel
     return Boolean(cams && cams.length > 0)
   })
 }
+
+/**
+ * Automatically fails over to the next camera if the current camera stream fails.
+ * "if first fail switch to second, then third..."
+ */
+export function getNextCamera(cameras: CameraInfo[], currentCameraId: string): CameraInfo | null {
+  if (!Array.isArray(cameras) || cameras.length <= 1) return null
+  const idx = cameras.findIndex((c) => c.id === currentCameraId)
+  if (idx === -1) return cameras[0] || null
+  if (idx + 1 < cameras.length) {
+    return cameras[idx + 1] || null
+  }
+  return null
+}
+
+

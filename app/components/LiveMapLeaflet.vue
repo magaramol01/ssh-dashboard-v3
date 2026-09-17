@@ -19,12 +19,21 @@ type RouteLayers = {
   trip?: any
 }
 
-const props = defineProps<{ trips: (ResolvedTrip | any)[]; selectedId: string | null }>()
+const props = withDefaults(
+  defineProps<{
+    trips: (ResolvedTrip | any)[]
+    selectedId: string | null
+    showGodsEyeCctv?: boolean
+  }>(),
+  {
+    showGodsEyeCctv: false,
+  }
+)
 const emit = defineEmits<{
   (e: 'select', id: string): void
   (e: 'open-camera', vessel: any): void
 }>()
-const { hasCameras } = useCameraStream()
+const { hasCameras, getVesselCameras } = useCameraStream()
 
 const { theme, isDark } = useTheme()
 const el = ref<HTMLElement | null>(null)
@@ -115,6 +124,83 @@ function vesselIcon(color: string, selected: boolean, hasCctv = false) {
   )
 }
 
+function godsEyeCameraIcon(trip: any, color: string, selected: boolean, index = 0) {
+  const tripId = getTripId(trip)
+  const name = getTripName(trip)
+  const cams = getVesselCameras(trip)
+  const cam = cams[index % (cams.length || 1)] || cams[0] || { id: '1', name: 'Bridge Forward' }
+  const camName = cam.name || 'Bridge Forward'
+  const camId = cam.id || '1'
+  const sog = trip.sog !== undefined ? trip.sog : 0
+  const hdg = trip.heading || 'N'
+  const coords = getTripMarkerPos(trip)
+  const latStr = coords[0] ? `${Math.abs(coords[0]).toFixed(2)}°${coords[0] >= 0 ? 'N' : 'S'}` : '14.2°N'
+  const lngStr = coords[1] ? `${Math.abs(coords[1]).toFixed(2)}°${coords[1] >= 0 ? 'E' : 'W'}` : '121.0°E'
+
+  const sched = trip.scheduleStatus
+  const schedBadge =
+    sched === 'on-time'
+      ? '<span style="color:#10b981;font-weight:600">On time</span>'
+      : sched === 'late'
+      ? `<span style="color:#f59e0b;font-weight:600">+${trip.varianceHours}h</span>`
+      : sched === 'early'
+      ? `<span style="color:#38bdf8;font-weight:600">${trip.varianceHours}h</span>`
+      : ''
+
+  const width = 148
+  const height = 132
+  const anchor: [number, number] = [74, 132]
+
+  const html = `
+    <div class="lm-gods-eye-anchor ${selected ? 'is-selected' : ''}" data-trip-id="${tripId}">
+      <div class="lm-gods-eye-card">
+        <div class="lm-gods-eye-header">
+          <span class="lm-gods-eye-badge">
+            <span class="lm-gods-eye-rec-dot"></span>
+            LIVE
+          </span>
+          <span class="lm-gods-eye-cam-tag" title="${camName}">CAM ${camId} · ${camName}</span>
+          <span class="lm-gods-eye-fps">24 FPS</span>
+        </div>
+        <div class="lm-gods-eye-viewport">
+          <div class="lm-gods-eye-hud">
+            <div class="lm-gods-eye-radar-sweep"></div>
+            <div class="lm-gods-eye-reticle">
+              <span class="lm-gods-eye-crosshair ch-x"></span>
+              <span class="lm-gods-eye-crosshair ch-y"></span>
+              <span class="lm-gods-eye-ring r1"></span>
+              <span class="lm-gods-eye-ring r2"></span>
+              <span class="lm-gods-eye-blip"></span>
+            </div>
+            <div class="lm-gods-eye-overlay-stats">
+              <span class="lm-gods-eye-stat-line">${latStr} ${lngStr}</span>
+              <span class="lm-gods-eye-stat-line">${hdg} · ${sog} kts</span>
+            </div>
+            <div class="lm-gods-eye-stream-badge">
+              <span class="lm-gods-eye-feed-state">LIVE FEED</span>
+            </div>
+          </div>
+          <div class="lm-gods-eye-scanlines"></div>
+          <div class="lm-gods-eye-corner tl"></div>
+          <div class="lm-gods-eye-corner tr"></div>
+          <div class="lm-gods-eye-corner bl"></div>
+          <div class="lm-gods-eye-corner br"></div>
+        </div>
+        <div class="lm-gods-eye-footer">
+          <span class="lm-gods-eye-vessel-title" title="${name}">${name}</span>
+          <span class="lm-gods-eye-sog">${sog} kts${schedBadge ? ` · ${schedBadge}` : ''}</span>
+        </div>
+      </div>
+      <div class="lm-gods-eye-stem"></div>
+      <div class="lm-gods-eye-pin" style="border-color:${color};color:${color}">
+        <span class="lm-gods-eye-ripple" style="border-color:${color}"></span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 17l2 3h16l2-3-4-2H6l-4 2zm10-15L4 13h16L12 2zm-1 4v4h2V6h-2z" /></svg>
+      </div>
+    </div>
+  `
+  return icon(html, [width, height], anchor)
+}
+
 function facilityIcon(type: 'warehouse' | 'dc', label: string, code: string) {
   const marker = type === 'warehouse'
     ? `<span class="lm-hub"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 21V8.5L12 3l9 5.5V21M3 21h18M8.5 21v-6h7v6"/></svg></span><span class="lm-label">${label}</span>`
@@ -176,9 +262,15 @@ function applyFocus() {
     route.marker.setOpacity(dim ? 0.35 : 1)
     route.marker.setZIndexOffset(focused ? 1000 : 0)
     const hasCctv = hasCameras(route.trip) || hasCameras(id) || (route.trip?.vesselId ? hasCameras(route.trip.vesselId) : false) || (route.trip?.name ? hasCameras(route.trip.name) : false)
-    route.marker.setIcon(vesselIcon(route.color, isSelected, hasCctv))
+    const isGodsEye = props.showGodsEyeCctv && hasCctv
+    if (isGodsEye) {
+      route.marker.setIcon(godsEyeCameraIcon(route.trip, route.color, isSelected, route.index ?? 0))
+      route.marker.unbindTooltip()
+    } else {
+      route.marker.setIcon(vesselIcon(route.color, isSelected, hasCctv))
+    }
 
-    if (isSelected || isHovered) {
+    if (!isGodsEye && (isSelected || isHovered)) {
       route.marker.openTooltip()
     } else {
       route.marker.closeTooltip()
@@ -206,7 +298,7 @@ function drawRoutes() {
   routes.clear()
   const allPoints: Point[] = []
 
-  for (const trip of props.trips) {
+  for (const [tripIdx, trip] of props.trips.entries()) {
     const id = getTripId(trip)
     const name = getTripName(trip)
     const color = toneColor(getTripTone(trip))
@@ -230,50 +322,65 @@ function drawRoutes() {
     }
 
     const hasCctv = hasCameras(trip) || hasCameras(id) || ((trip as any).vesselId ? hasCameras((trip as any).vesselId) : false) || ((trip as any).name ? hasCameras((trip as any).name) : false)
-    const marker = L.marker(markerPos, { icon: vesselIcon(color, false, hasCctv), riseOnHover: true }).addTo(map)
+    const isGodsEye = props.showGodsEyeCctv && hasCctv
+    const isSelected = props.selectedId === id
+    const markerIcon =
+      isGodsEye
+        ? godsEyeCameraIcon(trip, color, isSelected, tripIdx)
+        : vesselIcon(color, isSelected, hasCctv)
+    const marker = L.marker(markerPos, { icon: markerIcon, riseOnHover: true }).addTo(map)
     marker.on('click', () => {
       emit('select', id)
       if (hasCctv) {
         emit('open-camera', trip)
       }
-      marker.openTooltip()
+      if (!isGodsEye) {
+        marker.openTooltip()
+      }
+    })
+    marker.on('mouseover', () => {
+      marker.setZIndexOffset(1000)
     })
     marker.on('mouseout', () => {
       if (props.selectedId !== id && hoverId.value !== id) {
+        marker.setZIndexOffset(0)
         marker.closeTooltip()
       }
     })
-    let tooltipHtml = `<b>${name}</b>`
-    if ((trip as any).sog !== undefined) {
-      const sched = (trip as any).scheduleStatus
-      const schedLabel =
-        sched === 'on-time'
-          ? '<span style="color:#10b981;font-weight:600">On time</span>'
-          : sched === 'late'
-          ? `<span style="color:#f59e0b;font-weight:600">+${(trip as any).varianceHours}h Late</span>`
-          : sched === 'early'
-          ? `<span style="color:#38bdf8;font-weight:600">${(trip as any).varianceHours}h Early</span>`
-          : '<span style="color:#94a3b8">In port</span>'
-      tooltipHtml += `<br/><span style="font-size:11px">${(trip as any).sog} kts · ${schedLabel}</span>`
-    }
-    if (hasCctv) {
-      tooltipHtml += `<br/><span style="display:inline-flex;align-items:center;gap:4px;color:#10b981;font-weight:600;font-size:11px;margin-top:2px;">📹 CCTV Live Available</span>`
-    }
-    marker.bindTooltip(tooltipHtml, {
-      permanent: false,
-      direction: 'top',
-      offset: [0, -18],
-    })
-    const tooltip = marker.getTooltip()
-    if (tooltip) {
-      tooltip.on('click', () => {
-        emit('select', id)
-        if (hasCctv) {
-          emit('open-camera', trip)
-        }
+
+    if (!isGodsEye) {
+      let tooltipHtml = `<b>${name}</b>`
+      if ((trip as any).sog !== undefined) {
+        const sched = (trip as any).scheduleStatus
+        const schedLabel =
+          sched === 'on-time'
+            ? '<span style="color:#10b981;font-weight:600">On time</span>'
+            : sched === 'late'
+            ? `<span style="color:#f59e0b;font-weight:600">+${(trip as any).varianceHours}h Late</span>`
+            : sched === 'early'
+            ? `<span style="color:#38bdf8;font-weight:600">${(trip as any).varianceHours}h Early</span>`
+            : '<span style="color:#94a3b8">In port</span>'
+        tooltipHtml += `<br/><span style="font-size:11px">${(trip as any).sog} kts · ${schedLabel}</span>`
+      }
+      if (hasCctv) {
+        tooltipHtml += `<br/><span style="display:inline-flex;align-items:center;gap:4px;color:#10b981;font-weight:600;font-size:11px;margin-top:2px;">📹 CCTV Live Available</span>`
+      }
+      marker.bindTooltip(tooltipHtml, {
+        permanent: false,
+        direction: 'top',
+        offset: [0, -18],
       })
+      const tooltip = marker.getTooltip()
+      if (tooltip) {
+        tooltip.on('click', () => {
+          emit('select', id)
+          if (hasCctv) {
+            emit('open-camera', trip)
+          }
+        })
+      }
     }
-    routes.set(id, { base, travelled: travelledLine, remaining: remainingLine, origin, marker, truck: markerPos, color, trip })
+    routes.set(id, { base, travelled: travelledLine, remaining: remainingLine, origin, marker, truck: markerPos, color, trip, index: tripIdx })
   }
 
   if (allPoints.length) {
@@ -355,6 +462,7 @@ onMounted(async () => {
 
 watch(() => props.selectedId, () => { drawItinerary(); applyFocus(); fitSelected() })
 watch(() => props.trips, drawRoutes, { deep: true })
+watch(() => props.showGodsEyeCctv, drawRoutes)
 watch([isDark, theme], async () => {
   if (map) {
     updateTileLayer()
@@ -379,7 +487,24 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<template><div ref="el" class="size-full" /></template>
+<template>
+  <div class="relative size-full overflow-hidden">
+    <div ref="el" class="size-full" />
+
+    <!-- God's Eye CCTV Radar Tactical Overlay -->
+    <div
+      v-if="showGodsEyeCctv && trips.some((t: any) => hasCameras(t))"
+      class="absolute top-3 left-3 z-[999] pointer-events-none flex flex-col gap-1.5 select-none"
+    >
+      <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card/90 backdrop-blur-md border border-primary/40 shadow-xl text-xs font-mono">
+        <span class="size-2 rounded-full bg-destructive animate-ping" />
+        <span class="font-bold text-destructive tracking-widest uppercase">GOD'S EYE VIEW</span>
+        <span class="text-muted-foreground/60">|</span>
+        <span class="text-primary font-semibold">FLEET CCTV RADAR HUD</span>
+      </div>
+    </div>
+  </div>
+</template>
 
 <style scoped>
 :deep(.leaflet-container) {
@@ -441,5 +566,271 @@ onBeforeUnmount(() => {
 }
 :deep(.leaflet-tooltip-right:before) {
   border-right-color: var(--border) !important;
+}
+
+/* God's Eye View Floating CCTV Radar Card Styles */
+:deep(.lm-gods-eye-anchor) {
+  position: relative;
+  width: 148px;
+  height: 132px;
+  pointer-events: auto;
+  cursor: pointer;
+}
+:deep(.lm-gods-eye-card) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 148px;
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 14px rgba(56, 189, 248, 0.25);
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+:deep(.lm-gods-eye-anchor:hover .lm-gods-eye-card),
+:deep(.lm-gods-eye-anchor.is-selected .lm-gods-eye-card) {
+  transform: scale(1.04);
+  border-color: #10b981;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.7), 0 0 18px rgba(16, 185, 129, 0.45);
+}
+:deep(.lm-gods-eye-header) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 6px;
+  background: rgba(30, 41, 59, 0.85);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.25);
+  font-size: 8px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+:deep(.lm-gods-eye-badge) {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #ef4444;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+:deep(.lm-gods-eye-rec-dot) {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+:deep(.lm-gods-eye-cam-tag) {
+  max-width: 68px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #e2e8f0;
+  font-weight: 600;
+}
+:deep(.lm-gods-eye-fps) {
+  color: #10b981;
+  font-weight: 600;
+  font-size: 7.5px;
+}
+:deep(.lm-gods-eye-viewport) {
+  position: relative;
+  width: 100%;
+  height: 62px;
+  background: #030712;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+:deep(.lm-gods-eye-hud) {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+:deep(.lm-gods-eye-radar-sweep) {
+  position: absolute;
+  inset: -60%;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(16, 185, 129, 0.25) 60deg, transparent 60.1deg);
+  animation: lm-radar 3s linear infinite;
+}
+:deep(.lm-gods-eye-reticle) {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+:deep(.lm-gods-eye-crosshair.ch-x) {
+  position: absolute;
+  width: 100%;
+  height: 1px;
+  background: rgba(56, 189, 248, 0.2);
+}
+:deep(.lm-gods-eye-crosshair.ch-y) {
+  position: absolute;
+  height: 100%;
+  width: 1px;
+  background: rgba(56, 189, 248, 0.2);
+}
+:deep(.lm-gods-eye-ring) {
+  position: absolute;
+  border: 1px dashed rgba(56, 189, 248, 0.35);
+  border-radius: 50%;
+}
+:deep(.lm-gods-eye-ring.r1) {
+  width: 26px;
+  height: 26px;
+}
+:deep(.lm-gods-eye-ring.r2) {
+  width: 48px;
+  height: 48px;
+}
+:deep(.lm-gods-eye-blip) {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+  top: 38%;
+  left: 56%;
+}
+:deep(.lm-gods-eye-overlay-stats) {
+  position: absolute;
+  top: 4px;
+  left: 6px;
+  font-size: 7.5px;
+  color: rgba(148, 163, 184, 0.95);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5px;
+  line-height: 1;
+  text-shadow: 0 1px 2px #000;
+}
+:deep(.lm-gods-eye-stream-badge) {
+  position: absolute;
+  bottom: 4px;
+  right: 5px;
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.5);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 7px;
+  color: #34d399;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+:deep(.lm-gods-eye-scanlines) {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 255, 0, 0.03));
+  background-size: 100% 2px, 3px 100%;
+  pointer-events: none;
+  z-index: 3;
+}
+:deep(.lm-gods-eye-corner) {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-color: #38bdf8;
+  z-index: 4;
+}
+:deep(.lm-gods-eye-corner.tl) {
+  top: 3px;
+  left: 3px;
+  border-top: 1.5px solid;
+  border-left: 1.5px solid;
+}
+:deep(.lm-gods-eye-corner.tr) {
+  top: 3px;
+  right: 3px;
+  border-top: 1.5px solid;
+  border-right: 1.5px solid;
+}
+:deep(.lm-gods-eye-corner.bl) {
+  bottom: 3px;
+  left: 3px;
+  border-bottom: 1.5px solid;
+  border-left: 1.5px solid;
+}
+:deep(.lm-gods-eye-corner.br) {
+  bottom: 3px;
+  right: 3px;
+  border-bottom: 1.5px solid;
+  border-right: 1.5px solid;
+}
+:deep(.lm-gods-eye-footer) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3.5px 6px;
+  background: rgba(15, 23, 42, 0.95);
+  font-size: 8.5px;
+  color: #f8fafc;
+  font-weight: 600;
+  border-top: 1px solid rgba(56, 189, 248, 0.2);
+}
+:deep(.lm-gods-eye-vessel-title) {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+:deep(.lm-gods-eye-sog) {
+  color: #38bdf8;
+  font-weight: 600;
+}
+:deep(.lm-gods-eye-stem) {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1.5px;
+  height: 16px;
+  background: #38bdf8;
+}
+:deep(.lm-gods-eye-pin) {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #0f172a;
+  border: 2px solid #38bdf8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+}
+:deep(.lm-gods-eye-pin svg) {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+:deep(.lm-gods-eye-ripple) {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes lm-radar {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

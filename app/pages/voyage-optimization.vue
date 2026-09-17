@@ -39,8 +39,8 @@ onMounted(async () => {
 
 <template>
   <div class="flex flex-col flex-1 h-[calc(100svh-3.5rem)] w-full overflow-hidden bg-background">
-    <!-- Top Sticky Header Bar -->
-    <header class="sticky top-14 z-20 w-full min-h-[58px] py-2 px-4 md:px-6 flex items-center bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border shadow-xs shrink-0">
+    <!-- Header Bar -->
+    <header class="relative z-20 w-full min-h-[58px] py-2 px-4 md:px-6 flex items-center bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border shadow-xs shrink-0">
       <VoyageOptimizationHeaderBar
         :is-drawer-open="isDrawerOpen"
         @toggle-drawer="toggleDrawer"

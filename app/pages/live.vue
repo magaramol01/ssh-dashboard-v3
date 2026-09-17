@@ -89,6 +89,11 @@ const { data: vesselResponse, status: vesselStatus, refresh: refreshVessels } = 
       } catch {
         // localStorage unavailable in SSR
       }
+    } else {
+      const reqHeaders = useRequestHeaders(['cookie'])
+      if (reqHeaders.cookie) {
+        headers['cookie'] = reqHeaders.cookie
+      }
     }
     return $fetch<{ success: boolean; vessels: LiveVesselItem[] }>('/api/vessels/geojson', {
       params: { tenant: tenant.value },
@@ -96,6 +101,7 @@ const { data: vesselResponse, status: vesselStatus, refresh: refreshVessels } = 
     }).catch(() => null)
   },
   {
+    server: false,
     watch: [tenant],
     default: () => null,
   }
@@ -259,11 +265,50 @@ const {
 
 const isPipOpen = ref(false)
 const pipVessel = ref<any>(null)
+const showGodsEyeCctv = ref(false)
+const fleetHasCameras = computed(() => liveVessels.value.some((v: any) => hasCameras(v)))
 
 function openVesselCamera(vessel: any) {
+  if (!hasCameras(vessel)) return
   pipVessel.value = vessel
   isPipOpen.value = true
 }
+
+function toggleGodsEyeCctv() {
+  if (!fleetHasCameras.value) return
+  showGodsEyeCctv.value = !showGodsEyeCctv.value
+  isPipOpen.value = showGodsEyeCctv.value
+  if (showGodsEyeCctv.value && !pipVessel.value && liveVessels.value.length > 0) {
+    const sel = liveVessels.value.find((v: any) => v.id === selectedId.value && hasCameras(v))
+    pipVessel.value = sel || liveVessels.value.find((v: any) => hasCameras(v)) || null
+  }
+}
+
+
+// On page load or fleet update, auto-launch God's Eye View ONLY for vessels that actually have cameras
+watch(
+  [liveVessels, tenant],
+  ([vessels]) => {
+    if (vessels && vessels.length > 0) {
+      const cctvVessel = vessels.find((v: any) => hasCameras(v))
+      if (cctvVessel) {
+        pipVessel.value = cctvVessel
+        showGodsEyeCctv.value = true
+        isPipOpen.value = true
+      } else {
+        // Tenant does NOT have cameras (e.g. asiaticlloyd)
+        pipVessel.value = null
+        showGodsEyeCctv.value = false
+        isPipOpen.value = false
+      }
+    } else {
+      pipVessel.value = null
+      showGodsEyeCctv.value = false
+      isPipOpen.value = false
+    }
+  },
+  { immediate: true }
+)
 
 // Drawer CCTV stream state
 const selectedDrawerCamId = ref<string>('1')
@@ -283,7 +328,8 @@ async function startDrawerStream() {
   if (cams.length === 0) return
 
   if (!cams.some((c) => c.id === selectedDrawerCamId.value)) {
-    selectedDrawerCamId.value = cams[0]?.id || '1'
+    const preferred = cams.find((c) => c.status === 'ONLINE') || cams[0]
+    selectedDrawerCamId.value = preferred?.id || '1'
   }
 
   if (drawerStreamId.value) {
@@ -295,10 +341,29 @@ async function startDrawerStream() {
   drawerStreamUrl.value = streamUrl
 }
 
+function handleDrawerStreamError() {
+  if (!selected.value) return
+  const cams = getVesselCameras(selected.value)
+  const currentIdx = cams.findIndex((c) => c.id === selectedDrawerCamId.value)
+  const nextCam =
+    cams.slice(currentIdx + 1).find((c) => c.status === 'ONLINE') ||
+    cams.find((c, i) => i !== currentIdx && c.status === 'ONLINE') ||
+    cams[(currentIdx + 1) % cams.length]
+
+  if (nextCam && nextCam.id !== selectedDrawerCamId.value) {
+    selectedDrawerCamId.value = nextCam.id
+    startDrawerStream()
+  }
+}
+
+
 onMounted(() => {
   if (!import.meta.server) {
     window.addEventListener('keydown', handleKeydown)
     initSocket()
+    if (!vesselResponse.value || !vesselResponse.value.vessels?.length) {
+      refreshVessels()
+    }
   }
 })
 onUnmounted(() => {
@@ -625,6 +690,25 @@ watch(selected, (newSel, oldSel) => {
             <span>Copilot</span>
             <kbd class="hidden sm:inline-block text-[10px] text-muted-foreground border border-border px-1 py-0.2 rounded bg-muted/60">⌘J</kbd>
           </Button>
+
+          <!-- God's Eye CCTV Floating Callouts Toggle (Only when fleet has cameras) -->
+          <Button
+            v-if="fleetHasCameras"
+            variant="outline"
+            size="sm"
+            class="h-7 text-xs gap-1.5 transition-all cursor-pointer"
+            :class="showGodsEyeCctv ? 'bg-primary/15 text-primary border-primary/40 font-semibold shadow-xs' : 'text-muted-foreground'"
+            title="Toggle God's Eye View live CCTV floating screens on map"
+            @click="toggleGodsEyeCctv"
+          >
+            <Video class="size-3.5 text-primary" :class="showGodsEyeCctv ? 'animate-pulse' : ''" />
+            <span>God's Eye CCTV</span>
+            <span
+              class="size-1.5 rounded-full"
+              :class="showGodsEyeCctv ? 'bg-emerald-500 shadow-[0_0_6px_#10b981]' : 'bg-muted-foreground/40'"
+            />
+          </Button>
+
           <span class="text-muted-foreground inline-flex items-center gap-1.5 text-xs font-medium">
             <span class="bg-success size-1.5 rounded-full" />
             Live
@@ -650,6 +734,7 @@ watch(selected, (newSel, oldSel) => {
               ref="mapRef"
               :trips="liveVessels"
               :selected-id="selectedId"
+              :show-gods-eye-cctv="showGodsEyeCctv"
               @select="select"
               @open-camera="openVesselCamera"
             />
@@ -902,21 +987,56 @@ watch(selected, (newSel, oldSel) => {
                   </span>
                 </div>
 
+                <!-- Camera Health Metrics Bar -->
+                <div class="flex items-center justify-between px-2.5 py-1 rounded-md bg-background/60 border border-border/40 text-[10px] font-mono">
+                  <span class="text-muted-foreground font-medium">CAM STATUS:</span>
+                  <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center gap-1 text-emerald-400 font-semibold">
+                      <span class="size-1.5 rounded-full bg-emerald-400"></span>
+                      {{ getVesselCameras(selected).filter(c => c.status === 'ONLINE').length }} Online
+                    </span>
+                    <span v-if="getVesselCameras(selected).some(c => c.status === 'OFFLINE')" class="text-muted-foreground/60">·</span>
+                    <span v-if="getVesselCameras(selected).some(c => c.status === 'OFFLINE')" class="inline-flex items-center gap-1 text-rose-400 font-semibold">
+                      <span class="size-1.5 rounded-full bg-rose-400"></span>
+                      {{ getVesselCameras(selected).filter(c => c.status === 'OFFLINE').length }} Offline
+                    </span>
+                  </div>
+                </div>
+
                 <!-- Multi-Camera Selector Pills -->
                 <div class="flex flex-wrap gap-1.5">
                   <button
                     v-for="cam in getVesselCameras(selected)"
                     :key="cam.id"
                     type="button"
-                    class="text-[11px] font-medium px-2 py-0.5 rounded-md transition-all cursor-pointer"
+                    class="text-[10.5px] font-medium px-2 py-0.5 rounded-md transition-all cursor-pointer flex items-center gap-1.5 border"
                     :class="
                       selectedDrawerCamId === cam.id
-                        ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
+                        ? 'bg-primary text-primary-foreground font-semibold shadow-xs border-primary'
+                        : cam.status === 'OFFLINE'
+                        ? 'bg-card/40 text-muted-foreground/50 border-border/30 hover:border-border/60'
                         : 'bg-card/70 hover:bg-card text-muted-foreground hover:text-foreground border border-border/50'
                     "
+                    :title="`${cam.name} · ${cam.status === 'ONLINE' ? 'Online' : 'Offline'}`"
                     @click="selectedDrawerCamId = cam.id; startDrawerStream()"
                   >
-                    {{ cam.name }}
+                    <span
+                      class="size-1.5 rounded-full shrink-0"
+                      :class="
+                        selectedDrawerCamId === cam.id
+                          ? 'bg-white animate-pulse'
+                          : cam.status === 'ONLINE'
+                          ? 'bg-emerald-400'
+                          : 'bg-rose-500'
+                      "
+                    />
+                    <span>{{ cam.name }}</span>
+                    <span
+                      v-if="cam.status === 'OFFLINE'"
+                      class="text-[8.5px] uppercase px-1 py-0 rounded bg-rose-500/20 text-rose-300 font-mono font-bold leading-tight"
+                    >
+                      OFF
+                    </span>
                   </button>
                 </div>
 
@@ -925,9 +1045,12 @@ watch(selected, (newSel, oldSel) => {
                   <VesselCameraPlayer
                     :stream-url="drawerStreamUrl"
                     :camera-name="selectedDrawerCamName"
+                    :vessel-name="selected?.name || ''"
                     :is-live="true"
                     :auto-play="true"
+                    @error="handleDrawerStreamError"
                   />
+
                 </div>
 
                 <!-- Pop out to Floating PiP Overlay -->
