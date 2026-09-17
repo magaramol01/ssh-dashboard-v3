@@ -510,13 +510,16 @@ watch(selected, (newSel, oldSel) => {
                 <Anchor class="size-8 mx-auto mb-2 text-muted-foreground/40" />
                 <p class="font-medium">No vessels in this category</p>
               </div>
-              <button
+              <div
                 v-for="t in displayedVessels"
                 :key="t.id"
-                type="button"
-                class="focus-visible:ring-ring block w-full rounded-lg border px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2"
+                role="button"
+                tabindex="0"
+                class="focus-visible:ring-ring block w-full rounded-lg border px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2 cursor-pointer select-none"
                 :class="selectedId === t.id ? 'border-foreground/25 bg-accent' : 'bg-card hover:bg-accent/50'"
                 @click="select(t.id)"
+                @keydown.enter.prevent="select(t.id)"
+                @keydown.space.prevent="select(t.id)"
                 @mouseenter="onHover(t.id)"
                 @mouseleave="onHover(null)"
                 @focus="onHover(t.id)"
@@ -555,7 +558,7 @@ watch(selected, (newSel, oldSel) => {
                   <span>{{ t.progress }}% ({{ t.travelledNm }} / {{ t.distanceNm }} nm)</span>
                   <span>Rem {{ t.remainingNm }} nm</span>
                 </div>
-              </button>
+              </div>
             </div>
           </OverlayScroll>
         </TabsContent>
