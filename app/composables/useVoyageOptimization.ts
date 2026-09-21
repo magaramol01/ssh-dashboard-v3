@@ -51,6 +51,7 @@ const ciiLoadError = ref(false)
 export function useVoyageOptimization() {
   const {
     selectedVesselId,
+    effectiveVesselId,
     selectedVessel,
     vesselsList,
     mrvData,
@@ -58,6 +59,8 @@ export function useVoyageOptimization() {
     isMapLoading,
     refreshAll,
     fetchVesselsList,
+    fetchVoyageData,
+    fetchWindyMap,
   } = useVesselDashboard()
 
   // 1. Parse current passage and vessel geometry
@@ -65,24 +68,12 @@ export function useVoyageOptimization() {
   const parsedVessel = computed(() => parseVesselCurrentPosition(windyMapData.value))
   const parsedTravelled = computed(() => parseTravelledTrack(windyMapData.value))
 
-  // Fallback corridor points if API is still loading or sparse
-  // (unrelated to CII data — this drives the live map's polyline, not the KPI/log numbers)
+  // Live corridor points derived from vessel voyage telemetry
   const effectiveCorridorCoords = computed<[number, number][]>(() => {
     if (parsedCorridor.value.coords && parsedCorridor.value.coords.length >= 2) {
       return parsedCorridor.value.coords
     }
-    return [
-      [-12.05, -77.15],
-      [-8.2, -85.4],
-      [-3.5, -95.0],
-      [2.1, -110.5],
-      [8.4, -130.0],
-      [15.2, -150.0],
-      [20.5, -170.0],
-      [24.0, 170.0],
-      [25.5, 145.0],
-      [26.66, 119.52],
-    ]
+    return []
   })
 
   // 2. Fetch real per-day CII noon report data for the active vessel, scoped
@@ -105,7 +96,7 @@ export function useVoyageOptimization() {
 
       const voyageInfo = await $fetch<{ success: boolean; voyage: string | null; startDate: string | null; endDate: string | null }>(
         '/api/vessels/current-voyage',
-        { params: { vesselId: selectedVesselId.value } }
+        { params: { vesselId: effectiveVesselId.value } }
       ).catch(() => null)
 
       if (voyageInfo?.success && voyageInfo.voyage && voyageInfo.startDate && voyageInfo.endDate) {
@@ -122,12 +113,15 @@ export function useVoyageOptimization() {
 
       const res = await $fetch<{ success: boolean; records: CiiDateRangeRecord[] }>(
         '/api/vessels/cii-date-range',
-        { params: { vesselId: selectedVesselId.value, startDate, endDate, year } }
+        { params: { vesselId: effectiveVesselId.value, startDate, endDate, year } }
       )
       const fetchedRecords = res.success ? res.records : []
-      ciiRecords.value = currentVoyage
+      const filtered = currentVoyage
         ? fetchedRecords.filter((r) => r.voyage === currentVoyage)
         : fetchedRecords
+      ciiRecords.value = filtered.length > 0
+        ? filtered
+        : (fetchedRecords.length > 0 ? fetchedRecords.filter((r) => r.voyage === fetchedRecords[fetchedRecords.length - 1]?.voyage) : [])
       ciiLoadError.value = !res.success
     } catch {
       ciiRecords.value = []
@@ -289,13 +283,23 @@ export function useVoyageOptimization() {
     }
   }
 
-  // Auto-fetch CII data and weather when vessel changes
+  // Auto-fetch voyage fixture telemetry, map geojson, CII data, and weather
+  // when the selected vessel changes.
   watch(
-    () => selectedVesselId.value,
-    () => {
+    () => effectiveVesselId.value,
+    async (vId) => {
+      if (!vId) return
       selectedDay.value = null
-      fetchCiiDateRange()
-      fetchRouteWeather()
+      // 1. Fetch voyage fixture (MRV) and map corridor/position
+      await Promise.allSettled([
+        fetchVoyageData(vId),
+        fetchWindyMap(vId),
+      ])
+      // 2. Fetch CII records for the voyage and route weather
+      await Promise.allSettled([
+        fetchCiiDateRange(),
+        fetchRouteWeather(),
+      ])
     },
     { immediate: true }
   )
@@ -313,6 +317,7 @@ export function useVoyageOptimization() {
 
   return {
     selectedVesselId,
+    effectiveVesselId,
     selectedVessel,
     vessels: vesselsList,
     vesselsList,

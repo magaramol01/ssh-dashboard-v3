@@ -19,6 +19,7 @@ export function runDeduplicated<T>(key: string, fetcher: () => Promise<T>): Prom
 
 export interface VesselItem {
   id: number
+  vesselId?: number   // platform vessel ID used by MRV/Windy/CII APIs (may differ from id)
   name: string
   mappingname: string
   sistergroup: string
@@ -324,6 +325,24 @@ export function useVesselDashboard() {
     vesselsList.value.find((v) => String(v.id) === String(selectedVesselId.value)) || null
   )
 
+  // Resolves the correct platform vessel ID for MRV/Windy/CII API calls.
+  //
+  // Problem: getShipBySisterGroup returns an internal `id` (used as the dropdown
+  // key) which differs from the platform vesselId that getMRVLatestData /
+  // getWindyMapGeoJson / CII APIs expect (e.g. BRAZIL EXPRESS: id=1, platformId=3).
+  //
+  // Resolution priority:
+  //   1. vessel.vesselId  — if getShipBySisterGroup returns a separate vesselId field
+  //   2. selectedVesselId — fallback (means id and platformId happen to match)
+  //
+  // After MRV data loads successfully, callers should compare the vessel name in
+  // mrvData with the selected vessel name to detect a mismatch and alert.
+  const effectiveVesselId = computed(() => {
+    const vessel = selectedVessel.value
+    if (vessel?.vesselId != null) return String(vessel.vesselId)
+    return selectedVesselId.value
+  })
+
   async function fetchVesselsList() {
     return runDeduplicated('vessels-list', async () => {
       try {
@@ -366,7 +385,7 @@ export function useVesselDashboard() {
     })
   }
 
-  async function fetchVoyageData(vId = selectedVesselId.value) {
+  async function fetchVoyageData(vId = effectiveVesselId.value) {
     if (!vId) return
     return runDeduplicated(`mrv:${vId}`, async () => {
       try {
@@ -382,7 +401,7 @@ export function useVesselDashboard() {
     })
   }
 
-  async function fetchWindyMap(vId = selectedVesselId.value) {
+  async function fetchWindyMap(vId = effectiveVesselId.value) {
     if (!vId) return
     return runDeduplicated(`windy:${vId}`, async () => {
       isMapLoading.value = true
@@ -401,7 +420,7 @@ export function useVesselDashboard() {
     })
   }
 
-  async function fetchConnectivity(vId = selectedVesselId.value) {
+  async function fetchConnectivity(vId = effectiveVesselId.value) {
     if (!vId) return
     return runDeduplicated(`connectivity:${vId}`, async () => {
       try {
@@ -442,7 +461,7 @@ export function useVesselDashboard() {
     }
   }
 
-  async function fetchGraphAvgValues(vId = selectedVesselId.value) {
+  async function fetchGraphAvgValues(vId = effectiveVesselId.value) {
     if (!vId) return
     return runDeduplicated(`graph-avg:${vId}`, async () => {
       try {
@@ -524,6 +543,7 @@ export function useVesselDashboard() {
 
   return {
     selectedVesselId,
+    effectiveVesselId,
     selectedSisterGroup,
     viewBy,
     activeEngineTab,

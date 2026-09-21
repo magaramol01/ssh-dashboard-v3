@@ -30,6 +30,7 @@ const {
   selectedDay,
   weatherAlongRoute,
   selectDay,
+  mrvData,
 } = useVoyageOptimization()
 
 const { isDark } = useTheme()
@@ -260,8 +261,11 @@ function renderPortMarkers() {
     })
   }
 
-  L.marker(originPt, { icon: makePortIcon('PECLL', false) }).addTo(portMarkersGroup)
-  L.marker(destPt, { icon: makePortIcon('CNNDE', true) }).addTo(portMarkersGroup)
+  const srcCode = mrvData.value?.scr || 'DEP'
+  const dstCode = mrvData.value?.destination || 'ARR'
+
+  L.marker(originPt, { icon: makePortIcon(srcCode, false) }).addTo(portMarkersGroup)
+  L.marker(destPt, { icon: makePortIcon(dstCode, true) }).addTo(portMarkersGroup)
 }
 
 function renderWeatherNodes() {
@@ -339,7 +343,12 @@ onBeforeUnmount(() => {
 
 // Reactivity watchers
 watch(isDark, () => updateTileLayer())
-watch([activeStrategy, effectiveCorridorCoords, showAllCorridors], () => renderRouteCorridors())
+watch([activeStrategy, effectiveCorridorCoords, showAllCorridors], () => {
+  renderRouteCorridors()
+  renderPortMarkers()
+  fitCorridorBounds()
+})
+watch(mrvData, () => renderPortMarkers())
 watch([dailyNoons, selectedDay], () => renderDailyNoonPins())
 watch(parsedVessel, () => renderLiveVessel())
 watch([weatherAlongRoute, showWeatherLayer], () => renderWeatherNodes())

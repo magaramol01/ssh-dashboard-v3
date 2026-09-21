@@ -39,24 +39,44 @@ const {
   activeStrategy,
   isMapLoading,
   isWeatherLoading,
+  isCiiLoading,
   setStrategy,
   refreshAll,
   fetchRouteWeather,
+  fetchCiiDateRange,
 } = useVoyageOptimization()
+
+function formatEta(raw?: string | null): string {
+  if (!raw) return '—'
+  try {
+    const d = new Date(raw)
+    if (!isNaN(d.getTime())) {
+      const year = d.getUTCFullYear()
+      const month = String(d.getUTCMonth() + 1).padStart(2, '0')
+      const day = String(d.getUTCDate()).padStart(2, '0')
+      const hours = String(d.getUTCHours()).padStart(2, '0')
+      const mins = String(d.getUTCMinutes()).padStart(2, '0')
+      return `${year}-${month}-${day} ${hours}:${mins} UTC`
+    }
+  } catch {
+    // fallback to raw
+  }
+  return raw
+}
 
 const voyageDetails = computed(() => {
   return {
-    source: mrvData.value?.scr || 'PECLL',
-    destination: mrvData.value?.destination || 'CNNDE',
-    voyageNo: mrvData.value?.voyage || '2604',
-    eta: mrvData.value?.etanextport || '2026-09-24 14:00 UTC',
+    source: mrvData.value?.scr || '—',
+    destination: mrvData.value?.destination || '—',
+    voyageNo: mrvData.value?.voyage || '—',
+    eta: formatEta(mrvData.value?.etanextport),
   }
 })
 
-const isRefreshing = computed(() => isMapLoading.value || isWeatherLoading.value)
+const isRefreshing = computed(() => isMapLoading.value || isWeatherLoading.value || isCiiLoading.value)
 
 async function handleRefresh() {
-  await Promise.allSettled([refreshAll(), fetchRouteWeather()])
+  await Promise.allSettled([refreshAll(), fetchRouteWeather(), fetchCiiDateRange()])
 }
 </script>
 
@@ -87,6 +107,7 @@ async function handleRefresh() {
           </Select>
         </div>
       </div>
+
 
       <!-- Voyage Fixture Pills -->
       <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/60 border border-border/80 text-xs">

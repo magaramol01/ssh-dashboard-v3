@@ -82,6 +82,8 @@ export interface DailyNoonReport {
   ciiBoundaries: { superior: number; lower: number; upper: number; inferior: number }
   draftFwdM: number
   draftAftM: number
+  reportType: string
+  utilizationCategory: 'sea' | 'port' | 'unknown'
   weather: {
     beaufort: number
     windSpeedKts: number
@@ -311,6 +313,14 @@ export function mapCiiRecordsToDailyNoons(records: CiiDateRangeRecord[]): DailyN
       },
       draftFwdM: record.draftFwd || 0,
       draftAftM: record.draftAft || 0,
+      reportType: record.reportType || '',
+      utilizationCategory: (() => {
+        const portTypes = record.utilizationType?.portReportTypes
+        const seaTypes = record.utilizationType?.seaReportTypes
+        if (portTypes?.includes(record.reportType)) return 'port'
+        if (seaTypes?.includes(record.reportType)) return 'sea'
+        return 'unknown'
+      })(),
       weather: buildNoonWeather(record.noonreportdata),
     }
   })

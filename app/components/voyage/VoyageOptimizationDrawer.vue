@@ -164,6 +164,30 @@ function ciiRatingBadge(rating: string): { bg: string; text: string } {
                 </Badge>
               </div>
 
+              <!-- Report Type + Event Type (utilizationCategory) pills -->
+              <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                <div v-if="currentNoon.reportType" class="flex items-center gap-1">
+                  <span class="text-[10px] text-muted-foreground">Report Type:</span>
+                  <Badge variant="outline" class="text-[10px] font-mono uppercase tracking-wide px-1.5 py-0 border-primary/30 text-primary">
+                    {{ currentNoon.reportType }}
+                  </Badge>
+                </div>
+                <div class="flex items-center gap-1">
+                  <span class="text-[10px] text-muted-foreground">Event:</span>
+                  <Badge
+                    variant="outline"
+                    class="text-[10px] font-semibold uppercase px-1.5 py-0"
+                    :class="currentNoon.utilizationCategory === 'sea'
+                      ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                      : currentNoon.utilizationCategory === 'port'
+                        ? 'border-orange-500/40 text-orange-600 dark:text-orange-400'
+                        : 'border-border text-muted-foreground'"
+                  >
+                    {{ currentNoon.utilizationCategory === 'sea' ? '⛵ Sea' : currentNoon.utilizationCategory === 'port' ? '⚓ Port' : 'Unknown' }}
+                  </Badge>
+                </div>
+              </div>
+
               <!-- IMO CII Attained Badge Banner -->
               <div class="mt-3 p-2.5 rounded-lg border flex items-center justify-between" :class="ciiRatingBadge(currentNoon.rating).bg">
                 <div class="flex items-center gap-2">
