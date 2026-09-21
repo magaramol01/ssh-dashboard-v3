@@ -38,9 +38,22 @@ export interface VoyageOptimizationKpiSummary {
   projectedVoyageFuelMt: number
 }
 
+export interface VesselVoyageOption {
+  voyageNumber: string
+  startPort: string
+  destinationPort: string
+  departureTime?: string
+  arrivalTime?: string
+  etaNextPort?: string
+  isOngoing: boolean
+}
+
 // Module-level persistent state across screen transitions
 const activeStrategy = ref<'current' | 'lowest-fuel' | 'safest' | 'fastest'>('current')
 const selectedDay = ref<DailyNoonReport | null>(null)
+const selectedVoyage = ref<string>('')
+const availableVoyages = shallowRef<VesselVoyageOption[]>([])
+const isVoyagesLoading = ref(false)
 const advisoriesList = ref<VoyageAdvisory[]>([])
 const weatherAlongRoute = shallowRef<MarineWeatherForecast[]>([])
 const isWeatherLoading = ref(false)
@@ -77,43 +90,90 @@ export function useVoyageOptimization() {
   })
 
   // 2. Fetch real per-day CII noon report data for the active vessel, scoped
-  // to the current voyage. The real voyage start date and voyage identifier
-  // are resolved authoritatively from Postgres (shipping_db.std_enoonreporttable
-  // via /api/vessels/current-voyage — MIN(report_date_time_utc) for the
-  // latest voyage), not guessed: real noon-report data does not reliably
-  // carry a Voyage_Start_Date field (observed null on live data), so a
-  // date-range guess against the external CII API alone can't be trusted.
-  // If that DB lookup fails, falls back to a CII_LOOKBACK_DAYS window
-  // filtered by mrvData's voyage number — a documented degraded path, not
-  // the primary source.
-  async function fetchCiiDateRange() {
+  // to the selected voyage.
+  async function fetchVesselVoyages(vId = effectiveVesselId.value) {
+    if (!vId) return
+    isVoyagesLoading.value = true
+    try {
+      const data = await $fetch<VesselVoyageOption[]>('/api/vessels/voyages', {
+        params: { vesselId: vId },
+      })
+      if (Array.isArray(data) && data.length > 0) {
+        availableVoyages.value = data
+        // Select the running/ongoing voyage by default
+        const ongoing = data.find((v) => v.isOngoing)
+        const mrvMatch = mrvData.value?.voyage ? data.find((v) => v.voyageNumber === mrvData.value?.voyage) : null
+        const defaultVoy = ongoing?.voyageNumber || mrvMatch?.voyageNumber || mrvData.value?.voyage || data[0]?.voyageNumber || ''
+
+        if (!selectedVoyage.value || !data.some((v) => v.voyageNumber === selectedVoyage.value)) {
+          selectedVoyage.value = defaultVoy
+        }
+      } else if (mrvData.value?.voyage) {
+        const fallbackVoy: VesselVoyageOption = {
+          voyageNumber: mrvData.value.voyage,
+          startPort: mrvData.value.scr || '',
+          destinationPort: mrvData.value.destination || '',
+          etaNextPort: mrvData.value.etanextport || '',
+          isOngoing: true,
+        }
+        availableVoyages.value = [fallbackVoy]
+        selectedVoyage.value = fallbackVoy.voyageNumber
+      }
+    } catch {
+      // Fallback handled
+    } finally {
+      isVoyagesLoading.value = false
+    }
+  }
+
+  const currentVoyageInfo = computed<VesselVoyageOption | null>(() => {
+    return availableVoyages.value.find((v) => v.voyageNumber === selectedVoyage.value) || null
+  })
+
+  async function fetchCiiDateRange(targetVoyage = selectedVoyage.value) {
     isCiiLoading.value = true
     ciiLoadError.value = false
     try {
       let startDate: string
       let endDate: string
-      let currentVoyage: string | undefined
+      let currentVoyage = targetVoyage || mrvData.value?.voyage
 
-      const voyageInfo = await $fetch<{ success: boolean; voyage: string | null; startDate: string | null; endDate: string | null }>(
-        '/api/vessels/current-voyage',
-        { params: { vesselId: effectiveVesselId.value } }
-      ).catch(() => null)
-
-      if (voyageInfo?.success && voyageInfo.voyage && voyageInfo.startDate && voyageInfo.endDate) {
-        startDate = voyageInfo.startDate
-        endDate = voyageInfo.endDate
-        currentVoyage = voyageInfo.voyage
+      // If we have voyage metadata with departure/arrival times, scope the query
+      const voyMeta = availableVoyages.value.find((v) => v.voyageNumber === currentVoyage)
+      if (voyMeta?.departureTime) {
+        startDate = new Date(voyMeta.departureTime).toISOString().slice(0, 10)
+        const arr = voyMeta.arrivalTime || voyMeta.etaNextPort || new Date().toISOString()
+        endDate = new Date(arr).toISOString().slice(0, 10)
       } else {
-        endDate = (mrvData.value?.rptdate || new Date().toISOString()).slice(0, 10)
-        const endDt = new Date(endDate)
-        startDate = new Date(endDt.getTime() - CII_LOOKBACK_DAYS * 24 * 3600 * 1000).toISOString().slice(0, 10)
-        currentVoyage = mrvData.value?.voyage
+        const voyageInfo = await $fetch<{ success: boolean; voyage: string | null; startDate: string | null; endDate: string | null }>(
+          '/api/vessels/current-voyage',
+          { params: { vesselId: effectiveVesselId.value } }
+        ).catch(() => null)
+
+        if (voyageInfo?.success && voyageInfo.voyage && voyageInfo.startDate && voyageInfo.endDate) {
+          startDate = voyageInfo.startDate
+          endDate = voyageInfo.endDate
+          if (!currentVoyage) currentVoyage = voyageInfo.voyage
+        } else {
+          endDate = (mrvData.value?.rptdate || new Date().toISOString()).slice(0, 10)
+          const endDt = new Date(endDate)
+          startDate = new Date(endDt.getTime() - CII_LOOKBACK_DAYS * 24 * 3600 * 1000).toISOString().slice(0, 10)
+          if (!currentVoyage) currentVoyage = mrvData.value?.voyage
+        }
       }
       const year = new Date(endDate).getUTCFullYear()
 
       const res = await $fetch<{ success: boolean; records: CiiDateRangeRecord[] }>(
         '/api/vessels/cii-date-range',
-        { params: { vesselId: effectiveVesselId.value, startDate, endDate, year } }
+        {
+          params: {
+            vesselId: effectiveVesselId.value,
+            startDate,
+            endDate,
+            year,
+            voyageNumber: currentVoyage,
+          },
+        }
       )
       const fetchedRecords = res.success ? res.records : []
       const filtered = currentVoyage
@@ -134,9 +194,8 @@ export function useVoyageOptimization() {
   // 3. Map real CII records into Daily Noon Reports — no synthetic data
   const dailyNoons = computed<DailyNoonReport[]>(() => mapCiiRecordsToDailyNoons(ciiRecords.value))
 
-  // Real voyage number the Daily Noon Log is scoped to (all ciiRecords share
-  // the same voyage after filtering in fetchCiiDateRange)
-  const currentVoyage = computed<string | null>(() => ciiRecords.value[0]?.voyage || null)
+  // Real voyage number the Daily Noon Log is scoped to
+  const currentVoyage = computed<string | null>(() => selectedVoyage.value || ciiRecords.value[0]?.voyage || null)
 
   // 4. Compute comparative route strategies from the same deduplicated daily
   // noon data dailyNoons already derived — keeps this aggregate consistent
@@ -283,19 +342,21 @@ export function useVoyageOptimization() {
     }
   }
 
-  // Auto-fetch voyage fixture telemetry, map geojson, CII data, and weather
+  // Auto-fetch voyage fixture telemetry, available voyages, map geojson, CII data, and weather
   // when the selected vessel changes.
   watch(
     () => effectiveVesselId.value,
     async (vId) => {
       if (!vId) return
       selectedDay.value = null
-      // 1. Fetch voyage fixture (MRV) and map corridor/position
+      selectedVoyage.value = ''
+      // 1. Fetch voyage fixture (MRV), map corridor/position, and available voyages list
       await Promise.allSettled([
         fetchVoyageData(vId),
         fetchWindyMap(vId),
+        fetchVesselVoyages(vId),
       ])
-      // 2. Fetch CII records for the voyage and route weather
+      // 2. Fetch CII records for the selected running voyage and route weather
       await Promise.allSettled([
         fetchCiiDateRange(),
         fetchRouteWeather(),
@@ -304,13 +365,24 @@ export function useVoyageOptimization() {
     { immediate: true }
   )
 
-  // Re-fetch CII once the current voyage number becomes known, in case the
-  // first fetch above raced ahead of mrvData and could not filter by voyage.
+  // Re-fetch CII when user manually switches voyage in dropdown
+  watch(
+    () => selectedVoyage.value,
+    (newVoy, oldVoy) => {
+      if (newVoy && newVoy !== oldVoy) {
+        selectedDay.value = null
+        fetchCiiDateRange(newVoy)
+      }
+    }
+  )
+
+  // Re-fetch CII once the current voyage number becomes known from mrvData
   watch(
     () => mrvData.value?.voyage,
     (voyage, prevVoyage) => {
-      if (voyage && voyage !== prevVoyage) {
-        fetchCiiDateRange()
+      if (voyage && voyage !== prevVoyage && !selectedVoyage.value) {
+        selectedVoyage.value = voyage
+        fetchCiiDateRange(voyage)
       }
     }
   )
@@ -330,6 +402,11 @@ export function useVoyageOptimization() {
     effectiveCorridorCoords,
     dailyNoons,
     currentVoyage,
+    selectedVoyage,
+    availableVoyages,
+    currentVoyageInfo,
+    isVoyagesLoading,
+    fetchVesselVoyages,
     isCiiLoading,
     ciiLoadError,
     routeStrategies,

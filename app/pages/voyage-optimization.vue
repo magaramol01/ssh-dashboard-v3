@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { Skeleton } from '@/components/ui/skeleton'
 import VoyageOptimizationHeaderBar from '~/components/voyage/VoyageOptimizationHeaderBar.vue'
 import VoyageOptimizationKpiHud from '~/components/voyage/VoyageOptimizationKpiHud.vue'
 import VoyageOptimizationMap from '~/components/voyage/VoyageOptimizationMap.vue'
 import VoyageOptimizationDrawer from '~/components/voyage/VoyageOptimizationDrawer.vue'
+import SentinelCopilotPanel, { type QuickDirective } from '~/components/sentinel/SentinelCopilotPanel.vue'
 import { useVoyageOptimization } from '~/composables/useVoyageOptimization'
 
 definePageMeta({ middleware: 'require-dispatcher' })
@@ -16,24 +17,83 @@ const {
   refreshAll,
   vesselsList,
   selectedDay,
+  selectedVessel,
+  effectiveVesselId,
+  mrvData,
 } = useVoyageOptimization()
 
 const isDrawerOpen = ref(true)
+const isCopilotOpen = ref(false)
+const isCopilotFullscreen = ref(false)
+const copilotPanelRef = ref<any>(null)
 
 function toggleDrawer() {
   isDrawerOpen.value = !isDrawerOpen.value
+}
+
+function toggleCopilot() {
+  isCopilotOpen.value = !isCopilotOpen.value
 }
 
 function handleSelectDay() {
   isDrawerOpen.value = true
 }
 
+function handleAskCopilot(prompt: string) {
+  isCopilotOpen.value = true
+  copilotPanelRef.value?.askPrompt(prompt)
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    if (isCopilotFullscreen.value) {
+      isCopilotFullscreen.value = false
+      return
+    }
+    if (isCopilotOpen.value) {
+      isCopilotOpen.value = false
+    }
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
+    e.preventDefault()
+    isCopilotOpen.value = !isCopilotOpen.value
+  }
+}
+
+const voyageQuickDirectives: QuickDirective[] = [
+  {
+    label: 'Why did rating drop to D/E?',
+    query: 'Analyze the primary factors (heavy weather, propeller slip, speed loss) causing recent CII rating degradation on this voyage.',
+  },
+  {
+    label: 'How to recover Band B?',
+    query: 'What speed reduction or RPM adjustment is required to recover IMO Band B trajectory for the remainder of this passage?',
+  },
+  {
+    label: 'Weather Impact on Fuel',
+    query: 'Evaluate the added fuel consumption and carbon penalty caused by adverse MetOcean conditions along this route.',
+  },
+  {
+    label: 'Simulate -10% Speed Cut',
+    query: 'Simulate a 10% speed reduction and calculate projected CII rating and fuel savings.',
+  },
+]
+
 onMounted(async () => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('keydown', handleKeydown)
+  }
   await fetchVesselsList()
   await Promise.allSettled([
     refreshAll(),
     fetchRouteWeather(),
   ])
+})
+
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('keydown', handleKeydown)
+  }
 })
 </script>
 
@@ -43,7 +103,9 @@ onMounted(async () => {
     <header class="relative z-20 w-full min-h-[58px] py-2 px-4 md:px-6 flex items-center bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border shadow-xs shrink-0">
       <VoyageOptimizationHeaderBar
         :is-drawer-open="isDrawerOpen"
+        :is-copilot-open="isCopilotOpen"
         @toggle-drawer="toggleDrawer"
+        @toggle-copilot="toggleCopilot"
       />
     </header>
 
@@ -77,7 +139,24 @@ onMounted(async () => {
       <VoyageOptimizationDrawer
         :is-open="isDrawerOpen"
         @close="isDrawerOpen = false"
+        @ask-copilot="handleAskCopilot"
       />
     </div>
+
+    <!-- Operations Copilot Panel for Voyage & CII Intelligence -->
+    <SentinelCopilotPanel
+      ref="copilotPanelRef"
+      v-model="isCopilotOpen"
+      v-model:fullscreen="isCopilotFullscreen"
+      :title="`${selectedVessel?.name || 'Vessel'} Operations Copilot`"
+      subtitle="Voyage Performance & Carbon Intensity Advisory"
+      badge-text="Operations"
+      :quick-directives="voyageQuickDirectives"
+      :active-context="{
+        vesselId: Number(effectiveVesselId) || 1,
+        vesselName: selectedVessel?.name || 'Vessel',
+        voyage: mrvData?.voyage,
+      }"
+    />
   </div>
 </template>

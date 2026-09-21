@@ -8,6 +8,20 @@ export default defineEventHandler(async (event) => {
   const endDate = query.endDate
   const year = query.year || new Date().getUTCFullYear()
   const voyageType = query.voyageType || 'all'
+  const voyageNumber = query.voyageNumber ? String(query.voyageNumber).trim() : ''
+
+  if (voyageNumber) {
+    const voyRes = await backendFetch<unknown[]>(
+      `/prod/api/v1/cii/voyage?voyageNumber=${encodeURIComponent(voyageNumber)}&vesselId=${vesselId}&year=${year}`,
+      { method: 'GET', event }
+    )
+    if (voyRes.success && Array.isArray(voyRes.data) && voyRes.data.length > 0) {
+      return {
+        success: true,
+        records: voyRes.data,
+      }
+    }
+  }
 
   const endpoint = `/prod/api/v1/cii/date-range?vesselId=${vesselId}&startDate=${startDate}&endDate=${endDate}&year=${year}&voyageType=${voyageType}&type=byDate`
   const res = await backendFetch<unknown[]>(endpoint, { event })

@@ -93,6 +93,34 @@ export interface DailyNoonReport {
     shortForecast: string
     source: 'cii-api'
   }
+  // Hydrodynamic & Engine Telemetry
+  slipPct?: number
+  meRpm?: number
+  shaftPowerKw?: number
+  remarks?: string
+  // AI Diagnostic Factor Analysis
+  aiDiagnostics?: CiiDayAiDiagnostic
+}
+
+export interface CiiFactorImpact {
+  key: 'weather' | 'slip' | 'speed' | 'fuel_rate' | 'distance'
+  name: string
+  scorePercent: number // 0-100% relative contribution
+  severity: 'favorable' | 'moderate' | 'critical'
+  metric: string       // e.g. "BF 7 (3.0m wave)", "52.7% Slip", "6.7 kts (-42%)"
+  explanation: string  // concise domain explanation
+}
+
+export interface CiiDayAiDiagnostic {
+  rating: CIIRating
+  statusLabel: string     // e.g. "IMO Band E (Critical Degradation)"
+  headline: string        // e.g. "Adverse MetOcean Resistance & Severe Propeller Slip"
+  summary: string         // 2-3 sentences explaining why it dropped or excelled
+  primaryDriver: 'weather' | 'slip' | 'speed' | 'fuel_burn' | 'distance' | 'optimal'
+  driverLabel: string     // e.g. "Severe Weather & Propeller Cavitation"
+  factors: CiiFactorImpact[]
+  recommendation: string  // operational recommendation
+  promptContext: string   // customized question to pass to Sentinel Copilot
 }
 
 export interface RouteStrategyOption {
@@ -287,7 +315,14 @@ export function mapCiiRecordsToDailyNoons(records: CiiDateRangeRecord[]): DailyN
     const reportDate = new Date(record.reportDateTime)
     const rating = record.CIIRating?.band || resolveCiiRating(record.attainedCII)
 
-    return {
+    const rawSlip = record.noonreportdata?.Slip
+    const slipPct = typeof rawSlip === 'number' ? rawSlip : parseFloat(String(rawSlip || '').replace(/%/g, ''))
+    const rawRpm = record.noonreportdata?.ME_RPM
+    const meRpm = typeof rawRpm === 'number' ? rawRpm : parseFloat(String(rawRpm || ''))
+    const rawPower = record.noonreportdata?.ME_SHAFT_POWER_IN_KW
+    const shaftPowerKw = typeof rawPower === 'number' ? rawPower : parseFloat(String(rawPower || ''))
+
+    const noonItem: DailyNoonReport = {
       dayNumber: index + 1,
       dateIso: record.reportDateTime,
       dateFormatted: reportDate.toISOString().slice(0, 10) + ' 12:00 UTC',
@@ -322,8 +357,198 @@ export function mapCiiRecordsToDailyNoons(records: CiiDateRangeRecord[]): DailyN
         return 'unknown'
       })(),
       weather: buildNoonWeather(record.noonreportdata),
+      slipPct: Number.isFinite(slipPct) ? Math.round(slipPct * 10) / 10 : 0,
+      meRpm: Number.isFinite(meRpm) ? Math.round(meRpm * 10) / 10 : 0,
+      shaftPowerKw: Number.isFinite(shaftPowerKw) ? Math.round(shaftPowerKw) : 0,
+      remarks: record.noonreportdata?.Remarks || '',
     }
+
+    noonItem.aiDiagnostics = analyzeCiiRatingDrivers(noonItem, record.noonreportdata?.Vessel_Name || record.vesselInfo?.name)
+    return noonItem
   })
+}
+
+/**
+ * Analyzes the hydrodynamic, meteorological, and operational factors
+ * contributing to a specific daily noon report's CII rating and degradation.
+ */
+export function analyzeCiiRatingDrivers(
+  noon: Omit<DailyNoonReport, 'aiDiagnostics'>,
+  vesselName?: string
+): CiiDayAiDiagnostic {
+  const rating = noon.rating
+  const attained = noon.attainedCii
+  const required = noon.requiredCii || 3.7
+  const bf = noon.weather.beaufort || 0
+  const wave = noon.weather.waveHeightM || 0
+  const slip = noon.slipPct ?? 0
+  const dist = noon.distanceRunNm || 0
+  const sog = noon.sog || 0
+  const fuel = noon.fuelConsumedMt.total || 0
+  const fuelPerNm = dist > 0 ? Math.round((fuel / dist) * 1000) / 1000 : 0
+
+  const isCriticalDegraded = rating === 'E'
+
+  // 1. Weather Impact
+  let weatherWeight = 10
+  let weatherSeverity: 'favorable' | 'moderate' | 'critical' = 'favorable'
+  let weatherExplanation = `Calm to moderate sea state (BF ${bf}, ${wave}m seas). Minimal wave-induced resistance.`
+  if (bf >= 7 || wave >= 3.0) {
+    weatherSeverity = 'critical'
+    weatherWeight = 45 + Math.min(25, (bf - 6) * 10 + (wave - 2.5) * 8)
+    weatherExplanation = `Severe adverse MetOcean conditions (BF ${bf}, ${wave}m wave). Significant added hydrodynamic resistance & wave slamming.`
+  } else if (bf >= 5 || wave >= 2.0) {
+    weatherSeverity = 'moderate'
+    weatherWeight = 25 + (bf - 4) * 5
+    weatherExplanation = `Fresh sea conditions (BF ${bf}, ${wave}m seas). Noticeable pitch/roll and wind resistance.`
+  }
+
+  // 2. Propeller Slip Impact
+  let slipWeight = 10
+  let slipSeverity: 'favorable' | 'moderate' | 'critical' = 'favorable'
+  let slipExplanation = `Slip (${slip > 0 ? slip.toFixed(1) + '%' : 'nominal'}) within optimal propulsion envelope.`
+  if (slip >= 35) {
+    slipSeverity = 'critical'
+    slipWeight = 40 + Math.min(25, (slip - 35) * 1.5)
+    slipExplanation = `Severe propeller slip (${slip.toFixed(1)}%). Significant engine power dissipated in propeller cavitation & heavy pitching rather than thrust.`
+  } else if (slip >= 25) {
+    slipSeverity = 'moderate'
+    slipWeight = 25
+    slipExplanation = `Elevated propeller slip (${slip.toFixed(1)}%) above standard 20% benchmark, indicating added hydrodynamic drag.`
+  }
+
+  // 3. Speed Loss / Transport Work Deficit
+  let distWeight = 10
+  let distSeverity: 'favorable' | 'moderate' | 'critical' = 'favorable'
+  let distExplanation = `Good 24h run (${dist} NM at ${sog} kts) maximizing transport work denominator.`
+  if (dist > 0 && dist < 190) {
+    distSeverity = 'critical'
+    distWeight = 35 + Math.min(20, (190 - dist) * 0.3)
+    distExplanation = `Major distance deficit (${dist} NM vs ~270 NM nominal). Shrunk Transport Work denominator, forcing CII to surge.`
+  } else if (dist > 0 && dist < 235) {
+    distSeverity = 'moderate'
+    distWeight = 20
+    distExplanation = `Reduced daily ground run (${dist} NM). Moderate speed loss under sea margin.`
+  }
+
+  // 4. Fuel Burn Rate Intensity (MT / NM)
+  let fuelWeight = 10
+  let fuelSeverity: 'favorable' | 'moderate' | 'critical' = 'favorable'
+  let fuelExplanation = `Specific consumption (${fuelPerNm.toFixed(3)} MT/NM) aligned with fuel-efficient steaming.`
+  if (fuelPerNm >= 0.11) {
+    fuelSeverity = 'critical'
+    fuelWeight = 30
+    fuelExplanation = `Disproportionate fuel burn rate (${fuelPerNm.toFixed(3)} MT/NM vs ~0.078 nominal). Engine pushing hard against heavy resistance.`
+  } else if (fuelPerNm >= 0.09) {
+    fuelSeverity = 'moderate'
+    fuelWeight = 20
+    fuelExplanation = `Elevated fuel burn rate (${fuelPerNm.toFixed(3)} MT/NM) due to moderate resistance or auxiliary load.`
+  }
+
+  // Normalize factor scores to sum to 100%
+  const totalWeight = weatherWeight + slipWeight + distWeight + fuelWeight
+  const factors: CiiFactorImpact[] = [
+    {
+      key: 'weather',
+      name: 'MetOcean & Sea State',
+      scorePercent: Math.round((weatherWeight / totalWeight) * 100),
+      severity: weatherSeverity,
+      metric: `BF ${bf} · ${wave}m seas`,
+      explanation: weatherExplanation,
+    },
+    {
+      key: 'slip',
+      name: 'Propeller Slip & Thrust',
+      scorePercent: Math.round((slipWeight / totalWeight) * 100),
+      severity: slipSeverity,
+      metric: slip > 0 ? `${slip.toFixed(1)}% Slip` : 'Nominal',
+      explanation: slipExplanation,
+    },
+    {
+      key: 'distance',
+      name: 'Ground Distance & Transport Work',
+      scorePercent: Math.round((distWeight / totalWeight) * 100),
+      severity: distSeverity,
+      metric: `${dist} NM · ${sog} kts`,
+      explanation: distExplanation,
+    },
+    {
+      key: 'fuel_rate',
+      name: 'Specific Fuel Intensity',
+      scorePercent: Math.round((fuelWeight / totalWeight) * 100),
+      severity: fuelSeverity,
+      metric: `${fuelPerNm.toFixed(3)} MT/NM`,
+      explanation: fuelExplanation,
+    },
+  ]
+
+  const sumScores = factors.reduce((s, f) => s + f.scorePercent, 0)
+  if (sumScores !== 100 && factors.length > 0) {
+    factors[0]!.scorePercent += 100 - sumScores
+  }
+
+  let primaryDriver: 'weather' | 'slip' | 'speed' | 'fuel_burn' | 'distance' | 'optimal' = 'optimal'
+  let driverLabel = 'Optimal Sea Margin'
+  let headline = `IMO Band ${rating}: Compliant Steaming`
+  let summary = `Attained CII of ${attained} g/MT·NM compliant with target ${required}. Favorable conditions (BF ${bf}, ${wave}m seas) and nominal slip (${slip > 0 ? slip.toFixed(1) + '%' : '<20%'}) supported an efficient run of ${dist} NM on ${fuel} MT.`
+  let recommendation = `Maintain current speed and RPM profile. Review downstream 48h MetOcean forecasts to anticipate unfavorable sea states.`
+
+  if (isCriticalDegraded) {
+    if (weatherSeverity === 'critical' || slipSeverity === 'critical') {
+      primaryDriver = 'weather'
+      driverLabel = 'Heavy Weather & Slip Drag'
+      headline = `Band E Variance: Severe Sea Resistance & ${slip > 0 ? slip.toFixed(1) + '%' : ''} Propeller Slip`
+      summary = `Attained CII of ${attained} g/MT·NM vs ${required} target. Adverse weather (Beaufort ${bf}, ${wave}m seas) and ${slip > 0 ? slip.toFixed(1) + '%' : 'high'} propeller slip caused ${sog} kts involuntary speed loss (${dist} NM run). Sustained engine load in head seas resulted in elevated specific fuel burn (${fuelPerNm.toFixed(3)} MT/NM).`
+      recommendation = `In BF 7+ sea states, easing ME speed by 4–6 RPM alleviates propeller cavitation and slip, saving ~3.5 MT/day fuel with minimal ground speed impact.`
+    } else if (distSeverity === 'critical') {
+      primaryDriver = 'distance'
+      driverLabel = 'Distance Run Deficit'
+      headline = `Band E Variance: Ground Distance Deficit`
+      summary = `Attained CII of ${attained} g/MT·NM vs ${required} target. Run was limited to ${dist} NM (vs ~270 NM nominal), reducing transport work while burning ${fuel} MT during maneuvering, drifting, or low-speed transit.`
+      recommendation = `Resume uninterrupted transit at eco-speed as soon as operational conditions allow to recover daily transport work.`
+    } else {
+      primaryDriver = 'fuel_burn'
+      driverLabel = 'Elevated Specific Fuel Burn'
+      headline = `Band E Variance: High Fuel Intensity`
+      summary = `Attained CII of ${attained} g/MT·NM due to heavy fuel burn (${fuel} MT over ${dist} NM = ${fuelPerNm.toFixed(3)} MT/NM), exceeding the nominal power envelope.`
+      recommendation = `Inspect main engine SFOC and fuel purifier operation. Consider trimming speed by 1.0–1.5 kts to lower combustion resistance.`
+    }
+  } else if (rating === 'D') {
+    if (weatherSeverity !== 'favorable' || slipSeverity !== 'favorable') {
+      primaryDriver = 'weather'
+      driverLabel = 'Added Sea Margin Resistance'
+      headline = `Band D Variance: Added Sea Margin & Involuntary Speed Loss`
+      summary = `Attained CII of ${attained} g/MT·NM vs ${required} target. Sea state (BF ${bf}, ${wave}m seas) and ${slip > 0 ? slip.toFixed(1) + '%' : 'elevated'} propeller slip produced added hydrodynamic drag, reducing 24h distance to ${dist} NM.`
+      recommendation = `A -0.8 to -1.0 kt speed trim reduces engine load and aligns specific consumption with the Band B trajectory.`
+    } else {
+      primaryDriver = 'speed'
+      driverLabel = 'Speed-Power Discrepancy'
+      headline = `Band D Variance: Steaming Speed Discrepancy`
+      summary = `Attained CII of ${attained} g/MT·NM (Band D). Fuel consumption of ${fuel} MT for ${dist} NM is trending above the optimal IMO trajectory.`
+      recommendation = `Adjust speed towards the Lowest-Fuel profile to recover Band B status on subsequent passage legs.`
+    }
+  } else if (rating === 'C') {
+    primaryDriver = 'speed'
+    driverLabel = 'Standard Sea Margin'
+    headline = `Band C Standard: Baseline Sea Margin`
+    summary = `Attained CII of ${attained} g/MT·NM conforms to the standard Band C baseline (required: ${required}). Minor sea resistance (BF ${bf}) and steady run (${dist} NM) maintain stable operations.`
+    recommendation = `A minor -0.5 kt speed optimization saves ~1.5 MT/day fuel, safely shifting the trajectory into Band B.`
+  }
+
+  const vName = vesselName || 'the vessel'
+  const promptContext = `Why did ${vName} attain CII of ${attained} g/MT·NM (Band ${rating}) on Day ${noon.dayNumber} with Beaufort ${bf}, wave height ${wave}m, propeller slip ${slip.toFixed(1)}%, distance ${dist} NM, and fuel ${fuel} MT? Explain the physical and hydrodynamic factors, and give corrective operational recommendations to recover IMO Band B.`
+
+  return {
+    rating,
+    statusLabel: `IMO Band ${rating}`,
+    headline,
+    summary,
+    primaryDriver,
+    driverLabel,
+    factors,
+    recommendation,
+    promptContext,
+  }
 }
 
 /**

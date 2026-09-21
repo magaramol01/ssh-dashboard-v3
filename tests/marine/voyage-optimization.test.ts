@@ -9,6 +9,7 @@ import {
   isNoonReportRecord,
   calculateRouteStrategies,
   deriveVoyageAdvisories,
+  analyzeCiiRatingDrivers,
   type CiiDateRangeRecord,
 } from '../../app/lib/voyage-optimization.ts'
 
@@ -156,5 +157,104 @@ describe('Voyage Optimization Domain Engine', () => {
     const speedAdv = advisories.find((a) => a.type === 'speed')
     assert.ok(speedAdv)
     assert.equal(speedAdv.applied, false)
+  })
+
+  test('analyzeCiiRatingDrivers identifies weather and slip as primary drivers for a Band E degraded day', () => {
+    const mockDegradedNoon = {
+      dayNumber: 21,
+      dateIso: '2026-09-16T12:00:00.000Z',
+      dateFormatted: '2026-09-16 12:00 UTC',
+      coords: [-28.4, 34.2] as [number, number],
+      distanceRunNm: 160,
+      cumulativeDistanceNm: 4800,
+      sog: 6.67,
+      fuelConsumedMt: { byType: {}, total: 22.9 },
+      cumulativeFuelMt: 410,
+      totalCo2Mt: 71.3,
+      transportWork: 11165920,
+      attainedCii: 6.38,
+      rating: 'E' as const,
+      requiredCii: 3.65,
+      ciiBoundaries: { superior: 3.1, lower: 3.45, upper: 3.9, inferior: 4.3 },
+      draftFwdM: 11.7,
+      draftAftM: 11.8,
+      reportType: 'Noon Report',
+      utilizationCategory: 'sea' as const,
+      weather: {
+        beaufort: 7,
+        windSpeedKts: 30,
+        windDirectionDeg: 135,
+        waveHeightM: 3.0,
+        swellDirection: '140°',
+        shortForecast: '30kt wind, 3m seas, 140° swell',
+        source: 'cii-api' as const,
+      },
+      slipPct: 52.7,
+      meRpm: 65.2,
+      shaftPowerKw: 4200,
+    }
+
+    const diag = analyzeCiiRatingDrivers(mockDegradedNoon, 'BRAZIL EXPRESS')
+    assert.equal(diag.rating, 'E')
+    assert.equal(diag.primaryDriver, 'weather')
+    assert.ok(diag.headline.includes('Band E Variance'))
+    assert.ok(diag.summary.includes('propeller slip'))
+    assert.equal(diag.factors.length, 4)
+
+    // Verify all 4 factor weights sum to 100%
+    const totalScore = diag.factors.reduce((sum, f) => sum + f.scorePercent, 0)
+    assert.equal(totalScore, 100)
+
+    // Weather and slip must be flagged critical
+    const weatherFactor = diag.factors.find((f) => f.key === 'weather')
+    const slipFactor = diag.factors.find((f) => f.key === 'slip')
+    assert.equal(weatherFactor?.severity, 'critical')
+    assert.equal(slipFactor?.severity, 'critical')
+    assert.ok(diag.recommendation.includes('easing ME'))
+    assert.ok(diag.promptContext.includes('BRAZIL EXPRESS'))
+  })
+
+  test('analyzeCiiRatingDrivers confirms favorable factors for Band A/B compliant days', () => {
+    const mockCompliantNoon = {
+      dayNumber: 24,
+      dateIso: '2026-09-19T12:00:00.000Z',
+      dateFormatted: '2026-09-19 12:00 UTC',
+      coords: [-20.1, 57.5] as [number, number],
+      distanceRunNm: 280,
+      cumulativeDistanceNm: 5600,
+      sog: 11.67,
+      fuelConsumedMt: { byType: {}, total: 22.8 },
+      cumulativeFuelMt: 480,
+      totalCo2Mt: 70.9,
+      transportWork: 19540000,
+      attainedCii: 3.63,
+      rating: 'B' as const,
+      requiredCii: 3.65,
+      ciiBoundaries: { superior: 3.1, lower: 3.45, upper: 3.9, inferior: 4.3 },
+      draftFwdM: 11.7,
+      draftAftM: 11.8,
+      reportType: 'Noon Report',
+      utilizationCategory: 'sea' as const,
+      weather: {
+        beaufort: 4,
+        windSpeedKts: 14,
+        windDirectionDeg: 90,
+        waveHeightM: 1.0,
+        swellDirection: '100°',
+        shortForecast: '14kt wind, 1m seas, 100° swell',
+        source: 'cii-api' as const,
+      },
+      slipPct: 22.4,
+      meRpm: 69.7,
+      shaftPowerKw: 4800,
+    }
+
+    const diag = analyzeCiiRatingDrivers(mockCompliantNoon, 'BRAZIL EXPRESS')
+    assert.equal(diag.rating, 'B')
+    assert.equal(diag.primaryDriver, 'optimal')
+    assert.ok(diag.headline.includes('Compliant'))
+    assert.equal(diag.factors.every((f) => f.severity === 'favorable'), true)
+    const totalScore = diag.factors.reduce((sum, f) => sum + f.scorePercent, 0)
+    assert.equal(totalScore, 100)
   })
 })
