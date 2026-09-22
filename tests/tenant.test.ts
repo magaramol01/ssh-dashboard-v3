@@ -101,7 +101,7 @@ test('Copilot tools initialize and bind to dynamic tenant context', async () => 
   const { createSentinelTools } = await import('../server/utils/sentinel/tools')
 
   const tools = createSentinelTools('asiaticlloyd')
-  assert.equal(tools.length, 8)
+  assert.equal(tools.length, 9)
 
   const toolNames = tools.map((t) => t.name)
   assert.ok(toolNames.includes('search_operational_alerts'))
@@ -112,6 +112,7 @@ test('Copilot tools initialize and bind to dynamic tenant context', async () => 
   assert.ok(toolNames.includes('get_fleet_alarm_trends'))
   assert.ok(toolNames.includes('get_vessel_cii_telemetry'))
   assert.ok(toolNames.includes('simulate_vessel_speed_reduction'))
+  assert.ok(toolNames.includes('get_vessel_daily_positions'))
 })
 
 test('PostgreSQL pool uses dynamic database name without PG_DATABASE env variable', async () => {

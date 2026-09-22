@@ -1,6 +1,6 @@
 import type { SentinelBlock, SentinelChatResponse } from '../../../shared/types/sentinel'
 import { sentinelResponseSchema } from './schemas'
-import type { SentinelRawResponse } from './agent'
+import type { SentinelRawResponse } from './types'
 
 function text(value: unknown, fallback = '—') {
   return value === null || value === undefined || value === '' ? fallback : String(value).slice(0, 300)

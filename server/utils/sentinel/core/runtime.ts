@@ -4,34 +4,28 @@ import { ChatOpenRouter } from '@langchain/openrouter'
 import { createReactAgent } from '@langchain/langgraph/prebuilt'
 import type { SentinelAction, SentinelActivity, SentinelReference } from '../../../shared/types/sentinel'
 import { getSentinelConfig } from './config'
-import { sentinelSystemPrompt } from './prompts'
-import { createSentinelTools } from './tools'
+import type { SentinelRawResponse, SentinelToolResult } from './types'
+import { sentinelSystemPrompt } from '../prompts'
+import { getAllSentinelTools } from '../agents'
 import type { ValidSentinelRequest } from './schemas'
-import { getCurrentTenant } from '../tenant-context'
-
-export type SentinelToolResult = {
-  name: string
-  args: Record<string, unknown>
-  raw: string
-}
-
-export type SentinelRawResponse = {
-  text: string
-  toolResults: SentinelToolResult[]
-  activity: SentinelActivity[]
-  references: SentinelReference[]
-  actions: SentinelAction[]
-}
+import { getCurrentTenant } from '../../tenant-context'
 
 function textContent(content: unknown) {
   if (typeof content === 'string') return content.trim()
   if (!Array.isArray(content)) return ''
-  return content.map((part) => typeof part === 'string' ? part : (part && typeof part === 'object' && 'text' in part ? String(part.text) : '')).join('').trim()
+  return content
+    .map((part) => (typeof part === 'string' ? part : part && typeof part === 'object' && 'text' in part ? String(part.text) : ''))
+    .join('')
+    .trim()
 }
 
 function safeArgs(args: unknown): Record<string, unknown> {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return {}
-  return Object.fromEntries(Object.entries(args).slice(0, 8).map(([key, value]) => [key, typeof value === 'string' ? value.slice(0, 100) : value]))
+  return Object.fromEntries(
+    Object.entries(args)
+      .slice(0, 8)
+      .map(([key, value]) => [key, typeof value === 'string' ? value.slice(0, 100) : value])
+  )
 }
 
 function summarizeToolResult(name: string, raw: string) {
@@ -71,18 +65,28 @@ function referencesFromResult(name: string, raw: string): SentinelReference[] {
   try {
     const value = JSON.parse(raw) as Record<string, unknown>
     const references: SentinelReference[] = []
-    const alerts = Array.isArray(value.alerts) ? value.alerts as Array<Record<string, unknown>> : []
+    const alerts = Array.isArray(value.alerts) ? (value.alerts as Array<Record<string, unknown>>) : []
     if (value.alert && typeof value.alert === 'object') alerts.unshift(value.alert as Record<string, unknown>)
     for (const alert of alerts.slice(0, 10)) {
-      if (alert.id !== undefined) references.push({ kind: 'alert', id: String(alert.id), label: `${alert.vessel_name || 'Unknown vessel'} · ${alert.message || 'Operational alert'}`.slice(0, 200) })
+      if (alert.id !== undefined) {
+        references.push({
+          kind: 'alert',
+          id: String(alert.id),
+          label: `${alert.vessel_name || 'Unknown vessel'} · ${alert.message || 'Operational alert'}`.slice(0, 200),
+        })
+      }
     }
     if (name === 'get_vessel_operational_context' && value.vessel && typeof value.vessel === 'object') {
       const vessel = value.vessel as Record<string, unknown>
-      if (vessel.id !== undefined) references.unshift({ kind: 'vessel', id: String(vessel.id), label: String(vessel.name || `Vessel ${vessel.id}`) })
+      if (vessel.id !== undefined) {
+        references.unshift({ kind: 'vessel', id: String(vessel.id), label: String(vessel.name || `Vessel ${vessel.id}`) })
+      }
     }
     if (name === 'get_fleet_connectivity' && Array.isArray(value.networkVessels)) {
       for (const vessel of (value.networkVessels as Array<Record<string, unknown>>).filter((item) => item.connected !== true).slice(0, 10)) {
-        if (vessel.vessel_id !== undefined) references.push({ kind: 'vessel', id: String(vessel.vessel_id), label: String(vessel.vessel_name || `Vessel ${vessel.vessel_id}`) })
+        if (vessel.vessel_id !== undefined) {
+          references.push({ kind: 'vessel', id: String(vessel.vessel_id), label: String(vessel.vessel_name || `Vessel ${vessel.vessel_id}`) })
+        }
       }
     }
     if (name === 'get_vessel_cii_telemetry' && value.vesselId !== undefined) {
@@ -132,7 +136,7 @@ function actionsFor(request: ValidSentinelRequest, references: SentinelReference
 export async function runSentinelConversation(request: ValidSentinelRequest, tenant?: string, event?: H3Event): Promise<SentinelRawResponse> {
   const activeTenant = tenant || getCurrentTenant()
   const config = getSentinelConfig()
-  const tools = createSentinelTools(activeTenant, event)
+  const tools = getAllSentinelTools(activeTenant, event)
   const model = new ChatOpenRouter({
     apiKey: config.apiKey,
     model: config.model,
@@ -147,15 +151,17 @@ export async function runSentinelConversation(request: ValidSentinelRequest, ten
     version: 'v2',
   })
 
-  const messages = request.messages.map((message) => message.role === 'user'
-    ? new HumanMessage(message.content)
-    : new AIMessage(message.content))
-  if (request.context) messages.push(new HumanMessage(`Use these operator-selected IDs to narrow the investigation: ${JSON.stringify(request.context)}`))
+  const messages = request.messages.map((message) =>
+    message.role === 'user' ? new HumanMessage(message.content) : new AIMessage(message.content)
+  )
+  if (request.context) {
+    messages.push(new HumanMessage(`Use these operator-selected IDs to narrow the investigation: ${JSON.stringify(request.context)}`))
+  }
 
   let rawMessages: Array<Record<string, any>> = []
   try {
     const result = await graph.invoke({ messages }, { recursionLimit: 20 })
-    rawMessages = Array.isArray(result.messages) ? result.messages as Array<Record<string, any>> : []
+    rawMessages = Array.isArray(result.messages) ? (result.messages as Array<Record<string, any>>) : []
   } catch (err: unknown) {
     const stateMessages = (err as any)?.state?.messages
     if (Array.isArray(stateMessages) && stateMessages.length) {
@@ -165,6 +171,7 @@ export async function runSentinelConversation(request: ValidSentinelRequest, ten
       throw err
     }
   }
+
   const calls = new Map<string, { name: string; args: Record<string, unknown> }>()
   const toolResults: SentinelToolResult[] = []
   const activity: SentinelActivity[] = []

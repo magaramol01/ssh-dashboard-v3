@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { sentinelRequestSchema, sentinelResponseSchema } from '../server/utils/sentinel/schemas'
+import { sentinelRequestSchema, sentinelResponseSchema } from '../server/utils/sentinel/core/schemas'
 
 test('accepts a bounded Sentinel request', () => {
   const result = sentinelRequestSchema.safeParse({

@@ -1,8 +1,8 @@
 import { createError, defineEventHandler, readBody } from 'h3'
 import type { SentinelChatRequest } from '../../../shared/types/sentinel'
-import { runSentinelConversation } from '../../utils/sentinel/agent'
-import { formatSentinelResponse } from '../../utils/sentinel/formatter'
-import { sentinelRequestSchema, sentinelResponseSchema } from '../../utils/sentinel/schemas'
+import { runSentinelConversation } from '../../utils/sentinel/core/runtime'
+import { formatSentinelResponse } from '../../utils/sentinel/core/formatter'
+import { sentinelRequestSchema, sentinelResponseSchema } from '../../utils/sentinel/core/schemas'
 import { tenantStorage } from '../../utils/tenant-context'
 
 export default defineEventHandler(async (event) => {
