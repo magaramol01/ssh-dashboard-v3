@@ -190,15 +190,16 @@ async function handleRefresh() {
         <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': isRefreshing }" />
       </Button>
 
-      <!-- Inspector Drawer Toggle -->
+      <!-- Analytics Tray Toggle -->
       <Button
-        variant="default"
+        :variant="isDrawerOpen ? 'default' : 'outline'"
         size="sm"
-        class="h-9 px-3 gap-1.5 text-xs font-medium shrink-0"
+        class="h-9 px-3 gap-1.5 text-xs font-medium shrink-0 cursor-pointer"
+        :title="isDrawerOpen ? 'Hide Analytics Tray' : 'Open Analytics Tray'"
         @click="emit('toggle-drawer')"
       >
         <SlidersHorizontal class="w-3.5 h-3.5" />
-        <span class="hidden sm:inline">{{ isDrawerOpen ? 'Close Drawer' : 'Advisory Drawer' }}</span>
+        <span class="hidden sm:inline">{{ isDrawerOpen ? 'Hide Analytics' : 'Analytics Tray' }}</span>
       </Button>
     </div>
   </div>

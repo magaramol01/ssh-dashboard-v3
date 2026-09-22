@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
+import { ChevronUp } from 'lucide-vue-next'
 import VoyageOptimizationHeaderBar from '~/components/voyage/VoyageOptimizationHeaderBar.vue'
 import VoyageOptimizationKpiHud from '~/components/voyage/VoyageOptimizationKpiHud.vue'
 import VoyageOptimizationMap from '~/components/voyage/VoyageOptimizationMap.vue'
@@ -109,40 +111,59 @@ onBeforeUnmount(() => {
       />
     </header>
 
-    <!-- Map Canvas Hero Area with Floating HUD and Right Inspection Drawer -->
-    <div class="relative flex-1 flex w-full h-full min-h-0 overflow-hidden">
-      <!-- Main Interactive Leaflet Map Hero Canvas -->
-      <div class="relative flex-1 w-full h-full min-w-0 flex flex-col">
-        <!-- Floating 5-Tile Advisory KPI HUD (Mounted Over the Map) -->
-        <div class="absolute top-3 left-0 right-0 z-20 pointer-events-none">
-          <VoyageOptimizationKpiHud />
+    <!-- Main Container: Map+Tray on Left, Copilot Sidebar on Right -->
+    <div class="relative flex-1 flex flex-row w-full h-full min-h-0 overflow-hidden">
+      <!-- Left Column: Hero Passage Map on Top, Resizable Bottom Analytics Tray Below -->
+      <div class="relative flex-1 flex flex-col h-full min-w-0 min-h-0 overflow-hidden">
+        <!-- Main Interactive Leaflet Map Hero Canvas -->
+        <div class="relative flex-1 w-full min-h-[180px] flex flex-col overflow-hidden">
+          <!-- Floating 5-Tile Advisory KPI HUD (Mounted Over the Map) -->
+          <div class="absolute top-3 left-0 right-0 z-20 pointer-events-none">
+            <VoyageOptimizationKpiHud />
+          </div>
+
+          <!-- Client-Only Interactive Leaflet Map -->
+          <div class="flex-1 w-full h-full min-h-0">
+            <ClientOnly>
+              <VoyageOptimizationMap @select-day="handleSelectDay" />
+              <template #fallback>
+                <div class="w-full h-full min-h-[300px] flex items-center justify-center bg-muted/40 p-6">
+                  <div class="space-y-4 w-full max-w-md text-center">
+                    <div class="h-10 w-10 mx-auto rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                    <p class="text-sm font-medium text-muted-foreground">Loading interactive passage map & weather grid...</p>
+                    <Skeleton class="h-6 w-3/4 mx-auto" />
+                  </div>
+                </div>
+              </template>
+            </ClientOnly>
+          </div>
+
+          <!-- Floating Quick-Open Button when Tray is Closed -->
+          <div
+            v-if="!isDrawerOpen"
+            class="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 animate-in fade-in slide-in-from-bottom-2"
+          >
+            <Button
+              size="sm"
+              variant="default"
+              class="h-9 px-4 shadow-lg gap-2 text-xs font-semibold rounded-full bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
+              @click="isDrawerOpen = true"
+            >
+              <ChevronUp class="w-4 h-4" />
+              <span>Open Analytics Tray (Noon Log, Sea & Shop Trials)</span>
+            </Button>
+          </div>
         </div>
 
-        <!-- Client-Only Interactive Leaflet Map -->
-        <div class="flex-1 w-full h-full min-h-0">
-          <ClientOnly>
-            <VoyageOptimizationMap @select-day="handleSelectDay" />
-            <template #fallback>
-              <div class="w-full h-full min-h-[500px] flex items-center justify-center bg-muted/40 p-6">
-                <div class="space-y-4 w-full max-w-md text-center">
-                  <div class="h-10 w-10 mx-auto rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                  <p class="text-sm font-medium text-muted-foreground">Loading interactive passage map & weather grid...</p>
-                  <Skeleton class="h-6 w-3/4 mx-auto" />
-                </div>
-              </div>
-            </template>
-          </ClientOnly>
-        </div>
+        <!-- Resizable Full-Width Analytics Tray on Bottom -->
+        <VoyageOptimizationDrawer
+          :is-open="isDrawerOpen"
+          @close="isDrawerOpen = false"
+          @ask-copilot="handleAskCopilot"
+        />
       </div>
 
-      <!-- Slide-Out Right Inspection Drawer -->
-      <VoyageOptimizationDrawer
-        :is-open="isDrawerOpen"
-        @close="isDrawerOpen = false"
-        @ask-copilot="handleAskCopilot"
-      />
-
-      <!-- Operations Copilot Sidebar for Voyage Analytics & CII Intelligence -->
+      <!-- Right: Operations Copilot Sidebar for Voyage Analytics & CII Intelligence -->
       <SentinelCopilotPanel
         ref="copilotPanelRef"
         v-model="isCopilotOpen"
