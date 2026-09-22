@@ -650,8 +650,8 @@ const activeFuelTypes = computed(() => {
   <aside
     v-show="isOpen"
     :class="[
-      'h-full shrink-0 border-l border-border bg-background/98 backdrop-blur-md shadow-2xl flex flex-col overflow-hidden transition-all duration-300 z-30',
-      isExpanded ? 'w-full sm:w-[720px] xl:w-[840px]' : 'w-full sm:w-[520px] xl:w-[580px]'
+      'absolute top-3 right-3 bottom-3 z-30 flex flex-col overflow-hidden rounded-2xl border border-border/80 bg-background/85 dark:bg-card/85 backdrop-blur-xl shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-right-4',
+      isExpanded ? 'w-full sm:w-[680px] xl:w-[760px]' : 'w-full sm:w-[480px] xl:w-[540px]'
     ]"
   >
     <!-- Drawer Header Bar with Inline Tab Controls -->
