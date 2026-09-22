@@ -3,7 +3,10 @@ import { z } from 'zod'
 export const sentinelRequestSchema = z.object({
   messages: z.array(z.object({
     role: z.enum(['user', 'assistant']),
-    content: z.string().trim().min(1).max(2_000),
+    // Must stay >= the response schema's message.content cap (8_000, see
+    // below) — the client replays prior assistant turns as history on every
+    // new message, so a lower cap here rejects the client's own past replies.
+    content: z.string().trim().min(1).max(8_000),
   })).min(1).max(20),
   context: z.object({
     alertId: z.number().int().positive().optional(),
@@ -16,7 +19,7 @@ export const sentinelRequestSchema = z.object({
   }).passthrough().optional(),
 }).strict().superRefine((value, ctx) => {
   const total = value.messages.reduce((sum, message) => sum + message.content.length, 0)
-  if (total > 12_000) {
+  if (total > 40_000) {
     ctx.addIssue({ code: 'custom', path: ['messages'], message: 'Conversation is too large' })
   }
 })

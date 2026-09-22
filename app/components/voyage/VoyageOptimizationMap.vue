@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import {
   Navigation,
   Anchor,
@@ -11,7 +11,7 @@ import {
 } from 'lucide-vue-next'
 import { useVoyageOptimization } from '~/composables/useVoyageOptimization'
 import { useTheme } from '~/composables/useTheme'
-import type { DailyNoonReport } from '~/lib/voyage-optimization'
+import { unwrapTrackForMap, unwrapPointForMap, type DailyNoonReport } from '~/lib/voyage-optimization'
 
 const props = defineProps<{
   selectedDayId?: number | null
@@ -52,6 +52,14 @@ let portMarkersGroup: any = null
 const showWeatherLayer = ref(true)
 const showAllCorridors = ref(true)
 
+// Antimeridian-safe corridor: everything else plotted on the map is
+// unwrapped relative to this track's origin longitude so it stays aligned
+// with it even when the voyage crosses the date line.
+const unwrappedCorridorCoords = computed<[number, number][]>(() =>
+  unwrapTrackForMap(effectiveCorridorCoords.value)
+)
+const referenceLng = computed(() => unwrappedCorridorCoords.value[0]?.[1] ?? 0)
+
 function ciiHexColor(rating: string): string {
   switch (rating) {
     case 'A': return '#10b981'
@@ -81,7 +89,7 @@ function updateTileLayer() {
 
 function fitCorridorBounds() {
   if (!mapInstance || !L) return
-  const coords = effectiveCorridorCoords.value
+  const coords = unwrappedCorridorCoords.value
   if (coords.length < 2) return
 
   const bounds = L.latLngBounds(coords)
@@ -99,14 +107,16 @@ function renderRouteCorridors() {
   }
   routeLayersGroup.clearLayers()
 
-  const coords = effectiveCorridorCoords.value
+  const coords = unwrappedCorridorCoords.value
   if (!coords || coords.length < 2) return
 
   // 1. Render Alternative Strategies
   if (showAllCorridors.value) {
     for (const strat of routeStrategies.value) {
       if (strat.id === activeStrategy.value) continue // active strategy rendered highlighted below
-      const stratCoords = strat.waypoints && strat.waypoints.length >= 2 ? strat.waypoints : coords
+      const stratCoords = strat.waypoints && strat.waypoints.length >= 2
+        ? unwrapTrackForMap(strat.waypoints, referenceLng.value)
+        : coords
       L.polyline(stratCoords, {
         color: strat.colorHex,
         weight: 3,
@@ -119,7 +129,7 @@ function renderRouteCorridors() {
   // 2. Active Strategy Corridor (Prominent)
   const activeStratObj = routeStrategies.value.find((s) => s.id === activeStrategy.value)
   const activeCoords = activeStratObj?.waypoints && activeStratObj.waypoints.length >= 2
-    ? activeStratObj.waypoints
+    ? unwrapTrackForMap(activeStratObj.waypoints, referenceLng.value)
     : coords
   const activeColor = activeStratObj?.colorHex || '#3b82f6'
 
@@ -146,18 +156,16 @@ function renderDailyNoonPins() {
   noonMarkersGroup.clearLayers()
 
   const noons = dailyNoons.value
+  const unwrappedCoords = unwrapTrackForMap(noons.map((n) => n.coords), referenceLng.value)
 
   // Actual real-world track connecting each day's real noon-report position,
   // distinct from the planned corridor (which is the idealized route between
   // ports, not where the vessel actually was — the two commonly diverge)
   if (noons.length >= 2) {
-    L.polyline(
-      noons.map((n) => n.coords),
-      { color: '#ffffff', weight: 2, opacity: 0.6, dashArray: '1 6' }
-    ).addTo(noonMarkersGroup)
+    L.polyline(unwrappedCoords, { color: '#ffffff', weight: 2, opacity: 0.6, dashArray: '1 6' }).addTo(noonMarkersGroup)
   }
 
-  for (const noon of noons) {
+  for (const [index, noon] of noons.entries()) {
     const isSelected = selectedDay.value?.dayNumber === noon.dayNumber
     const color = ciiHexColor(noon.rating)
 
@@ -182,7 +190,7 @@ function renderDailyNoonPins() {
       iconAnchor: [26, 24],
     })
 
-    const marker = L.marker(noon.coords, { icon })
+    const marker = L.marker(unwrappedCoords[index]!, { icon })
     marker.on('click', () => {
       selectDay(noon)
       emit('select-day', noon)
@@ -231,7 +239,7 @@ function renderLiveVessel() {
     iconAnchor: [14, 14],
   })
 
-  vesselMarkerInstance = L.marker([v.lat, v.lng], { icon, zIndexOffset: 1000 }).addTo(mapInstance)
+  vesselMarkerInstance = L.marker(unwrapPointForMap([v.lat, v.lng], referenceLng.value), { icon, zIndexOffset: 1000 }).addTo(mapInstance)
 }
 
 function renderPortMarkers() {
@@ -241,7 +249,7 @@ function renderPortMarkers() {
   }
   portMarkersGroup.clearLayers()
 
-  const coords = effectiveCorridorCoords.value
+  const coords = unwrappedCorridorCoords.value
   if (coords.length < 2) return
 
   const originPt = coords[0]!
@@ -294,7 +302,7 @@ function renderWeatherNodes() {
       iconAnchor: [32, 9],
     })
 
-    L.marker([w.lat, w.lng], { icon, opacity: 0.9 }).addTo(weatherMarkersGroup)
+    L.marker(unwrapPointForMap([w.lat, w.lng], referenceLng.value), { icon, opacity: 0.9 }).addTo(weatherMarkersGroup)
   }
 }
 

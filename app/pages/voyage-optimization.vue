@@ -141,22 +141,23 @@ onBeforeUnmount(() => {
         @close="isDrawerOpen = false"
         @ask-copilot="handleAskCopilot"
       />
-    </div>
 
-    <!-- Operations Copilot Panel for Voyage & CII Intelligence -->
-    <SentinelCopilotPanel
-      ref="copilotPanelRef"
-      v-model="isCopilotOpen"
-      v-model:fullscreen="isCopilotFullscreen"
-      :title="`${selectedVessel?.name || 'Vessel'} Operations Copilot`"
-      subtitle="Voyage Performance & Carbon Intensity Advisory"
-      badge-text="Operations"
-      :quick-directives="voyageQuickDirectives"
-      :active-context="{
-        vesselId: Number(effectiveVesselId) || 1,
-        vesselName: selectedVessel?.name || 'Vessel',
-        voyage: mrvData?.voyage,
-      }"
-    />
+      <!-- Operations Copilot Sidebar for Voyage & CII Intelligence -->
+      <SentinelCopilotPanel
+        ref="copilotPanelRef"
+        v-model="isCopilotOpen"
+        v-model:fullscreen="isCopilotFullscreen"
+        variant="sidebar"
+        :title="`${selectedVessel?.name || 'Vessel'} Operations Copilot`"
+        subtitle="Voyage Performance & Carbon Intensity Advisory"
+        badge-text="Operations"
+        :quick-directives="voyageQuickDirectives"
+        :active-context="{
+          vesselId: Number(effectiveVesselId) || 1,
+          vesselName: selectedVessel?.name || 'Vessel',
+          voyage: mrvData?.voyage,
+        }"
+      />
+    </div>
   </div>
 </template>

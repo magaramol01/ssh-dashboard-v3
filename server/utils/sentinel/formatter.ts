@@ -213,6 +213,36 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
       }
     }
 
+    if (result.name === 'get_vessel_daily_positions') {
+      const days = Array.isArray(value.days) ? value.days as Array<Record<string, unknown>> : []
+      if (days.length) {
+        blocks.push({
+          type: 'table',
+          title: 'Daily Noon-Report Positions',
+          columns: [
+            { key: 'day', label: 'Day' },
+            { key: 'date', label: 'Date' },
+            { key: 'position', label: 'Lat / Long' },
+            { key: 'distance', label: 'Distance Run' },
+            { key: 'cumulative', label: 'Cumulative' },
+            { key: 'gap', label: 'Unaccounted vs Great-Circle' },
+          ],
+          rows: days.slice(0, 30).map((d) => ({
+            day: text(d.dayNumber),
+            date: timestamp(d.dateIso),
+            position: d.lat == null || d.lng == null ? 'Not available' : `${text(d.lat)}°, ${text(d.lng)}°`,
+            distance: `${text(d.distanceRunNm, '0')} NM`,
+            cumulative: `${text(d.cumulativeDistanceNm, '0')} NM`,
+            gap: d.unaccountedDistanceFromPrevDayNm == null
+              ? '—'
+              : Number(d.unaccountedDistanceFromPrevDayNm) > 0
+                ? `+${text(d.unaccountedDistanceFromPrevDayNm)} NM (gap)`
+                : `${text(d.unaccountedDistanceFromPrevDayNm)} NM`,
+          })),
+        })
+      }
+    }
+
     const points = Array.isArray(value.points) ? value.points
       .filter((point): point is { label: string; value: number } => Boolean(point && typeof point === 'object' && typeof point.label === 'string' && typeof point.value === 'number' && Number.isFinite(point.value)))
       .slice(0, 100) : []

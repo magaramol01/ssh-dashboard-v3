@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const raw = await runSentinelConversation(parsed.data, tenant)
+    const raw = await runSentinelConversation(parsed.data, tenant, event)
     return sentinelResponseSchema.parse(formatSentinelResponse(raw))
   } catch (error: unknown) {
     if (error && typeof error === 'object' && 'statusCode' in error) throw error

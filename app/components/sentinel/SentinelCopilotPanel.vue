@@ -28,6 +28,7 @@ export interface QuickDirective {
 interface Props {
   modelValue: boolean
   fullscreen?: boolean
+  variant?: 'overlay' | 'sidebar'
   title?: string
   subtitle?: string
   badgeText?: string
@@ -39,6 +40,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   fullscreen: undefined,
+  variant: 'overlay',
   title: 'Fleet Operations Copilot',
   subtitle: 'AI Marine Intelligence',
   badgeText: 'AI Marine',
@@ -113,24 +115,26 @@ function close() {
 
 <template>
   <div>
-    <!-- Mobile Backdrop -->
+    <!-- Mobile Backdrop (overlay variant only; a docked sidebar never covers content) -->
     <Transition name="fade">
       <div
-        v-if="modelValue && !isFullscreen"
+        v-if="variant === 'overlay' && modelValue && !isFullscreen"
         class="fixed inset-0 bg-background/60 backdrop-blur-xs z-25 lg:hidden"
         @click="close"
       />
     </Transition>
 
     <!-- Copilot Drawer / Cockpit -->
-    <Transition name="copilot-slide">
+    <Transition :name="variant === 'sidebar' && !isFullscreen ? 'copilot-widen' : 'copilot-slide'">
       <aside
         v-if="modelValue"
         :class="[
-          'copilot-panel bg-card flex flex-col shadow-2xl z-30',
+          'copilot-panel bg-card flex flex-col shadow-2xl',
           isFullscreen
             ? 'copilot-fullscreen fixed inset-0 z-50 h-screen w-screen'
-            : 'copilot-docked fixed right-0 top-14 bottom-0 z-30 w-full sm:w-[440px] xl:w-[480px] border-l border-border'
+            : variant === 'sidebar'
+              ? 'copilot-sidebar relative h-full w-full sm:w-[420px] xl:w-[460px] shrink-0 border-l border-border z-10'
+              : 'copilot-docked fixed right-0 top-14 bottom-0 z-30 w-full sm:w-[440px] xl:w-[480px] border-l border-border'
         ]"
         role="region"
         :aria-label="title"
@@ -318,6 +322,23 @@ function close() {
 .copilot-slide-leave-to {
   transform: translateX(100%);
   opacity: 0;
+}
+
+.copilot-widen-enter-active,
+.copilot-widen-leave-active {
+  transition: max-width 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.18s ease;
+  overflow: hidden;
+}
+
+.copilot-widen-enter-from,
+.copilot-widen-leave-to {
+  max-width: 0;
+  opacity: 0;
+}
+
+.copilot-widen-enter-to,
+.copilot-widen-leave-from {
+  max-width: 460px;
 }
 
 .fade-enter-active,

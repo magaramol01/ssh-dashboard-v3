@@ -10,6 +10,38 @@
 
 import { parseDmsCoordinate } from './vessel-voyage'
 
+/**
+ * Leaflet plots raw longitude, so a track that crosses the antimeridian
+ * (e.g. 179° -> -179°) gets drawn the "long way" around the globe instead
+ * of the short way across the date line, and standalone markers on the far
+ * side land ~360° away from the rest of the route. These "unwrap" longitude
+ * — letting it run outside [-180, 180] — so every point stays on one
+ * continuous number line. Only what's actually plotted on the map should go
+ * through these; display values (e.g. a position readout) should keep the
+ * raw, real-world coordinate.
+ */
+function unwrapLng(lng: number, refLng: number): number {
+  let out = lng
+  while (out - refLng > 180) out -= 360
+  while (refLng - out > 180) out += 360
+  return out
+}
+
+/** Unwraps an ordered track so consecutive points never jump more than 180° in longitude. */
+export function unwrapTrackForMap(points: [number, number][], seedLng?: number): [number, number][] {
+  let prevLng = seedLng ?? points[0]?.[1] ?? 0
+  return points.map(([lat, lng]) => {
+    const unwrapped = unwrapLng(lng, prevLng)
+    prevLng = unwrapped
+    return [lat, unwrapped]
+  })
+}
+
+/** Unwraps a standalone marker point against a shared reference longitude (e.g. the corridor's origin). */
+export function unwrapPointForMap(point: [number, number], refLng: number): [number, number] {
+  return [point[0], unwrapLng(point[1], refLng)]
+}
+
 export type CIIRating = 'A' | 'B' | 'C' | 'D' | 'E'
 
 export interface CiiDateRangeRecord {

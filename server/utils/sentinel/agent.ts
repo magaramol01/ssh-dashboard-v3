@@ -1,3 +1,4 @@
+import type { H3Event } from 'h3'
 import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { ChatOpenRouter } from '@langchain/openrouter'
 import { createReactAgent } from '@langchain/langgraph/prebuilt'
@@ -52,6 +53,12 @@ function summarizeToolResult(name: string, raw: string) {
     }
     if (name === 'get_fleet_voyages') {
       return `Loaded ${String(value.count ?? 0)} active fleet voyages and passage forecasts.`
+    }
+    if (name === 'get_vessel_daily_positions') {
+      const dayCount = Array.isArray(value.days) ? value.days.length : 0
+      return value.found === false
+        ? 'No noon-report position data available for that voyage or date range.'
+        : `Loaded ${dayCount} daily noon-report position${dayCount === 1 ? '' : 's'} (lat/long and distance run).`
     }
     if (value.not_found) return 'Vessel was not found in the active vessel roster.'
     return 'Loaded vessel context and recent open alerts.'
@@ -122,10 +129,10 @@ function actionsFor(request: ValidSentinelRequest, references: SentinelReference
   return actions.slice(0, 3)
 }
 
-export async function runSentinelConversation(request: ValidSentinelRequest, tenant?: string): Promise<SentinelRawResponse> {
+export async function runSentinelConversation(request: ValidSentinelRequest, tenant?: string, event?: H3Event): Promise<SentinelRawResponse> {
   const activeTenant = tenant || getCurrentTenant()
   const config = getSentinelConfig()
-  const tools = createSentinelTools(activeTenant)
+  const tools = createSentinelTools(activeTenant, event)
   const model = new ChatOpenRouter({
     apiKey: config.apiKey,
     model: config.model,
