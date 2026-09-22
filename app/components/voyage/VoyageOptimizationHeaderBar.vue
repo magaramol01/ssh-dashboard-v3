@@ -195,11 +195,11 @@ async function handleRefresh() {
         :variant="isDrawerOpen ? 'default' : 'outline'"
         size="sm"
         class="h-9 px-3 gap-1.5 text-xs font-medium shrink-0 cursor-pointer"
-        :title="isDrawerOpen ? 'Hide Benchmarks Drawer' : 'Open Performance Benchmarks Drawer'"
+        :title="isDrawerOpen ? 'Close Benchmarks' : 'Open Performance Benchmarks'"
         @click="emit('toggle-drawer')"
       >
         <SlidersHorizontal class="w-3.5 h-3.5" />
-        <span class="hidden sm:inline">{{ isDrawerOpen ? 'Hide Drawer' : 'Performance Benchmarks' }}</span>
+        <span class="hidden sm:inline">{{ isDrawerOpen ? 'Close Benchmarks' : 'Benchmarks' }}</span>
       </Button>
     </div>
   </div>

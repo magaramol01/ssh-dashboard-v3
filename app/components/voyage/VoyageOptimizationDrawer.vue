@@ -27,6 +27,8 @@ import {
   Sparkles,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -105,6 +107,18 @@ watch(selectedDay, (day) => {
 const currentNoon = computed<DailyNoonReport | null>(() => {
   if (selectedDay.value) return selectedDay.value
   return dailyNoons.value[dailyNoons.value.length - 1] || null
+})
+
+const prevNoon = computed<DailyNoonReport | null>(() => {
+  if (!currentNoon.value) return null
+  const idx = dailyNoons.value.findIndex((n) => n.dayNumber === currentNoon.value?.dayNumber)
+  return idx > 0 ? (dailyNoons.value[idx - 1] ?? null) : null
+})
+
+const nextNoon = computed<DailyNoonReport | null>(() => {
+  if (!currentNoon.value) return null
+  const idx = dailyNoons.value.findIndex((n) => n.dayNumber === currentNoon.value?.dayNumber)
+  return idx >= 0 && idx < dailyNoons.value.length - 1 ? (dailyNoons.value[idx + 1] ?? null) : null
 })
 
 // Summary of degraded days across the voyage
@@ -743,32 +757,39 @@ const activeFuelTypes = computed(() => {
           </Button>
         </div>
 
-        <!-- Day Selector Pill Strip -->
-        <div class="space-y-1.5">
-          <div class="flex items-center justify-between text-xs text-muted-foreground">
-            <span class="font-medium">Voyage Progress Days:</span>
-            <span class="text-[10px]">Click day to inspect</span>
+        <!-- Day Stepper & Sequential Navigation -->
+        <div class="flex items-center justify-between p-1.5 px-2.5 rounded-lg bg-muted/40 border border-border/70 text-xs">
+          <Button
+            variant="ghost"
+            size="sm"
+            class="h-7 px-2 text-xs gap-1 cursor-pointer"
+            :disabled="!prevNoon"
+            @click="prevNoon && selectDay(prevNoon)"
+          >
+            <ChevronLeft class="w-3.5 h-3.5" />
+            <span class="text-[11px]">Prev (D{{ prevNoon?.dayNumber }})</span>
+          </Button>
+
+          <div class="flex items-center gap-2 font-mono text-xs">
+            <span class="font-bold text-foreground">Day {{ currentNoon?.dayNumber }}</span>
+            <span class="text-muted-foreground text-[10px]">of {{ dailyNoons.length }}</span>
+            <span
+              v-if="currentNoon"
+              class="w-2 h-2 rounded-full"
+              :class="ciiDotClass(currentNoon.rating)"
+            />
           </div>
-          <div class="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-thin">
-            <button
-              v-for="noon in dailyNoons"
-              :key="noon.dayNumber"
-              type="button"
-              class="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border transition-all cursor-pointer shrink-0 select-none"
-              :class="[
-                currentNoon?.dayNumber === noon.dayNumber
-                  ? 'bg-primary text-primary-foreground border-primary shadow-xs ring-1 ring-primary/40'
-                  : 'bg-muted/30 hover:bg-muted/70 text-foreground border-border/80'
-              ]"
-              @click="selectDay(noon)"
-            >
-              <span>D{{ noon.dayNumber }}</span>
-              <span
-                class="w-1.5 h-1.5 rounded-full"
-                :class="currentNoon?.dayNumber === noon.dayNumber ? 'bg-white' : ciiDotClass(noon.rating)"
-              />
-            </button>
-          </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            class="h-7 px-2 text-xs gap-1 cursor-pointer"
+            :disabled="!nextNoon"
+            @click="nextNoon && selectDay(nextNoon)"
+          >
+            <span class="text-[11px]">Next (D{{ nextNoon?.dayNumber }})</span>
+            <ChevronRight class="w-3.5 h-3.5" />
+          </Button>
         </div>
 
         <!-- Active Day Telemetry Card -->

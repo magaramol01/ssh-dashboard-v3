@@ -2,7 +2,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
-import { SlidersHorizontal, Activity } from 'lucide-vue-next'
+import { SlidersHorizontal, Activity, Calendar } from 'lucide-vue-next'
 import VoyageOptimizationHeaderBar from '~/components/voyage/VoyageOptimizationHeaderBar.vue'
 import VoyageOptimizationKpiHud from '~/components/voyage/VoyageOptimizationKpiHud.vue'
 import VoyageOptimizationMap from '~/components/voyage/VoyageOptimizationMap.vue'
@@ -149,10 +149,16 @@ onBeforeUnmount(() => {
         <VoyageOptimizationKpiHud />
       </div>
 
-      <!-- Floating Bottom Passage Scrubber & Quick Benchmark Trigger -->
-      <div class="absolute bottom-4 left-4 right-4 max-w-5xl mx-auto z-20 pointer-events-auto flex items-center justify-between gap-3 p-2 px-3 rounded-xl bg-background/92 dark:bg-card/92 backdrop-blur-md border border-border/80 shadow-lg animate-in fade-in slide-in-from-bottom-2">
-        <!-- Left: Scrubber Carousel (D1..Dn) -->
-        <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-thin py-0.5 min-w-0">
+      <!-- Floating Bottom Passage Timeline Scrubber -->
+      <div class="absolute bottom-4 left-4 right-4 max-w-4xl mx-auto z-20 pointer-events-auto flex items-center gap-3 p-2 px-3.5 rounded-xl bg-background/92 dark:bg-card/92 backdrop-blur-md border border-border/80 shadow-lg animate-in fade-in slide-in-from-bottom-2">
+        <div class="flex items-center gap-2 shrink-0 text-xs font-medium text-muted-foreground pr-1 border-r border-border/70 hidden sm:flex">
+          <Calendar class="w-3.5 h-3.5 text-primary" />
+          <span>Timeline</span>
+          <span class="text-[10px] font-mono px-1 rounded bg-muted text-muted-foreground">{{ dailyNoons.length }}d</span>
+        </div>
+
+        <!-- Scrubber Carousel (D1..Dn) -->
+        <div class="flex-1 flex items-center gap-1.5 overflow-x-auto scrollbar-thin py-0.5 min-w-0">
           <button
             v-for="d in dailyNoons"
             :key="d.dayNumber"
@@ -173,17 +179,6 @@ onBeforeUnmount(() => {
             <span class="text-[10px] opacity-75 font-normal">{{ d.sog }}kt</span>
           </button>
         </div>
-
-        <!-- Right: Action Button to Open Benchmarks Drawer -->
-        <Button
-          size="sm"
-          :variant="isDrawerOpen ? 'default' : 'outline'"
-          class="h-8 px-3 gap-1.5 text-xs font-medium shrink-0 cursor-pointer shadow-xs"
-          @click="isDrawerOpen = !isDrawerOpen"
-        >
-          <SlidersHorizontal class="w-3.5 h-3.5" />
-          <span class="hidden sm:inline">{{ isDrawerOpen ? 'Hide Drawer' : 'Performance Benchmarks' }}</span>
-        </Button>
       </div>
 
       <!-- Floating Translucent Glass Benchmark Cockpit -->
