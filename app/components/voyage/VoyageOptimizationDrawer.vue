@@ -654,51 +654,27 @@ const activeFuelTypes = computed(() => {
       isExpanded ? 'w-full sm:w-[680px] xl:w-[760px]' : 'w-full sm:w-[480px] xl:w-[540px]'
     ]"
   >
-    <!-- Drawer Header Bar with Inline Tab Controls -->
-    <div class="h-12 px-3.5 border-b border-border flex items-center justify-between shrink-0 bg-muted/40 gap-2">
+    <!-- Row 1: Drawer Header Title & Action Buttons -->
+    <div class="h-11 px-3.5 border-b border-border/70 flex items-center justify-between shrink-0 bg-muted/30">
       <div class="flex items-center gap-2 min-w-0">
         <div class="h-7 w-7 rounded-md bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shrink-0">
           <Sliders class="w-3.5 h-3.5" />
         </div>
-        <div class="flex items-center gap-1.5 shrink-0">
-          <h3 class="text-xs font-bold text-foreground leading-tight hidden sm:inline">Voyage Analytics</h3>
-          <Badge v-if="currentVoyage" variant="outline" class="text-[10px] font-mono px-1.5 py-0">
+        <div class="flex items-center gap-2 min-w-0">
+          <h3 class="text-xs font-bold text-foreground leading-tight truncate">Voyage Analytics</h3>
+          <Badge v-if="currentVoyage" variant="outline" class="text-[10px] font-mono px-1.5 py-0 shrink-0">
             Voy. {{ currentVoyage }}
           </Badge>
         </div>
-
-        <!-- Inline Navigation Tabs in the Header -->
-        <Tabs v-model="activeTab" class="w-auto">
-          <TabsList class="h-8 bg-background/80 border border-border/70 p-0.5">
-            <TabsTrigger value="noon" class="text-[11px] px-2 h-7 cursor-pointer">
-              <span>Noon</span>
-              <span v-if="currentNoon" class="ml-1 px-1 py-0 rounded bg-primary/15 text-primary text-[9px] font-bold">
-                D{{ currentNoon.dayNumber }}
-              </span>
-            </TabsTrigger>
-            <TabsTrigger value="sea-trial" class="text-[11px] px-2 h-7 cursor-pointer">
-              <span>Sea Trial</span>
-            </TabsTrigger>
-            <TabsTrigger value="shop-trial" class="text-[11px] px-2 h-7 cursor-pointer">
-              <span>Shop Trial</span>
-            </TabsTrigger>
-            <TabsTrigger value="strategies" class="text-[11px] px-2 h-7 cursor-pointer">
-              <span>Advisories</span>
-              <span v-if="advisories.length" class="ml-1 px-1 py-0 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[9px] font-bold">
-                {{ advisories.length }}
-              </span>
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
       </div>
 
-      <!-- Action Buttons -->
+      <!-- Header Action Buttons -->
       <div class="flex items-center gap-1 shrink-0">
         <Button
           variant="ghost"
           size="icon"
           class="h-7 w-7 text-muted-foreground hover:text-foreground hidden sm:flex cursor-pointer"
-          :title="isExpanded ? 'Dock to 580px width' : 'Expand to 840px width for charts'"
+          :title="isExpanded ? 'Collapse width' : 'Expand width for charts'"
           @click="isExpanded = !isExpanded"
         >
           <Minimize2 v-if="isExpanded" class="w-3.5 h-3.5" />
@@ -714,6 +690,32 @@ const activeFuelTypes = computed(() => {
           <X class="w-4 h-4" />
         </Button>
       </div>
+    </div>
+
+    <!-- Row 2: Full-Width Dedicated Navigation Tabs -->
+    <div class="px-3.5 py-1.5 border-b border-border/70 bg-muted/15 shrink-0">
+      <Tabs v-model="activeTab" class="w-full">
+        <TabsList class="w-full grid grid-cols-4 h-8 bg-background/80 border border-border/70 p-0.5">
+          <TabsTrigger value="noon" class="text-[11px] px-1 h-7 flex items-center justify-center gap-1 cursor-pointer">
+            <span>Noon</span>
+            <span v-if="currentNoon" class="px-1 py-0 rounded bg-primary/15 text-primary text-[9px] font-bold">
+              D{{ currentNoon.dayNumber }}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="sea-trial" class="text-[11px] px-1 h-7 flex items-center justify-center cursor-pointer">
+            <span>Sea Trial</span>
+          </TabsTrigger>
+          <TabsTrigger value="shop-trial" class="text-[11px] px-1 h-7 flex items-center justify-center cursor-pointer">
+            <span>Shop Trial</span>
+          </TabsTrigger>
+          <TabsTrigger value="strategies" class="text-[11px] px-1 h-7 flex items-center justify-center gap-1 cursor-pointer">
+            <span>Advisories</span>
+            <span v-if="advisories.length" class="px-1 py-0 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[9px] font-bold">
+              {{ advisories.length }}
+            </span>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
     </div>
 
     <!-- Drawer Body -->
