@@ -576,9 +576,9 @@ const factorDonutChartOption = computed(() => {
                   <div class="flex items-center justify-between text-[10px] text-muted-foreground font-semibold">
                     <span class="flex items-center gap-1">
                       <PieIcon class="w-3 h-3 text-foreground" />
-                      Variance Factor Attribution:
+                      {{ currentNoon.rating === 'A' || currentNoon.rating === 'B' ? 'Operational Factor Attribution:' : 'Variance Degradation Attribution:' }}
                     </span>
-                    <span class="font-mono text-[9px]">Variance Weight</span>
+                    <span class="font-mono text-[9px]">{{ currentNoon.rating === 'A' || currentNoon.rating === 'B' ? 'Steaming Factor' : 'Variance Weight' }}</span>
                   </div>
 
                   <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">

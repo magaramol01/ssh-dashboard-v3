@@ -422,9 +422,12 @@ export function analyzeCiiRatingDrivers(
   const isCriticalDegraded = rating === 'E'
 
   // 1. Weather Impact
+  const hasWeather = bf > 0 || wave > 0
   let weatherWeight = 10
   let weatherSeverity: 'favorable' | 'moderate' | 'critical' = 'favorable'
-  let weatherExplanation = `Calm to moderate sea state (BF ${bf}, ${wave}m seas). Minimal wave-induced resistance.`
+  let weatherExplanation = hasWeather
+    ? `Calm to moderate sea state (BF ${bf}, ${wave}m seas). Minimal wave-induced resistance.`
+    : `MetOcean sea state not recorded in noon report.`
   if (bf >= 7 || wave >= 3.0) {
     weatherSeverity = 'critical'
     weatherWeight = 45 + Math.min(25, (bf - 6) * 10 + (wave - 2.5) * 8)
@@ -436,9 +439,12 @@ export function analyzeCiiRatingDrivers(
   }
 
   // 2. Propeller Slip Impact
+  const hasSlip = slip > 0
   let slipWeight = 10
   let slipSeverity: 'favorable' | 'moderate' | 'critical' = 'favorable'
-  let slipExplanation = `Slip (${slip > 0 ? slip.toFixed(1) + '%' : 'nominal'}) within optimal propulsion envelope.`
+  let slipExplanation = hasSlip
+    ? `Slip (${slip.toFixed(1)}%) within optimal propulsion envelope.`
+    : `Propeller slip not recorded in noon report.`
   if (slip >= 35) {
     slipSeverity = 'critical'
     slipWeight = 40 + Math.min(25, (slip - 35) * 1.5)
@@ -485,7 +491,7 @@ export function analyzeCiiRatingDrivers(
       name: 'MetOcean & Sea State',
       scorePercent: Math.round((weatherWeight / totalWeight) * 100),
       severity: weatherSeverity,
-      metric: `BF ${bf} · ${wave}m seas`,
+      metric: hasWeather ? `BF ${bf} · ${wave}m seas` : 'Not reported',
       explanation: weatherExplanation,
     },
     {
@@ -493,7 +499,7 @@ export function analyzeCiiRatingDrivers(
       name: 'Propeller Slip & Thrust',
       scorePercent: Math.round((slipWeight / totalWeight) * 100),
       severity: slipSeverity,
-      metric: slip > 0 ? `${slip.toFixed(1)}% Slip` : 'Nominal',
+      metric: hasSlip ? `${slip.toFixed(1)}% Slip` : 'Not recorded',
       explanation: slipExplanation,
     },
     {
@@ -522,7 +528,9 @@ export function analyzeCiiRatingDrivers(
   let primaryDriver: 'weather' | 'slip' | 'speed' | 'fuel_burn' | 'distance' | 'optimal' = 'optimal'
   let driverLabel = 'Optimal Sea Margin'
   let headline = `IMO Band ${rating}: Compliant Steaming`
-  let summary = `Attained CII of ${attained} g/MT·NM compliant with target ${required}. Favorable conditions (BF ${bf}, ${wave}m seas) and nominal slip (${slip > 0 ? slip.toFixed(1) + '%' : '<20%'}) supported an efficient run of ${dist} NM on ${fuel} MT.`
+  const weatherSummary = hasWeather ? `conditions (BF ${bf}, ${wave}m seas)` : 'standard steaming'
+  const slipSummary = hasSlip ? `slip (${slip.toFixed(1)}%)` : 'nominal propulsion'
+  let summary = `Attained CII of ${attained} g/MT·NM compliant with target ${required}. Favorable ${weatherSummary} and ${slipSummary} supported an efficient run of ${dist} NM on ${fuel} MT.`
   let recommendation = `Maintain current speed and RPM profile. Review downstream 48h MetOcean forecasts to anticipate unfavorable sea states.`
 
   if (isCriticalDegraded) {
@@ -641,18 +649,6 @@ export function calculateRouteStrategies(
 
   const formatEta = (d: Date) => d.toISOString().slice(0, 16).replace('T', ' ') + ' UTC'
 
-  const generateOffsetCoords = (offsetLat: number, offsetLng: number): [number, number][] => {
-    if (!baseCoords || baseCoords.length === 0) return []
-    return baseCoords.map((pt, idx) => {
-      if (idx === 0 || idx === baseCoords.length - 1) return pt
-      const weight = Math.sin((idx / (baseCoords.length - 1)) * Math.PI)
-      return [
-        Math.round((pt[0] + offsetLat * weight) * 10000) / 10000,
-        Math.round((pt[1] + offsetLng * weight) * 10000) / 10000,
-      ]
-    })
-  }
-
   return [
     {
       id: 'current',
@@ -704,7 +700,7 @@ export function calculateRouteStrategies(
       carbonSavingsEur: -Math.round((safeFuel - baseFuelMt) * CF_VLSFO * EU_ETS_CARBON_PRICE_EUR_PER_TON),
       colorHex: '#06b6d4',
       dashArray: '4 4',
-      waypoints: generateOffsetCoords(-1.8, 1.2),
+      waypoints: baseCoords || [],
       basis: 'modeled-estimate',
     },
     {

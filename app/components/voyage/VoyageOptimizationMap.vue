@@ -5,7 +5,6 @@ import {
   Anchor,
   Wind,
   Maximize2,
-  Layers,
   CloudRain,
   Compass,
 } from 'lucide-vue-next'
@@ -89,8 +88,17 @@ function updateTileLayer() {
 
 function fitCorridorBounds() {
   if (!mapInstance || !L) return
-  const coords = unwrappedCorridorCoords.value
-  if (coords.length < 2) return
+  let coords = unwrappedCorridorCoords.value
+  if (coords.length < 2 && dailyNoons.value.length > 0) {
+    coords = dailyNoons.value
+      .filter((d) => d.lat != null && d.lng != null)
+      .map((d) => [d.lat, d.lng] as [number, number])
+  }
+  if (coords.length === 0) return
+  if (coords.length === 1) {
+    mapInstance.setView(coords[0], 6)
+    return
+  }
 
   const bounds = L.latLngBounds(coords)
   mapInstance.fitBounds(bounds, {
@@ -110,38 +118,17 @@ function renderRouteCorridors() {
   const coords = unwrappedCorridorCoords.value
   if (!coords || coords.length < 2) return
 
-  // 1. Render Alternative Strategies
-  if (showAllCorridors.value) {
-    for (const strat of routeStrategies.value) {
-      if (strat.id === activeStrategy.value) continue // active strategy rendered highlighted below
-      const stratCoords = strat.waypoints && strat.waypoints.length >= 2
-        ? unwrapTrackForMap(strat.waypoints, referenceLng.value)
-        : coords
-      L.polyline(stratCoords, {
-        color: strat.colorHex,
-        weight: 3,
-        opacity: 0.5,
-        dashArray: strat.dashArray || '4 4',
-      }).addTo(routeLayersGroup)
-    }
-  }
-
-  // 2. Active Strategy Corridor (Prominent)
-  const activeStratObj = routeStrategies.value.find((s) => s.id === activeStrategy.value)
-  const activeCoords = activeStratObj?.waypoints && activeStratObj.waypoints.length >= 2
-    ? unwrapTrackForMap(activeStratObj.waypoints, referenceLng.value)
-    : coords
-  const activeColor = activeStratObj?.colorHex || '#3b82f6'
+  const activeColor = '#3b82f6'
 
   // Outer glow / buffer
-  L.polyline(activeCoords, {
+  L.polyline(coords, {
     color: activeColor,
     weight: 8,
     opacity: 0.2,
   }).addTo(routeLayersGroup)
 
-  // Core polyline
-  L.polyline(activeCoords, {
+  // Core nautical polyline
+  L.polyline(coords, {
     color: activeColor,
     weight: 4,
     opacity: 0.95,
@@ -352,13 +339,18 @@ onBeforeUnmount(() => {
 
 // Reactivity watchers
 watch(isDark, () => updateTileLayer())
-watch([activeStrategy, effectiveCorridorCoords, showAllCorridors], () => {
+watch([effectiveCorridorCoords], () => {
   renderRouteCorridors()
   renderPortMarkers()
   fitCorridorBounds()
 })
 watch([mrvData, currentVoyageInfo], () => renderPortMarkers())
-watch([dailyNoons, selectedDay], () => renderDailyNoonPins())
+watch([dailyNoons, selectedDay], () => {
+  renderDailyNoonPins()
+  if (dailyNoons.value.length) {
+    fitCorridorBounds()
+  }
+})
 watch(parsedVessel, () => renderLiveVessel())
 watch([weatherAlongRoute, showWeatherLayer], () => renderWeatherNodes())
 </script>
@@ -390,17 +382,6 @@ watch([weatherAlongRoute, showWeatherLayer], () => renderWeatherNodes())
         >
           <CloudRain class="w-4 h-4" />
           <span class="hidden sm:inline">Weather</span>
-        </button>
-
-        <button
-          type="button"
-          class="p-1.5 rounded-md transition-colors text-xs flex items-center gap-1 font-medium"
-          :class="showAllCorridors ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted'"
-          title="Toggle Multi-Route Alternatives"
-          @click="showAllCorridors = !showAllCorridors"
-        >
-          <Layers class="w-4 h-4" />
-          <span class="hidden sm:inline">All Routes</span>
         </button>
       </div>
     </div>

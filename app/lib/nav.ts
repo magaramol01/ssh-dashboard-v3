@@ -51,7 +51,7 @@ export const NAV: NavSection[] = [
     items: [
       { label: "Voyage Logs", to: "/shipments", icon: "FileText", requires: "dispatcher" },
       { label: "AIS Fleet Radar", to: "/live", icon: "Radar", requires: "dispatcher" },
-      { label: "Voyage Optimization", to: "/voyage-optimization", icon: "Sliders", requires: "dispatcher" },
+      { label: "Voyage Analytics", to: "/voyage-analytics", icon: "Sliders", requires: "dispatcher" },
       { label: "New Charter Fixture", to: "/shipments/new", icon: "FilePlus", requires: "dispatcher" },
       { label: "Track Consignment", to: "/tracking", icon: "Search" },
     ],

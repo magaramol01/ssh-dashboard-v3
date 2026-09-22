@@ -6,9 +6,6 @@ import {
   ArrowRight,
   RefreshCw,
   SlidersHorizontal,
-  Leaf,
-  ShieldAlert,
-  Zap,
   Layers,
   ChevronDown,
 } from 'lucide-vue-next'
@@ -166,52 +163,8 @@ async function handleRefresh() {
       </div>
     </div>
 
-    <!-- Right: Strategy Selector Tabs & Actions -->
+    <!-- Right: Actions -->
     <div class="flex items-center gap-2 self-end lg:self-auto overflow-x-auto max-w-full pb-1 lg:pb-0">
-      <!-- Route Strategy Pill Buttons -->
-      <div class="flex items-center rounded-lg bg-muted/70 p-1 border border-border/70 text-xs shrink-0">
-        <button
-          type="button"
-          class="flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-all font-medium"
-          :class="activeStrategy === 'current' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'"
-          @click="setStrategy('current')"
-        >
-          <Compass class="w-3.5 h-3.5 text-blue-500" />
-          <span>Current</span>
-        </button>
-
-        <button
-          type="button"
-          class="flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-all font-medium"
-          :class="activeStrategy === 'lowest-fuel' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'"
-          @click="setStrategy('lowest-fuel')"
-        >
-          <Leaf class="w-3.5 h-3.5 text-emerald-500" />
-          <span>Lowest Fuel</span>
-          <span class="text-[10px] px-1 py-0.2 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded font-semibold">-19%</span>
-        </button>
-
-        <button
-          type="button"
-          class="flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-all font-medium"
-          :class="activeStrategy === 'safest' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'"
-          @click="setStrategy('safest')"
-        >
-          <ShieldAlert class="w-3.5 h-3.5 text-cyan-500" />
-          <span>Safest</span>
-        </button>
-
-        <button
-          type="button"
-          class="flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-all font-medium"
-          :class="activeStrategy === 'fastest' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'"
-          @click="setStrategy('fastest')"
-        >
-          <Zap class="w-3.5 h-3.5 text-violet-500" />
-          <span>Fastest</span>
-        </button>
-      </div>
-
       <!-- Copilot Toggle Button -->
       <Button
         variant="outline"

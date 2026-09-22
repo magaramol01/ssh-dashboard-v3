@@ -18,8 +18,8 @@ export interface ResolvedAgent {
 
 export function resolveAgentDomain(request: ValidSentinelRequest): SentinelAgentDomain {
   // 1. Direct explicit agent routing from frontend request
-  if (request.agent && ['fleet-ops', 'emissions', 'voyage', 'general'].includes(request.agent)) {
-    return request.agent
+  if (request.agent && ['fleet-ops', 'emissions', 'voyage-analytics', 'voyage', 'general'].includes(request.agent)) {
+    return request.agent === 'voyage' ? 'voyage-analytics' : request.agent
   }
 
   // 2. Intelligent context fallback if frontend did not specify agent
@@ -61,9 +61,10 @@ export function resolveAgentConfig(
         prompt: emissionsPrompt,
         tools: getEmissionsTools(tenant),
       }
+    case 'voyage-analytics':
     case 'voyage':
       return {
-        domain,
+        domain: 'voyage-analytics',
         prompt: voyagePrompt,
         tools: getVoyageTools(tenant, event),
       }

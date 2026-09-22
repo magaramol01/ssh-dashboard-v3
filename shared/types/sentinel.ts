@@ -1,9 +1,10 @@
 export type SentinelRole = 'user' | 'assistant'
 
-export type SentinelAgentDomain = 'fleet-ops' | 'emissions' | 'voyage' | 'general'
+export type SentinelAgentDomain = 'fleet-ops' | 'emissions' | 'voyage-analytics' | 'voyage' | 'general'
 
 export type SentinelChatRequest = {
   agent?: SentinelAgentDomain
+  stream?: boolean
   messages: Array<{ role: SentinelRole; content: string }>
   context?: {
     alertId?: number
@@ -49,3 +50,11 @@ export type SentinelChatResponse = {
   references: SentinelReference[]
   actions: SentinelAction[]
 }
+
+export type SentinelStreamEvent =
+  | { event: 'tool_start'; data: { name: string; args?: Record<string, unknown> } }
+  | { event: 'tool_end'; data: { name: string; summary: string } }
+  | { event: 'thought'; data: { text: string } }
+  | { event: 'token'; data: { token: string } }
+  | { event: 'final'; data: SentinelChatResponse }
+  | { event: 'error'; data: { message: string } }

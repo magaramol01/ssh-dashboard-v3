@@ -2,7 +2,7 @@ import type { H3Event } from 'h3'
 import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { ChatOpenRouter } from '@langchain/openrouter'
 import { createReactAgent } from '@langchain/langgraph/prebuilt'
-import type { SentinelAction, SentinelActivity, SentinelReference } from '../../../shared/types/sentinel'
+import type { SentinelAction, SentinelActivity, SentinelReference, SentinelStreamEvent } from '../../../shared/types/sentinel'
 import { getSentinelConfig } from './config'
 import type { SentinelRawResponse, SentinelToolResult } from './types'
 import { resolveAgentConfig } from './router'
@@ -101,6 +101,18 @@ function referencesFromResult(name: string, raw: string): SentinelReference[] {
   }
 }
 
+export function isRateLimitError(err: unknown): boolean {
+  const str = (err instanceof Error ? err.message : String(err)).toLowerCase()
+  return (
+    str.includes('429') ||
+    str.includes('resource_exhausted') ||
+    str.includes('quota') ||
+    str.includes('rate limit') ||
+    str.includes('rate_limit') ||
+    str.includes('too many requests')
+  )
+}
+
 function actionsFor(request: ValidSentinelRequest, references: SentinelReference[], toolResults: SentinelToolResult[] = []): SentinelAction[] {
   const latest = [...request.messages].reverse().find((message) => message.role === 'user')?.content.toLowerCase() || ''
   const actions: SentinelAction[] = []
@@ -132,7 +144,12 @@ function actionsFor(request: ValidSentinelRequest, references: SentinelReference
   return actions.slice(0, 3)
 }
 
-export async function runSentinelConversation(request: ValidSentinelRequest, tenant?: string, event?: H3Event): Promise<SentinelRawResponse> {
+export async function runSentinelConversation(
+  request: ValidSentinelRequest,
+  tenant?: string,
+  event?: H3Event,
+  onStreamEvent?: (ev: SentinelStreamEvent) => Promise<void> | void
+): Promise<SentinelRawResponse> {
   const activeTenant = tenant || getCurrentTenant()
   const config = getSentinelConfig()
   const { prompt, tools } = resolveAgentConfig(request, activeTenant, event)
@@ -141,6 +158,7 @@ export async function runSentinelConversation(request: ValidSentinelRequest, ten
     model: config.model,
     temperature: 0.1,
     maxTokens: 700,
+    maxRetries: 3,
     siteName: 'ShipTrack Sentinel',
   })
   const graph = createReactAgent({
@@ -150,24 +168,79 @@ export async function runSentinelConversation(request: ValidSentinelRequest, ten
     version: 'v2',
   })
 
-  const messages = request.messages.map((message) =>
-    message.role === 'user' ? new HumanMessage(message.content) : new AIMessage(message.content)
-  )
+  // Keep only the most recent 6 messages and truncate past assistant replies
+  // to protect against prompt bloat and provider token rate limits (429)
+  const messages = request.messages.slice(-6).map((message) => {
+    if (message.role === 'user') {
+      return new HumanMessage(message.content)
+    }
+    const truncatedContent = message.content.length > 800 ? `${message.content.slice(0, 800)}...` : message.content
+    return new AIMessage(truncatedContent)
+  })
   if (request.context) {
     messages.push(new HumanMessage(`Use these operator-selected IDs to narrow the investigation: ${JSON.stringify(request.context)}`))
   }
 
   let rawMessages: Array<Record<string, any>> = []
-  try {
-    const result = await graph.invoke({ messages }, { recursionLimit: 20 })
-    rawMessages = Array.isArray(result.messages) ? (result.messages as Array<Record<string, any>>) : []
-  } catch (err: unknown) {
-    const stateMessages = (err as any)?.state?.messages
-    if (Array.isArray(stateMessages) && stateMessages.length) {
-      console.warn('Sentinel reached recursion limit; recovering partial tool results')
-      rawMessages = stateMessages as Array<Record<string, any>>
-    } else {
-      throw err
+  if (onStreamEvent) {
+    try {
+      const eventStream = graph.streamEvents({ messages }, { version: 'v2', recursionLimit: 20 })
+      for await (const ev of eventStream) {
+        if (ev.event === 'on_tool_start') {
+          await onStreamEvent({
+            event: 'tool_start',
+            data: { name: ev.name, args: safeArgs(ev.data?.input) },
+          })
+        } else if (ev.event === 'on_tool_end') {
+          const rawOutput = typeof ev.data?.output === 'string' ? ev.data.output : textContent(ev.data?.output)
+          await onStreamEvent({
+            event: 'tool_end',
+            data: { name: ev.name, summary: summarizeToolResult(ev.name, rawOutput) },
+          })
+        } else if (ev.event === 'on_chat_model_stream') {
+          const chunk = ev.data?.chunk
+          const token = chunk?.text || (typeof chunk?.content === 'string' ? chunk.content : '')
+          if (token && !chunk?.tool_call_chunks?.length) {
+            await onStreamEvent({
+              event: 'token',
+              data: { token },
+            })
+          }
+          const reasoning = chunk?.additional_kwargs?.reasoning_content
+          if (typeof reasoning === 'string' && reasoning.trim()) {
+            await onStreamEvent({
+              event: 'thought',
+              data: { text: reasoning },
+            })
+          }
+        }
+        if (ev.name === 'LangGraph' && ev.event === 'on_chain_end' && ev.data?.output?.messages) {
+          rawMessages = ev.data.output.messages as Array<Record<string, any>>
+        } else if ((ev.event === 'on_chat_model_end' || ev.event === 'on_tool_end') && ev.data?.output) {
+          rawMessages.push(ev.data.output)
+        }
+      }
+    } catch (err: unknown) {
+      const stateMessages = (err as any)?.state?.messages
+      if (Array.isArray(stateMessages) && stateMessages.length) {
+        console.warn('Sentinel reached recursion limit in stream; recovering partial results')
+        rawMessages = stateMessages as Array<Record<string, any>>
+      } else {
+        throw err
+      }
+    }
+  } else {
+    try {
+      const result = await graph.invoke({ messages }, { recursionLimit: 20 })
+      rawMessages = Array.isArray(result.messages) ? (result.messages as Array<Record<string, any>>) : []
+    } catch (err: unknown) {
+      const stateMessages = (err as any)?.state?.messages
+      if (Array.isArray(stateMessages) && stateMessages.length) {
+        console.warn('Sentinel reached recursion limit; recovering partial tool results')
+        rawMessages = stateMessages as Array<Record<string, any>>
+      } else {
+        throw err
+      }
     }
   }
 

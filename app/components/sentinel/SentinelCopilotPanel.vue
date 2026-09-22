@@ -69,7 +69,7 @@ const isFullscreen = computed({
   },
 })
 
-const { messages, isProcessing, input, sendMessage, resetSession } = useSentinelChat(props.initialMessage, props.agent)
+const { messages, isProcessing, activeTool, input, sendMessage, resetSession } = useSentinelChat(props.initialMessage, props.agent)
 
 defineExpose({
   askPrompt: (text: string) => handleSend(text),
@@ -331,8 +331,13 @@ function close() {
 
             <!-- Processing Spinner -->
             <div v-if="isProcessing" class="flex items-center gap-2 text-xs text-muted-foreground p-2.5 rounded border border-border/50 bg-muted/20">
-              <RefreshCw class="size-3 text-primary animate-spin" />
-              <span>Analyzing marine intelligence and telemetry...</span>
+              <RefreshCw class="size-3 text-primary animate-spin shrink-0" />
+              <div class="flex items-center gap-1.5 overflow-hidden">
+                <span v-if="activeTool" class="font-medium text-foreground truncate">
+                  Executing <span class="text-primary font-semibold">{{ toolLabel(activeTool) }}</span>...
+                </span>
+                <span v-else>Analyzing marine intelligence and telemetry...</span>
+              </div>
             </div>
           </OverlayScroll>
         </div>

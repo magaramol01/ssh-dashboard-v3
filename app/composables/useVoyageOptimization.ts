@@ -207,12 +207,14 @@ export function useVoyageOptimization() {
     const coords = effectiveCorridorCoords.value
     const totalDistRaw = parseFloat(String(mrvData.value?.totaldistrun || '').replace(/,/g, ''))
     const distToGoRaw = parseFloat(String(mrvData.value?.disttogo || '').replace(/,/g, ''))
-    const baseDist =
-      !isNaN(totalDistRaw) && !isNaN(distToGoRaw) && totalDistRaw + distToGoRaw > 500
-        ? totalDistRaw + distToGoRaw
-        : 5400 // Fallback only when live voyage-distance telemetry is unavailable
-
     const totalCiiDist = dailyNoons.value.reduce((sum, d) => sum + d.distanceRunNm, 0)
+    const baseDist =
+      !isNaN(totalDistRaw) && !isNaN(distToGoRaw) && totalDistRaw + distToGoRaw > 0
+        ? totalDistRaw + distToGoRaw
+        : totalCiiDist > 0
+        ? totalCiiDist
+        : 0
+
     const totalCiiFuel = dailyNoons.value.reduce((sum, d) => sum + d.fuelConsumedMt.total, 0)
     const avgSpeed =
       totalCiiDist > 0
@@ -239,10 +241,11 @@ export function useVoyageOptimization() {
       const latestNoon = dailyNoons.value[dailyNoons.value.length - 1]
       const currentRating = latestNoon?.rating || 'C'
       const weatherAhead = {
-        beaufort: latestNoon?.weather.beaufort || 4,
-        waveHeightM: latestNoon?.weather.waveHeightM || 1.8,
+        beaufort: latestNoon?.weather.beaufort || 0,
+        waveHeightM: latestNoon?.weather.waveHeightM || 0,
       }
-      advisoriesList.value = deriveVoyageAdvisories(currentRating, 'B', weatherAhead, 1.2)
+      const slipObserved = latestNoon?.slipPct || 0
+      advisoriesList.value = deriveVoyageAdvisories(currentRating, 'B', weatherAhead, slipObserved)
     },
     { immediate: true }
   )
