@@ -126,82 +126,79 @@ onBeforeUnmount(() => {
       />
     </header>
 
-    <!-- Main Container: Map on Left, Drawer & Copilot on Right -->
-    <div class="relative flex-1 flex flex-row w-full h-full min-h-0 overflow-hidden">
+    <!-- Main Container: 100% Full-Screen Edge-to-Edge Map with Floating Overlays -->
+    <div class="relative flex-1 w-full h-full min-h-0 overflow-hidden">
       <!-- Full-Height Hero Passage Map Canvas -->
-      <div class="relative flex-1 w-full h-full min-w-0 flex flex-col overflow-hidden">
-        <!-- Floating 5-Tile Advisory KPI HUD (Mounted Over the Map) -->
-        <div class="absolute top-3 left-0 right-0 z-20 pointer-events-none">
-          <VoyageOptimizationKpiHud />
-        </div>
-
-        <!-- Client-Only Interactive Leaflet Map -->
-        <div class="flex-1 w-full h-full min-h-0">
-          <ClientOnly>
-            <VoyageOptimizationMap @select-day="handleSelectDay" />
-            <template #fallback>
-              <div class="w-full h-full min-h-[500px] flex items-center justify-center bg-muted/40 p-6">
-                <div class="space-y-4 w-full max-w-md text-center">
-                  <div class="h-10 w-10 mx-auto rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                  <p class="text-sm font-medium text-muted-foreground">Loading interactive passage map & weather grid...</p>
-                  <Skeleton class="h-6 w-3/4 mx-auto" />
-                </div>
+      <div class="w-full h-full min-h-0">
+        <ClientOnly>
+          <VoyageOptimizationMap @select-day="handleSelectDay" />
+          <template #fallback>
+            <div class="w-full h-full min-h-[500px] flex items-center justify-center bg-muted/40 p-6">
+              <div class="space-y-4 w-full max-w-md text-center">
+                <div class="h-10 w-10 mx-auto rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                <p class="text-sm font-medium text-muted-foreground">Loading interactive passage map & weather grid...</p>
+                <Skeleton class="h-6 w-3/4 mx-auto" />
               </div>
-            </template>
-          </ClientOnly>
-        </div>
-
-        <!-- Floating Bottom Passage Scrubber & Quick Benchmark Trigger -->
-        <div class="absolute bottom-4 left-4 right-4 max-w-5xl mx-auto z-20 pointer-events-auto flex items-center justify-between gap-3 p-2 px-3 rounded-xl bg-background/92 dark:bg-card/92 backdrop-blur-md border border-border/80 shadow-lg animate-in fade-in slide-in-from-bottom-2">
-          <!-- Left: Scrubber Carousel (D1..Dn) -->
-          <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-thin py-0.5 min-w-0">
-            <button
-              v-for="d in dailyNoons"
-              :key="d.dayNumber"
-              type="button"
-              class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-semibold transition-all shrink-0 border cursor-pointer select-none"
-              :class="[
-                selectedDay?.dayNumber === d.dayNumber
-                  ? 'bg-primary text-primary-foreground border-primary shadow-xs ring-1 ring-primary/40'
-                  : 'bg-muted/50 hover:bg-muted text-foreground border-border/70'
-              ]"
-              @click="handleSelectDay(d)"
-            >
-              <span>D{{ d.dayNumber }}</span>
-              <span
-                class="w-1.5 h-1.5 rounded-full shrink-0"
-                :class="selectedDay?.dayNumber === d.dayNumber ? 'bg-white' : ciiDotClass(d.rating)"
-              />
-              <span class="text-[10px] opacity-75 font-normal">{{ d.sog }}kt</span>
-            </button>
-          </div>
-
-          <!-- Right: Action Button to Open Benchmarks Drawer -->
-          <Button
-            size="sm"
-            :variant="isDrawerOpen ? 'default' : 'outline'"
-            class="h-8 px-3 gap-1.5 text-xs font-medium shrink-0 cursor-pointer shadow-xs"
-            @click="isDrawerOpen = !isDrawerOpen"
-          >
-            <SlidersHorizontal class="w-3.5 h-3.5" />
-            <span class="hidden sm:inline">{{ isDrawerOpen ? 'Hide Drawer' : 'Performance Benchmarks' }}</span>
-          </Button>
-        </div>
+            </div>
+          </template>
+        </ClientOnly>
       </div>
 
-      <!-- Right: Slide-Over Inspection & Benchmark Drawer -->
+      <!-- Floating 5-Tile Advisory KPI HUD (Mounted Over the Map) -->
+      <div class="absolute top-3 left-0 right-0 z-20 pointer-events-none">
+        <VoyageOptimizationKpiHud />
+      </div>
+
+      <!-- Floating Bottom Passage Scrubber & Quick Benchmark Trigger -->
+      <div class="absolute bottom-4 left-4 right-4 max-w-5xl mx-auto z-20 pointer-events-auto flex items-center justify-between gap-3 p-2 px-3 rounded-xl bg-background/92 dark:bg-card/92 backdrop-blur-md border border-border/80 shadow-lg animate-in fade-in slide-in-from-bottom-2">
+        <!-- Left: Scrubber Carousel (D1..Dn) -->
+        <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-thin py-0.5 min-w-0">
+          <button
+            v-for="d in dailyNoons"
+            :key="d.dayNumber"
+            type="button"
+            class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-semibold transition-all shrink-0 border cursor-pointer select-none"
+            :class="[
+              selectedDay?.dayNumber === d.dayNumber
+                ? 'bg-primary text-primary-foreground border-primary shadow-xs ring-1 ring-primary/40'
+                : 'bg-muted/50 hover:bg-muted text-foreground border-border/70'
+            ]"
+            @click="handleSelectDay(d)"
+          >
+            <span>D{{ d.dayNumber }}</span>
+            <span
+              class="w-1.5 h-1.5 rounded-full shrink-0"
+              :class="selectedDay?.dayNumber === d.dayNumber ? 'bg-white' : ciiDotClass(d.rating)"
+            />
+            <span class="text-[10px] opacity-75 font-normal">{{ d.sog }}kt</span>
+          </button>
+        </div>
+
+        <!-- Right: Action Button to Open Benchmarks Drawer -->
+        <Button
+          size="sm"
+          :variant="isDrawerOpen ? 'default' : 'outline'"
+          class="h-8 px-3 gap-1.5 text-xs font-medium shrink-0 cursor-pointer shadow-xs"
+          @click="isDrawerOpen = !isDrawerOpen"
+        >
+          <SlidersHorizontal class="w-3.5 h-3.5" />
+          <span class="hidden sm:inline">{{ isDrawerOpen ? 'Hide Drawer' : 'Performance Benchmarks' }}</span>
+        </Button>
+      </div>
+
+      <!-- Floating Translucent Glass Benchmark Cockpit -->
       <VoyageOptimizationDrawer
         :is-open="isDrawerOpen"
         @close="isDrawerOpen = false"
         @ask-copilot="handleAskCopilot"
       />
 
-      <!-- Rightmost: Operations Copilot Sidebar for Voyage Analytics & CII Intelligence -->
+      <!-- Operations Copilot Overlay for Voyage Analytics & CII Intelligence -->
       <SentinelCopilotPanel
         ref="copilotPanelRef"
         v-model="isCopilotOpen"
         v-model:fullscreen="isCopilotFullscreen"
-        variant="sidebar"
+        variant="overlay"
         agent="voyage-analytics"
         :title="`${selectedVessel?.name || 'Vessel'} Voyage Analytics Copilot`"
         subtitle="Voyage Performance, CII Trajectory & Speed Advisory"
