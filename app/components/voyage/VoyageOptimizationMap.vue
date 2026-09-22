@@ -145,11 +145,26 @@ function renderDailyNoonPins() {
   const noons = dailyNoons.value
   const unwrappedCoords = unwrapTrackForMap(noons.map((n) => n.coords), referenceLng.value)
 
-  // Actual real-world track connecting each day's real noon-report position,
-  // distinct from the planned corridor (which is the idealized route between
-  // ports, not where the vessel actually was — the two commonly diverge)
+  // Actual real-world track connecting each day's real noon-report position.
+  // Segment-by-segment color-coded by IMO CII rating so superintendents
+  // can visually identify geographical degradation zones on the world map!
   if (noons.length >= 2) {
-    L.polyline(unwrappedCoords, { color: '#ffffff', weight: 2, opacity: 0.6, dashArray: '1 6' }).addTo(noonMarkersGroup)
+    // Subtle glow underlay
+    L.polyline(unwrappedCoords, { color: '#ffffff', weight: 6, opacity: 0.15 }).addTo(noonMarkersGroup)
+
+    // Segmented polylines with IMO rating colors
+    for (let i = 0; i < noons.length - 1; i++) {
+      const p1 = unwrappedCoords[i]!
+      const p2 = unwrappedCoords[i + 1]!
+      const targetNoon = noons[i + 1]!
+      const segmentColor = ciiHexColor(targetNoon.rating)
+
+      L.polyline([p1, p2], {
+        color: segmentColor,
+        weight: 4,
+        opacity: 0.95,
+      }).addTo(noonMarkersGroup)
+    }
   }
 
   for (const [index, noon] of noons.entries()) {
@@ -178,6 +193,43 @@ function renderDailyNoonPins() {
     })
 
     const marker = L.marker(unwrappedCoords[index]!, { icon })
+
+    // Rich on-map telemetry popover anchored directly to the pin
+    const popupHtml = `
+      <div style="min-width: 210px; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; padding: 4px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 6px; margin-bottom: 6px;">
+          <div style="font-weight: 700; display: flex; align-items: center; gap: 6px;">
+            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${color};"></span>
+            <span>Day ${noon.dayNumber} · ${noon.dateFormatted.slice(0, 10)}</span>
+          </div>
+          <span style="background: ${color}22; color: ${color}; border: 1px solid ${color}55; padding: 1px 6px; border-radius: 4px; font-weight: 800; font-family: monospace; font-size: 10px;">
+            Band ${noon.rating}
+          </span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; line-height: 1.4; opacity: 0.95;">
+          <div>Attained CII: <b style="color:${color};">${noon.attainedCii}</b></div>
+          <div>Req. Target: <b>${noon.requiredCii}</b></div>
+          <div>Speed SOG: <b>${noon.sog} kts</b></div>
+          <div>Prop Slip: <b>${noon.slipPct}%</b></div>
+          <div>Weather: <b>BF ${noon.weather.beaufort} · ${noon.weather.waveHeightM}m</b></div>
+          <div>24h Run: <b>${noon.distanceRunNm} NM</b></div>
+        </div>
+        <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: space-between; font-size: 10px; opacity: 0.85;">
+          <span>Fuel: <b>${noon.fuelConsumedMt.total} MT</b></span>
+          <span style="color: #38bdf8; font-weight: 600;">Click to inspect ↗</span>
+        </div>
+      </div>
+    `
+
+    marker.bindPopup(popupHtml, {
+      className: 'noon-glass-popup',
+      closeButton: false,
+      offset: [0, -14],
+    })
+
+    marker.on('mouseover', () => marker.openPopup())
+    marker.on('mouseout', () => marker.closePopup())
+
     marker.on('click', () => {
       selectDay(noon)
       emit('select-day', noon)
