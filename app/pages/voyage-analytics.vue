@@ -2,7 +2,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
-import { ChevronUp } from 'lucide-vue-next'
+import { SlidersHorizontal, Activity } from 'lucide-vue-next'
 import VoyageOptimizationHeaderBar from '~/components/voyage/VoyageOptimizationHeaderBar.vue'
 import VoyageOptimizationKpiHud from '~/components/voyage/VoyageOptimizationKpiHud.vue'
 import VoyageOptimizationMap from '~/components/voyage/VoyageOptimizationMap.vue'
@@ -18,16 +18,30 @@ const {
   fetchRouteWeather,
   refreshAll,
   vesselsList,
+  dailyNoons,
   selectedDay,
+  selectDay,
   selectedVessel,
   effectiveVesselId,
   mrvData,
 } = useVoyageOptimization()
 
-const isDrawerOpen = ref(true)
+// Map-first: drawer starts closed so the passage map is the clear hero on load
+const isDrawerOpen = ref(false)
 const isCopilotOpen = ref(false)
 const isCopilotFullscreen = ref(false)
 const copilotPanelRef = ref<any>(null)
+
+function ciiDotClass(rating: string): string {
+  switch (rating) {
+    case 'A': return 'bg-emerald-400'
+    case 'B': return 'bg-teal-400'
+    case 'C': return 'bg-amber-400'
+    case 'D': return 'bg-orange-500'
+    case 'E': return 'bg-rose-500'
+    default: return 'bg-muted-foreground'
+  }
+}
 
 function toggleDrawer() {
   isDrawerOpen.value = !isDrawerOpen.value
@@ -37,7 +51,8 @@ function toggleCopilot() {
   isCopilotOpen.value = !isCopilotOpen.value
 }
 
-function handleSelectDay() {
+function handleSelectDay(day?: any) {
+  if (day) selectDay(day)
   isDrawerOpen.value = true
 }
 
@@ -111,59 +126,77 @@ onBeforeUnmount(() => {
       />
     </header>
 
-    <!-- Main Container: Map+Tray on Left, Copilot Sidebar on Right -->
+    <!-- Main Container: Map on Left, Drawer & Copilot on Right -->
     <div class="relative flex-1 flex flex-row w-full h-full min-h-0 overflow-hidden">
-      <!-- Left Column: Hero Passage Map on Top, Resizable Bottom Analytics Tray Below -->
-      <div class="relative flex-1 flex flex-col h-full min-w-0 min-h-0 overflow-hidden">
-        <!-- Main Interactive Leaflet Map Hero Canvas -->
-        <div class="relative flex-1 w-full min-h-[180px] flex flex-col overflow-hidden">
-          <!-- Floating 5-Tile Advisory KPI HUD (Mounted Over the Map) -->
-          <div class="absolute top-3 left-0 right-0 z-20 pointer-events-none">
-            <VoyageOptimizationKpiHud />
-          </div>
-
-          <!-- Client-Only Interactive Leaflet Map -->
-          <div class="flex-1 w-full h-full min-h-0">
-            <ClientOnly>
-              <VoyageOptimizationMap @select-day="handleSelectDay" />
-              <template #fallback>
-                <div class="w-full h-full min-h-[300px] flex items-center justify-center bg-muted/40 p-6">
-                  <div class="space-y-4 w-full max-w-md text-center">
-                    <div class="h-10 w-10 mx-auto rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                    <p class="text-sm font-medium text-muted-foreground">Loading interactive passage map & weather grid...</p>
-                    <Skeleton class="h-6 w-3/4 mx-auto" />
-                  </div>
-                </div>
-              </template>
-            </ClientOnly>
-          </div>
-
-          <!-- Floating Quick-Open Button when Tray is Closed -->
-          <div
-            v-if="!isDrawerOpen"
-            class="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 animate-in fade-in slide-in-from-bottom-2"
-          >
-            <Button
-              size="sm"
-              variant="default"
-              class="h-9 px-4 shadow-lg gap-2 text-xs font-semibold rounded-full bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
-              @click="isDrawerOpen = true"
-            >
-              <ChevronUp class="w-4 h-4" />
-              <span>Open Analytics Tray (Noon Log, Sea & Shop Trials)</span>
-            </Button>
-          </div>
+      <!-- Full-Height Hero Passage Map Canvas -->
+      <div class="relative flex-1 w-full h-full min-w-0 flex flex-col overflow-hidden">
+        <!-- Floating 5-Tile Advisory KPI HUD (Mounted Over the Map) -->
+        <div class="absolute top-3 left-0 right-0 z-20 pointer-events-none">
+          <VoyageOptimizationKpiHud />
         </div>
 
-        <!-- Resizable Full-Width Analytics Tray on Bottom -->
-        <VoyageOptimizationDrawer
-          :is-open="isDrawerOpen"
-          @close="isDrawerOpen = false"
-          @ask-copilot="handleAskCopilot"
-        />
+        <!-- Client-Only Interactive Leaflet Map -->
+        <div class="flex-1 w-full h-full min-h-0">
+          <ClientOnly>
+            <VoyageOptimizationMap @select-day="handleSelectDay" />
+            <template #fallback>
+              <div class="w-full h-full min-h-[500px] flex items-center justify-center bg-muted/40 p-6">
+                <div class="space-y-4 w-full max-w-md text-center">
+                  <div class="h-10 w-10 mx-auto rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                  <p class="text-sm font-medium text-muted-foreground">Loading interactive passage map & weather grid...</p>
+                  <Skeleton class="h-6 w-3/4 mx-auto" />
+                </div>
+              </div>
+            </template>
+          </ClientOnly>
+        </div>
+
+        <!-- Floating Bottom Passage Scrubber & Quick Benchmark Trigger -->
+        <div class="absolute bottom-4 left-4 right-4 max-w-5xl mx-auto z-20 pointer-events-auto flex items-center justify-between gap-3 p-2 px-3 rounded-xl bg-background/92 dark:bg-card/92 backdrop-blur-md border border-border/80 shadow-lg animate-in fade-in slide-in-from-bottom-2">
+          <!-- Left: Scrubber Carousel (D1..Dn) -->
+          <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-thin py-0.5 min-w-0">
+            <button
+              v-for="d in dailyNoons"
+              :key="d.dayNumber"
+              type="button"
+              class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-semibold transition-all shrink-0 border cursor-pointer select-none"
+              :class="[
+                selectedDay?.dayNumber === d.dayNumber
+                  ? 'bg-primary text-primary-foreground border-primary shadow-xs ring-1 ring-primary/40'
+                  : 'bg-muted/50 hover:bg-muted text-foreground border-border/70'
+              ]"
+              @click="handleSelectDay(d)"
+            >
+              <span>D{{ d.dayNumber }}</span>
+              <span
+                class="w-1.5 h-1.5 rounded-full shrink-0"
+                :class="selectedDay?.dayNumber === d.dayNumber ? 'bg-white' : ciiDotClass(d.rating)"
+              />
+              <span class="text-[10px] opacity-75 font-normal">{{ d.sog }}kt</span>
+            </button>
+          </div>
+
+          <!-- Right: Action Button to Open Benchmarks Drawer -->
+          <Button
+            size="sm"
+            :variant="isDrawerOpen ? 'default' : 'outline'"
+            class="h-8 px-3 gap-1.5 text-xs font-medium shrink-0 cursor-pointer shadow-xs"
+            @click="isDrawerOpen = !isDrawerOpen"
+          >
+            <SlidersHorizontal class="w-3.5 h-3.5" />
+            <span class="hidden sm:inline">{{ isDrawerOpen ? 'Hide Drawer' : 'Performance Benchmarks' }}</span>
+          </Button>
+        </div>
       </div>
 
-      <!-- Right: Operations Copilot Sidebar for Voyage Analytics & CII Intelligence -->
+      <!-- Right: Slide-Over Inspection & Benchmark Drawer -->
+      <VoyageOptimizationDrawer
+        :is-open="isDrawerOpen"
+        @close="isDrawerOpen = false"
+        @ask-copilot="handleAskCopilot"
+      />
+
+      <!-- Rightmost: Operations Copilot Sidebar for Voyage Analytics & CII Intelligence -->
       <SentinelCopilotPanel
         ref="copilotPanelRef"
         v-model="isCopilotOpen"

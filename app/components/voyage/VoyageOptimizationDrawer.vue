@@ -159,25 +159,40 @@ const ciiTrajectoryChartOption = computed(() => {
     E: '#f43f5e',
   }
 
+  // Dynamic clamping: prevents extreme outlier days (e.g. Day 8 = 165) from flattening normal days (3-8)
+  const yAxisMax = Math.max(16, Math.min(25, Math.ceil(requiredCii * 2.2)))
+
   const seriesData = noons.map((n) => {
     const isSelected = currentNoon.value?.dayNumber === n.dayNumber
     const color = ratingColors[n.rating] || '#94a3b8'
+    const isOutlier = n.attainedCii > yAxisMax
+    const displayValue = isOutlier ? yAxisMax : n.attainedCii
     return {
-      value: n.attainedCii,
+      value: displayValue,
+      actualCii: n.attainedCii,
+      isOutlier,
       itemStyle: {
-        color,
+        color: isOutlier ? '#f43f5e' : color,
         borderRadius: [3, 3, 0, 0],
-        borderColor: isSelected ? '#ffffff' : 'transparent',
-        borderWidth: isSelected ? 2 : 0,
+        borderColor: isSelected ? '#ffffff' : (isOutlier ? '#fda4af' : 'transparent'),
+        borderWidth: isSelected ? 2 : (isOutlier ? 1 : 0),
         shadowBlur: isSelected ? 6 : 0,
         shadowColor: color,
       },
+      label: isOutlier ? {
+        show: true,
+        position: 'top',
+        formatter: `▲ ${Math.round(n.attainedCii)}`,
+        fontSize: 8,
+        fontWeight: 'bold',
+        color: '#f43f5e',
+      } : undefined,
     }
   })
 
   return {
     grid: {
-      top: 16,
+      top: 18,
       right: 12,
       bottom: 22,
       left: 36,
@@ -196,13 +211,14 @@ const ciiTrajectoryChartOption = computed(() => {
         const noon = noons[index]
         if (!noon) return ''
         const color = ratingColors[noon.rating] || '#94a3b8'
+        const isOutlier = noon.attainedCii > yAxisMax
         return `
           <div class="space-y-0.5 text-xs">
             <div class="font-bold flex items-center justify-between gap-3">
               <span>Day ${noon.dayNumber} · ${noon.dateFormatted.slice(0, 10)}</span>
               <span class="px-1 py-0.2 rounded font-mono text-[10px]" style="background:${color}22;color:${color};border:1px solid ${color}44;">Band ${noon.rating}</span>
             </div>
-            <div>Attained CII: <b>${noon.attainedCii}</b> g/MT·NM</div>
+            <div>Attained CII: <b>${noon.attainedCii}</b> g/MT·NM ${isOutlier ? '<span style="color:#f43f5e;font-weight:bold;">(Outlier)</span>' : ''}</div>
             <div>Req. Baseline: <b>${noon.requiredCii}</b></div>
             <div style="opacity:0.75;font-size:10px;">24h Run: ${noon.distanceRunNm} NM · ${noon.sog} kts</div>
           </div>
@@ -224,6 +240,7 @@ const ciiTrajectoryChartOption = computed(() => {
     yAxis: {
       type: 'value',
       name: 'CII',
+      max: yAxisMax,
       nameTextStyle: { color: chartTextColor.value, fontSize: 9, padding: [0, 14, 0, 0] },
       axisLabel: { color: chartTextColor.value, fontSize: 9 },
       splitLine: { lineStyle: { color: chartSplitLineColor.value, type: 'dashed' } },
@@ -614,23 +631,36 @@ function handleScatterClick(params: any) {
     selectDay(params.data.noon)
   }
 }
+
+// Only display fuels with nonzero consumption to avoid cluttered 0 MT rows
+const activeFuelTypes = computed(() => {
+  if (!currentNoon.value) return []
+  const byType = currentNoon.value.fuelConsumedMt.byType || {}
+  const list = Object.entries(byType)
+    .filter(([_, f]) => f && f.value > 0)
+    .map(([key, f]) => ({ key, label: f.label, value: f.value }))
+  if (list.length === 0 && currentNoon.value.fuelConsumedMt.total > 0) {
+    list.push({ key: 'total', label: 'Fuel Consumed', value: currentNoon.value.fuelConsumedMt.total })
+  }
+  return list
+})
 </script>
 
 <template>
   <aside
     v-show="isOpen"
     :class="[
-      'w-full shrink-0 border-t border-border bg-background/98 backdrop-blur-md shadow-2xl flex flex-col overflow-hidden transition-all duration-300 z-30',
-      isExpanded ? 'h-[58vh] xl:h-[65vh]' : 'h-[370px] xl:h-[410px]'
+      'h-full shrink-0 border-l border-border bg-background/98 backdrop-blur-md shadow-2xl flex flex-col overflow-hidden transition-all duration-300 z-30',
+      isExpanded ? 'w-full sm:w-[720px] xl:w-[840px]' : 'w-full sm:w-[520px] xl:w-[580px]'
     ]"
   >
-    <!-- Tray Header Bar with Inline Tab Controls -->
-    <div class="h-12 px-4 border-b border-border flex items-center justify-between shrink-0 bg-muted/40 gap-3">
-      <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+    <!-- Drawer Header Bar with Inline Tab Controls -->
+    <div class="h-12 px-3.5 border-b border-border flex items-center justify-between shrink-0 bg-muted/40 gap-2">
+      <div class="flex items-center gap-2 min-w-0">
         <div class="h-7 w-7 rounded-md bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shrink-0">
           <Sliders class="w-3.5 h-3.5" />
         </div>
-        <div class="flex items-center gap-2 shrink-0">
+        <div class="flex items-center gap-1.5 shrink-0">
           <h3 class="text-xs font-bold text-foreground leading-tight hidden sm:inline">Voyage Analytics</h3>
           <Badge v-if="currentVoyage" variant="outline" class="text-[10px] font-mono px-1.5 py-0">
             Voy. {{ currentVoyage }}
@@ -640,21 +670,21 @@ function handleScatterClick(params: any) {
         <!-- Inline Navigation Tabs in the Header -->
         <Tabs v-model="activeTab" class="w-auto">
           <TabsList class="h-8 bg-background/80 border border-border/70 p-0.5">
-            <TabsTrigger value="noon" class="text-xs px-2.5 h-7 cursor-pointer">
-              <span>Noon Log</span>
-              <span v-if="currentNoon" class="ml-1.5 px-1 py-0 rounded bg-primary/15 text-primary text-[9px] font-bold">
+            <TabsTrigger value="noon" class="text-[11px] px-2 h-7 cursor-pointer">
+              <span>Noon</span>
+              <span v-if="currentNoon" class="ml-1 px-1 py-0 rounded bg-primary/15 text-primary text-[9px] font-bold">
                 D{{ currentNoon.dayNumber }}
               </span>
             </TabsTrigger>
-            <TabsTrigger value="sea-trial" class="text-xs px-2.5 h-7 cursor-pointer">
-              <span>Sea Trial (Speed-Power)</span>
+            <TabsTrigger value="sea-trial" class="text-[11px] px-2 h-7 cursor-pointer">
+              <span>Sea Trial</span>
             </TabsTrigger>
-            <TabsTrigger value="shop-trial" class="text-xs px-2.5 h-7 cursor-pointer">
-              <span>Shop Trial (SFOC)</span>
+            <TabsTrigger value="shop-trial" class="text-[11px] px-2 h-7 cursor-pointer">
+              <span>Shop Trial</span>
             </TabsTrigger>
-            <TabsTrigger value="strategies" class="text-xs px-2.5 h-7 cursor-pointer">
+            <TabsTrigger value="strategies" class="text-[11px] px-2 h-7 cursor-pointer">
               <span>Advisories</span>
-              <span v-if="advisories.length" class="ml-1.5 px-1 py-0 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[9px] font-bold">
+              <span v-if="advisories.length" class="ml-1 px-1 py-0 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[9px] font-bold">
                 {{ advisories.length }}
               </span>
             </TabsTrigger>
@@ -663,476 +693,412 @@ function handleScatterClick(params: any) {
       </div>
 
       <!-- Action Buttons -->
-      <div class="flex items-center gap-1.5 shrink-0">
+      <div class="flex items-center gap-1 shrink-0">
         <Button
           variant="ghost"
-          size="sm"
-          class="h-7 px-2 text-xs text-muted-foreground hover:text-foreground gap-1 hidden md:flex cursor-pointer"
-          :title="isExpanded ? 'Dock to 40% height' : 'Expand to 65% height'"
+          size="icon"
+          class="h-7 w-7 text-muted-foreground hover:text-foreground hidden sm:flex cursor-pointer"
+          :title="isExpanded ? 'Dock to 580px width' : 'Expand to 840px width for charts'"
           @click="isExpanded = !isExpanded"
         >
           <Minimize2 v-if="isExpanded" class="w-3.5 h-3.5" />
           <Maximize2 v-else class="w-3.5 h-3.5" />
-          <span class="text-[11px]">{{ isExpanded ? 'Dock' : 'Expand' }}</span>
         </Button>
         <Button
           variant="ghost"
           size="icon"
           class="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
-          title="Minimize tray"
+          title="Close Drawer"
           @click="emit('close')"
         >
-          <ChevronDown class="w-4 h-4" />
+          <X class="w-4 h-4" />
         </Button>
       </div>
     </div>
 
-    <!-- Tray Body (Full-Width, Responsive Split Layout) -->
+    <!-- Drawer Body -->
     <div class="flex-1 min-h-0 overflow-hidden">
       <!-- TAB 1: DAILY NOON REPORT LOG -->
-      <div v-if="activeTab === 'noon'" class="h-full flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-border/70 overflow-hidden">
-        <!-- Left Column: Day Selector & Active Day Details -->
-        <div class="w-full lg:w-[420px] xl:w-[460px] shrink-0 h-full overflow-y-auto p-3.5 space-y-3">
-          <!-- AI Degradation Voyage Alert Banner -->
-          <div
-            v-if="degradationSummary"
-            class="p-2.5 rounded-lg border border-orange-500/30 bg-orange-500/10 flex items-center justify-between text-xs text-orange-600 dark:text-orange-400 shadow-2xs animate-in fade-in"
+      <div v-if="activeTab === 'noon'" class="h-full overflow-y-auto p-3.5 space-y-3.5">
+        <!-- AI Degradation Voyage Alert Banner -->
+        <div
+          v-if="degradationSummary"
+          class="p-2.5 rounded-lg border border-orange-500/30 bg-orange-500/10 flex items-center justify-between text-xs text-orange-600 dark:text-orange-400 shadow-2xs animate-in fade-in"
+        >
+          <div class="flex items-center gap-2 min-w-0 pr-2">
+            <AlertTriangle class="w-4 h-4 shrink-0 text-orange-500" />
+            <span class="truncate">
+              <strong>{{ degradationSummary.count }} degraded day(s)</strong> ({{ degradationSummary.dayRange }})
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            class="h-6 text-[11px] px-2 shrink-0 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 font-medium cursor-pointer"
+            @click="selectDay(degradationSummary.worstDay)"
           >
-            <div class="flex items-center gap-2 min-w-0 pr-2">
-              <AlertTriangle class="w-4 h-4 shrink-0 text-orange-500" />
-              <span class="truncate">
-                <strong>{{ degradationSummary.count }} degraded day(s)</strong> ({{ degradationSummary.dayRange }})
-              </span>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              class="h-6 text-[11px] px-2 shrink-0 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 font-medium cursor-pointer"
-              @click="selectDay(degradationSummary.worstDay)"
+            Jump to D{{ degradationSummary.worstDay.dayNumber }}
+          </Button>
+        </div>
+
+        <!-- Day Selector Pill Strip -->
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between text-xs text-muted-foreground">
+            <span class="font-medium">Voyage Progress Days:</span>
+            <span class="text-[10px]">Click day to inspect</span>
+          </div>
+          <div class="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-thin">
+            <button
+              v-for="noon in dailyNoons"
+              :key="noon.dayNumber"
+              type="button"
+              class="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border transition-all cursor-pointer shrink-0 select-none"
+              :class="[
+                currentNoon?.dayNumber === noon.dayNumber
+                  ? 'bg-primary text-primary-foreground border-primary shadow-xs ring-1 ring-primary/40'
+                  : 'bg-muted/30 hover:bg-muted/70 text-foreground border-border/80'
+              ]"
+              @click="selectDay(noon)"
             >
-              Jump to D{{ degradationSummary.worstDay.dayNumber }}
-            </Button>
-          </div>
-
-          <!-- Day Selector Pill Strip -->
-          <div class="space-y-1.5">
-            <div class="flex items-center justify-between text-xs text-muted-foreground">
-              <span class="font-medium">Voyage Progress Days:</span>
-              <span class="text-[10px]">Click day to inspect</span>
-            </div>
-            <div class="flex items-center gap-1.5 overflow-x-auto pb-1">
-              <button
-                v-for="d in dailyNoons"
-                :key="d.dayNumber"
-                type="button"
-                class="px-2 py-1 rounded-md text-xs font-mono font-semibold transition-all shrink-0 border flex items-center gap-1 cursor-pointer"
-                :class="currentNoon?.dayNumber === d.dayNumber ? 'bg-primary text-primary-foreground border-primary shadow-xs' : 'bg-muted/70 text-foreground border-border hover:bg-muted'"
-                @click="selectDay(d)"
-              >
-                <span>D{{ d.dayNumber }}</span>
-                <span class="w-1.5 h-1.5 rounded-full shrink-0" :class="ciiDotClass(d.rating)" />
-              </button>
-            </div>
-          </div>
-
-          <template v-if="currentNoon">
-            <!-- Active Noon Card -->
-            <Card class="bg-card border-border/80 shadow-xs">
-              <CardHeader class="p-3 pb-2 space-y-2">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Calendar class="w-3.5 h-3.5" />
-                    <span>{{ currentNoon.dateFormatted }}</span>
-                  </div>
-                  <Badge variant="outline" class="font-mono text-[10px]">
-                    {{ currentNoon.coords[0].toFixed(2) }}°, {{ currentNoon.coords[1].toFixed(2) }}°
-                  </Badge>
-                </div>
-
-                <!-- Report Type + Event Type pills -->
-                <div class="flex items-center gap-2 flex-wrap">
-                  <div v-if="currentNoon.reportType" class="flex items-center gap-1">
-                    <span class="text-[10px] text-muted-foreground">Type:</span>
-                    <Badge variant="outline" class="text-[10px] font-mono uppercase tracking-wide px-1.5 py-0 border-primary/30 text-primary">
-                      {{ currentNoon.reportType }}
-                    </Badge>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <span class="text-[10px] text-muted-foreground">Event:</span>
-                    <Badge
-                      variant="outline"
-                      class="text-[10px] font-semibold uppercase px-1.5 py-0"
-                      :class="currentNoon.utilizationCategory === 'sea'
-                        ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
-                        : currentNoon.utilizationCategory === 'port'
-                          ? 'border-orange-500/40 text-orange-600 dark:text-orange-400'
-                          : 'border-border text-muted-foreground'"
-                    >
-                      {{ currentNoon.utilizationCategory === 'sea' ? '⛵ Sea' : currentNoon.utilizationCategory === 'port' ? '⚓ Port' : 'Unknown' }}
-                    </Badge>
-                  </div>
-                </div>
-
-                <!-- IMO CII Attained Badge Banner -->
-                <div class="p-2.5 rounded-lg border flex items-center justify-between" :class="ciiRatingBadge(currentNoon.rating).bg">
-                  <div class="flex items-center gap-2">
-                    <div class="w-7 h-7 rounded-md bg-background/80 flex items-center justify-center font-bold text-sm shadow-xs">
-                      {{ currentNoon.rating }}
-                    </div>
-                    <div>
-                      <div class="text-xs font-semibold">{{ ciiRatingBadge(currentNoon.rating).text }}</div>
-                      <div class="text-[10px] opacity-80">Attained CII: {{ currentNoon.attainedCii }} g/MT·NM</div>
-                    </div>
-                  </div>
-                  <div class="text-right">
-                    <div class="text-[10px] font-medium opacity-80">Total Work</div>
-                    <div class="text-xs font-mono font-bold">{{ (currentNoon.transportWork / 1e6).toFixed(1) }}M MT·NM</div>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent class="p-3 pt-0 space-y-2.5">
-                <!-- Scannable Diagnostic Metric Ribbon -->
-                <div class="flex items-center gap-1.5 flex-wrap">
-                  <span
-                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border"
-                    :class="currentNoon.weather.beaufort >= 6 ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30' : 'bg-muted/60 text-muted-foreground border-border'"
-                  >
-                    <Wind class="w-3 h-3" />
-                    BF {{ currentNoon.weather.beaufort }} · {{ currentNoon.weather.waveHeightM }}m seas
-                  </span>
-                  <span
-                    v-if="currentNoon.slipPct !== undefined"
-                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border"
-                    :class="currentNoon.slipPct > 25 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30 font-semibold' : currentNoon.slipPct > 15 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'"
-                  >
-                    <Activity class="w-3 h-3" />
-                    Propeller Slip: {{ currentNoon.slipPct }}%
-                  </span>
-                  <span
-                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border"
-                    :class="currentNoon.sog < 11 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'"
-                  >
-                    <Gauge class="w-3 h-3" />
-                    SOG {{ currentNoon.sog }} kts
-                  </span>
-                </div>
-
-                <!-- 24h Distance, Speed, & Propulsion Telemetry -->
-                <div class="grid grid-cols-2 gap-2 text-xs">
-                  <div class="p-2 rounded bg-muted/40 border border-border/60">
-                    <span class="text-muted-foreground text-[10px] block">24h Run Distance</span>
-                    <span class="font-bold text-foreground font-mono text-sm">{{ currentNoon.distanceRunNm }} NM</span>
-                    <span class="text-[10px] text-muted-foreground block">Cumul: {{ currentNoon.cumulativeDistanceNm }} NM</span>
-                  </div>
-                  <div class="p-2 rounded bg-muted/40 border border-border/60">
-                    <span class="text-muted-foreground text-[10px] block">Average 24h SOG</span>
-                    <span class="font-bold text-foreground font-mono text-sm">{{ currentNoon.sog }} kts</span>
-                    <span class="text-[10px] text-muted-foreground block">
-                      {{ currentNoon.slipPct !== undefined && currentNoon.slipPct > 0 ? `Slip: ${currentNoon.slipPct}%` : `Draft: ${currentNoon.draftFwdM}m / ${currentNoon.draftAftM}m` }}
-                    </span>
-                  </div>
-                </div>
-
-                <!-- Operational Guidance Callout -->
-                <div
-                  v-if="currentNoon.aiDiagnostics"
-                  class="p-2.5 rounded bg-muted/40 border border-border/70 flex items-start gap-2 text-[11px] text-foreground"
-                >
-                  <Compass class="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
-                  <div class="leading-tight">
-                    <strong class="font-semibold text-foreground">Guidance:</strong>
-                    <span class="ml-1 text-muted-foreground">{{ currentNoon.aiDiagnostics.recommendation }}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </template>
-          <div
-            v-else-if="!isCiiLoading"
-            class="p-4 rounded-lg border border-dashed border-border text-center text-xs text-muted-foreground"
-          >
-            {{ ciiLoadError ? 'Live CII data unavailable — upstream request failed.' : 'No noon report data for this vessel in the selected window.' }}
-          </div>
-          <div v-else class="p-4 text-center text-xs text-muted-foreground">
-            Loading live noon report data…
+              <span>D{{ noon.dayNumber }}</span>
+              <span
+                class="w-1.5 h-1.5 rounded-full"
+                :class="currentNoon?.dayNumber === noon.dayNumber ? 'bg-white' : ciiDotClass(noon.rating)"
+              />
+            </button>
           </div>
         </div>
 
-        <!-- Right Column: Trajectory Chart & Telemetry / Factors (Flex-1) -->
-        <div class="flex-1 h-full overflow-y-auto p-3.5 space-y-3 min-w-0">
-          <!-- Interactive Voyage CII Trajectory Chart (Full Width) -->
-          <div v-if="dailyNoons.length > 0" class="p-3 rounded-lg border border-border/80 bg-card space-y-2 shadow-2xs">
-            <div class="flex items-center justify-between text-xs font-semibold">
-              <span class="flex items-center gap-1.5 text-foreground">
-                <BarChart3 class="w-3.5 h-3.5 text-primary" />
-                Voyage CII Trajectory
-              </span>
-              <span class="text-[10px] text-muted-foreground font-normal">
-                Click bar to inspect day · Target Band B
-              </span>
+        <!-- Active Day Telemetry Card -->
+        <template v-if="currentNoon">
+          <Card class="border-border/80 shadow-2xs overflow-hidden">
+            <CardHeader class="p-3 pb-2 border-b border-border/50 bg-muted/20">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <Calendar class="w-3.5 h-3.5 text-muted-foreground" />
+                  <span class="text-xs font-mono font-bold text-foreground">
+                    {{ currentNoon.dateFormatted }}
+                  </span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-[10px] text-muted-foreground font-mono">
+                    {{ currentNoon.coords[0].toFixed(2) }}°, {{ currentNoon.coords[1].toFixed(2) }}°
+                  </span>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent class="p-3 space-y-2.5">
+              <!-- IMO Rating Band & Diagnostic Chips -->
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <div class="flex items-center gap-2">
+                  <div
+                    class="w-8 h-8 rounded-md flex items-center justify-center font-bold text-sm font-mono shadow-xs border"
+                    :class="[
+                      currentNoon.rating === 'A' ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400' :
+                      currentNoon.rating === 'B' ? 'bg-teal-500/15 border-teal-500/40 text-teal-600 dark:text-teal-400' :
+                      currentNoon.rating === 'C' ? 'bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-400' :
+                      currentNoon.rating === 'D' ? 'bg-orange-500/15 border-orange-500/40 text-orange-600 dark:text-orange-400' :
+                      'bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-400'
+                    ]"
+                  >
+                    {{ currentNoon.rating }}
+                  </div>
+                  <div>
+                    <div class="text-xs font-bold text-foreground">{{ ciiRatingBadge(currentNoon.rating).text }}</div>
+                    <div class="text-[10px] text-muted-foreground font-mono">
+                      Attained CII: <strong class="text-foreground">{{ currentNoon.attainedCii }}</strong> g/MT·NM · Req: {{ currentNoon.requiredCii }}
+                    </div>
+                  </div>
+                </div>
+                <Badge variant="outline" class="text-[10px] font-mono">
+                  Work: {{ (currentNoon.transportWork / 1e6).toFixed(1) }}M MT·NM
+                </Badge>
+              </div>
+
+              <!-- Diagnostic Chips (Replaces Text Bloat) -->
+              <div class="flex flex-wrap gap-1.5 pt-0.5">
+                <span
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border"
+                  :class="currentNoon.weather.beaufort >= 6 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30 font-semibold' : 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30'"
+                >
+                  <Wind class="w-3 h-3" />
+                  BF {{ currentNoon.weather.beaufort }} · {{ currentNoon.weather.waveHeightM }}m seas
+                </span>
+                <span
+                  v-if="currentNoon.slipPct !== undefined"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border"
+                  :class="currentNoon.slipPct > 25 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30 font-semibold' : currentNoon.slipPct > 15 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'"
+                >
+                  <Activity class="w-3 h-3" />
+                  Propeller Slip: {{ currentNoon.slipPct }}%
+                </span>
+                <span
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border"
+                  :class="currentNoon.sog < 11 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'"
+                >
+                  <Gauge class="w-3 h-3" />
+                  SOG {{ currentNoon.sog }} kts
+                </span>
+              </div>
+
+              <!-- 24h Distance, Speed, & Propulsion Telemetry -->
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="p-2 rounded bg-muted/40 border border-border/60">
+                  <span class="text-muted-foreground text-[10px] block">24h Run Distance</span>
+                  <span class="font-bold text-foreground font-mono text-sm">{{ currentNoon.distanceRunNm }} NM</span>
+                  <span class="text-[10px] text-muted-foreground block">Cumul: {{ currentNoon.cumulativeDistanceNm }} NM</span>
+                </div>
+                <div class="p-2 rounded bg-muted/40 border border-border/60">
+                  <span class="text-muted-foreground text-[10px] block">Average 24h SOG</span>
+                  <span class="font-bold text-foreground font-mono text-sm">{{ currentNoon.sog }} kts</span>
+                  <span class="text-[10px] text-muted-foreground block">
+                    {{ currentNoon.slipPct !== undefined && currentNoon.slipPct > 0 ? `Slip: ${currentNoon.slipPct}%` : `Draft: ${currentNoon.draftFwdM}m / ${currentNoon.draftAftM}m` }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Operational Guidance Callout -->
+              <div
+                v-if="currentNoon.aiDiagnostics"
+                class="p-2.5 rounded bg-muted/40 border border-border/70 flex items-start gap-2 text-[11px] text-foreground"
+              >
+                <Compass class="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+                <div class="leading-tight">
+                  <strong class="font-semibold text-foreground">Guidance:</strong>
+                  <span class="ml-1 text-muted-foreground">{{ currentNoon.aiDiagnostics.recommendation }}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </template>
+        <div
+          v-else-if="!isCiiLoading"
+          class="p-4 rounded-lg border border-dashed border-border text-center text-xs text-muted-foreground"
+        >
+          {{ ciiLoadError ? 'Live CII data unavailable — upstream request failed.' : 'No noon report data for this vessel in the selected window.' }}
+        </div>
+        <div v-else class="p-4 text-center text-xs text-muted-foreground">
+          Loading live noon report data…
+        </div>
+
+        <!-- Voyage CII Trajectory Chart (Clamped to prevent outlier distortion) -->
+        <div v-if="dailyNoons.length > 0" class="p-3 rounded-lg border border-border/80 bg-card space-y-2 shadow-2xs">
+          <div class="flex items-center justify-between text-xs font-semibold">
+            <span class="flex items-center gap-1.5 text-foreground">
+              <BarChart3 class="w-3.5 h-3.5 text-primary" />
+              Voyage CII Trajectory
+            </span>
+            <span class="text-[10px] text-muted-foreground font-normal">
+              Click bar to inspect · Target Band B
+            </span>
+          </div>
+          <div class="w-full h-[140px]">
+            <ClientOnly>
+              <VChart
+                v-if="ciiTrajectoryChartOption"
+                :option="ciiTrajectoryChartOption"
+                :autoresize="true"
+                class="w-full h-full cursor-pointer"
+                @click="handleChartClick"
+              />
+              <template #fallback>
+                <Skeleton class="w-full h-full rounded" />
+              </template>
+            </ClientOnly>
+          </div>
+        </div>
+
+        <!-- Factor Attribution Breakdown Card (NO REDUNDANT TEXT PROSE) -->
+        <div
+          v-if="currentNoon?.aiDiagnostics"
+          class="p-3 rounded-lg border border-border/70 bg-card space-y-2.5 shadow-2xs"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-1.5 min-w-0">
+              <div class="w-5 h-5 rounded bg-muted flex items-center justify-center shrink-0">
+                <Activity class="w-3.5 h-3.5 text-foreground" />
+              </div>
+              <span class="text-xs font-bold text-foreground truncate">Factor Attribution</span>
+              <Badge variant="outline" class="text-[9px] uppercase font-mono px-1.5 py-0 border-border text-foreground shrink-0">
+                {{ currentNoon.aiDiagnostics.driverLabel }}
+              </Badge>
             </div>
-            <div class="w-full h-[120px]">
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-6 px-2 text-[10px] gap-1 font-medium bg-background hover:bg-muted border-border shrink-0 cursor-pointer"
+              title="Audit telemetry with Operations Copilot"
+              @click="emit('ask-copilot', currentNoon.aiDiagnostics.promptContext)"
+            >
+              <Sliders class="w-3 h-3 text-muted-foreground" />
+              <span>Audit</span>
+            </Button>
+          </div>
+
+          <!-- Donut & Breakdown Grid -->
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center pt-1 border-t border-border/60">
+            <!-- Donut Chart -->
+            <div class="sm:col-span-5 flex items-center justify-center h-[120px]">
               <ClientOnly>
                 <VChart
-                  v-if="ciiTrajectoryChartOption"
-                  :option="ciiTrajectoryChartOption"
+                  v-if="factorDonutChartOption"
+                  :option="factorDonutChartOption"
                   :autoresize="true"
-                  class="w-full h-full cursor-pointer"
-                  @click="handleChartClick"
+                  class="w-full h-full"
                 />
                 <template #fallback>
-                  <Skeleton class="w-full h-full rounded" />
+                  <Skeleton class="w-24 h-24 rounded-full mx-auto" />
                 </template>
               </ClientOnly>
             </div>
-          </div>
 
-          <!-- Dual Telemetry Row: Hydrodynamic Factors & Fuel/Weather Grid -->
-          <div v-if="currentNoon" class="grid grid-cols-1 xl:grid-cols-2 gap-3">
-            <!-- Hydrodynamic Factor Attribution Breakdown Card -->
-            <div
-              v-if="currentNoon.aiDiagnostics"
-              class="p-3 rounded-lg border border-border/70 bg-card space-y-2.5"
-            >
-              <div class="flex items-center justify-between gap-2">
-                <div class="flex items-center gap-1.5 min-w-0">
-                  <div class="w-5 h-5 rounded bg-muted flex items-center justify-center shrink-0">
-                    <Activity class="w-3.5 h-3.5 text-foreground" />
-                  </div>
-                  <span class="text-xs font-bold text-foreground truncate">Factor Attribution</span>
-                  <Badge variant="outline" class="text-[9px] uppercase font-mono px-1.5 py-0 border-border text-foreground shrink-0">
-                    {{ currentNoon.aiDiagnostics.driverLabel }}
-                  </Badge>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  class="h-6 px-2 text-[10px] gap-1 font-medium bg-background hover:bg-muted border-border shrink-0 cursor-pointer"
-                  title="Audit telemetry with Operations Copilot"
-                  @click="emit('ask-copilot', currentNoon.aiDiagnostics.promptContext)"
-                >
-                  <Sliders class="w-3 h-3 text-muted-foreground" />
-                  <span>Audit</span>
-                </Button>
-              </div>
-
-              <!-- Diagnostic Headline & Narrative -->
-              <div class="space-y-1">
-                <div class="text-xs font-bold text-foreground flex items-center gap-1.5">
-                  <span
-                    class="w-2 h-2 rounded-full shrink-0"
-                    :class="currentNoon.rating === 'E' ? 'bg-rose-500' : currentNoon.rating === 'D' ? 'bg-orange-500' : currentNoon.rating === 'C' ? 'bg-amber-500' : 'bg-emerald-500'"
-                  />
-                  <span class="truncate">{{ currentNoon.aiDiagnostics.headline }}</span>
-                </div>
-                <p class="text-[11px] leading-relaxed text-muted-foreground line-clamp-2" :title="currentNoon.aiDiagnostics.summary">
-                  {{ currentNoon.aiDiagnostics.summary }}
-                </p>
-              </div>
-
-              <!-- Donut & Breakdown Grid -->
-              <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center pt-1 border-t border-border/60">
-                <!-- Donut Chart -->
-                <div class="sm:col-span-5 flex items-center justify-center h-[125px]">
-                  <ClientOnly>
-                    <VChart
-                      v-if="factorDonutChartOption"
-                      :option="factorDonutChartOption"
-                      :autoresize="true"
-                      class="w-full h-full"
+            <!-- Factor Detail Metric Progress Bars -->
+            <div class="sm:col-span-7 space-y-1.5">
+              <div
+                v-for="factor in currentNoon.aiDiagnostics.factors"
+                :key="factor.key"
+                class="p-1.5 px-2 rounded bg-muted/40 border border-border/60 space-y-1"
+              >
+                <div class="flex items-center justify-between text-[10px]">
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <span
+                      class="w-2 h-2 rounded-full shrink-0"
+                      :class="factor.key === 'weather' ? 'bg-sky-400' : factor.key === 'slip' ? 'bg-rose-500' : factor.key === 'distance' ? 'bg-amber-500' : 'bg-purple-500'"
                     />
-                    <template #fallback>
-                      <Skeleton class="w-24 h-24 rounded-full mx-auto" />
-                    </template>
-                  </ClientOnly>
-                </div>
-
-                <!-- Factor Detail Metric Cards -->
-                <div class="sm:col-span-7 space-y-1.5">
-                  <div
-                    v-for="factor in currentNoon.aiDiagnostics.factors"
-                    :key="factor.key"
-                    class="p-1.5 px-2 rounded bg-muted/40 border border-border/60 space-y-1"
-                  >
-                    <div class="flex items-center justify-between text-[10px]">
-                      <div class="flex items-center gap-1.5 min-w-0">
-                        <span
-                          class="w-2 h-2 rounded-full shrink-0"
-                          :class="factor.key === 'weather' ? 'bg-sky-400' : factor.key === 'slip' ? 'bg-rose-500' : factor.key === 'distance' ? 'bg-amber-500' : 'bg-purple-500'"
-                        />
-                        <span class="font-medium text-foreground truncate">{{ factor.name }}</span>
-                      </div>
-                      <span
-                        class="px-1 py-0.2 rounded font-mono font-bold text-[9px] shrink-0"
-                        :class="factor.severity === 'critical' ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400' : factor.severity === 'moderate' ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'"
-                      >
-                        {{ factor.scorePercent }}%
-                      </span>
-                    </div>
-                    <div class="w-full bg-muted/60 rounded-full h-1 overflow-hidden">
-                      <div
-                        class="h-full rounded-full transition-all"
-                        :class="factor.severity === 'critical' ? 'bg-rose-500' : factor.severity === 'moderate' ? 'bg-amber-500' : 'bg-emerald-500'"
-                        :style="{ width: `${factor.scorePercent}%` }"
-                      />
-                    </div>
-                    <div class="flex items-center justify-between text-[9px] text-muted-foreground">
-                      <span class="font-mono font-semibold truncate pr-1">{{ factor.metric }}</span>
-                      <span class="capitalize text-[9px] shrink-0 font-medium" :class="factor.severity === 'critical' ? 'text-rose-500' : factor.severity === 'moderate' ? 'text-amber-500' : 'text-emerald-500'">
-                        {{ factor.severity }}
-                      </span>
-                    </div>
+                    <span class="font-medium text-foreground truncate">{{ factor.name }}</span>
                   </div>
+                  <span
+                    class="px-1 py-0.2 rounded font-mono font-bold text-[9px] shrink-0"
+                    :class="factor.severity === 'critical' ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400' : factor.severity === 'moderate' ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'"
+                  >
+                    {{ factor.scorePercent }}%
+                  </span>
+                </div>
+                <div class="w-full bg-muted/60 rounded-full h-1 overflow-hidden">
+                  <div
+                    class="h-full rounded-full transition-all"
+                    :class="factor.severity === 'critical' ? 'bg-rose-500' : factor.severity === 'moderate' ? 'bg-amber-500' : 'bg-emerald-500'"
+                    :style="{ width: `${factor.scorePercent}%` }"
+                  />
+                </div>
+                <div class="flex items-center justify-between text-[9px] text-muted-foreground">
+                  <span class="font-mono font-semibold truncate pr-1">{{ factor.metric }}</span>
+                  <span class="capitalize text-[9px] shrink-0 font-medium" :class="factor.severity === 'critical' ? 'text-rose-500' : factor.severity === 'moderate' ? 'text-amber-500' : 'text-emerald-500'">
+                    {{ factor.severity }}
+                  </span>
                 </div>
               </div>
             </div>
+          </div>
+        </div>
 
-            <!-- Right Column Cards: Fuel & Weather -->
-            <div class="space-y-3">
-              <!-- Fuel Consumption Breakdown -->
-              <div class="p-3 rounded-lg bg-muted/30 border border-border/60 space-y-2">
-                <div class="flex items-center justify-between text-xs font-semibold">
-                  <span class="flex items-center gap-1.5 text-foreground">
-                    <Fuel class="w-3.5 h-3.5 text-amber-500" />
-                    24h Fuel Consumed
-                  </span>
-                  <span class="font-mono text-primary font-bold">{{ currentNoon.fuelConsumedMt.total }} MT</span>
-                </div>
-                <div class="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground pt-1 border-t border-border/60">
-                  <div v-for="(fuel, key) in currentNoon.fuelConsumedMt.byType" :key="key">
-                    {{ fuel.label }}: <strong class="text-foreground font-mono">{{ fuel.value }} MT</strong>
-                  </div>
-                  <div>24h CO₂: <strong class="text-foreground font-mono">{{ currentNoon.totalCo2Mt }} MT</strong></div>
-                  <div>Voyage Total: <strong class="text-foreground font-mono">{{ currentNoon.cumulativeFuelMt }} MT</strong></div>
-                </div>
+        <!-- Fuel Consumption Breakdown & Recorded Weather Grid (Only active fuels shown!) -->
+        <div v-if="currentNoon" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <!-- Fuel Consumption -->
+          <div class="p-3 rounded-lg bg-muted/30 border border-border/60 space-y-2">
+            <div class="flex items-center justify-between text-xs font-semibold">
+              <span class="flex items-center gap-1.5 text-foreground">
+                <Fuel class="w-3.5 h-3.5 text-amber-500" />
+                24h Fuel Consumed
+              </span>
+              <span class="font-mono text-primary font-bold">{{ currentNoon.fuelConsumedMt.total }} MT</span>
+            </div>
+            <div class="space-y-1 text-[11px] text-muted-foreground pt-1 border-t border-border/60">
+              <div v-for="fuel in activeFuelTypes" :key="fuel.key">
+                {{ fuel.label }}: <strong class="text-foreground font-mono">{{ fuel.value }} MT</strong>
               </div>
+              <div class="flex justify-between pt-1 border-t border-border/40 text-[10px]">
+                <span>24h CO₂: <strong class="text-foreground font-mono">{{ currentNoon.totalCo2Mt }} MT</strong></span>
+                <span>Voyage: <strong class="text-foreground font-mono">{{ currentNoon.cumulativeFuelMt }} MT</strong></span>
+              </div>
+            </div>
+          </div>
 
-              <!-- Recorded Weather at Position -->
-              <div class="p-3 rounded-lg bg-muted/30 border border-border/60 space-y-2">
-                <div class="flex items-center justify-between text-xs font-semibold">
-                  <span class="flex items-center gap-1.5 text-foreground">
-                    <Wind class="w-3.5 h-3.5 text-cyan-500" />
-                    Noon Position Weather
-                  </span>
-                  <Badge variant="outline" class="text-[10px] text-cyan-600 dark:text-cyan-400 font-bold border-cyan-500/30">
-                    Beaufort {{ currentNoon.weather.beaufort }}
-                  </Badge>
-                </div>
-                <div class="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground pt-1 border-t border-border/60">
-                  <div>Wind: <strong class="text-foreground">{{ currentNoon.weather.windSpeedKts }} kts ({{ currentNoon.weather.windDirectionDeg }}°)</strong></div>
-                  <div>Seas: <strong class="text-foreground">{{ currentNoon.weather.waveHeightM }}m wave</strong></div>
-                  <div class="col-span-2">Swell: <strong class="text-foreground">{{ currentNoon.weather.swellDirection }} · {{ currentNoon.weather.shortForecast }}</strong></div>
-                </div>
-              </div>
+          <!-- Recorded Weather at Position -->
+          <div class="p-3 rounded-lg bg-muted/30 border border-border/60 space-y-2">
+            <div class="flex items-center justify-between text-xs font-semibold">
+              <span class="flex items-center gap-1.5 text-foreground">
+                <Wind class="w-3.5 h-3.5 text-cyan-500" />
+                Recorded Weather
+              </span>
+              <Badge variant="outline" class="text-[10px] text-cyan-600 dark:text-cyan-400 font-bold border-cyan-500/30">
+                BF {{ currentNoon.weather.beaufort }}
+              </Badge>
+            </div>
+            <div class="space-y-1 text-[11px] text-muted-foreground pt-1 border-t border-border/60">
+              <div>Wind: <strong class="text-foreground">{{ currentNoon.weather.windSpeedKts }} kts ({{ currentNoon.weather.windDirectionDeg }}°)</strong></div>
+              <div>Seas: <strong class="text-foreground">{{ currentNoon.weather.waveHeightM }}m wave</strong></div>
+              <div class="text-[10px] text-muted-foreground truncate">{{ currentNoon.weather.swellDirection }} · {{ currentNoon.weather.shortForecast }}</div>
             </div>
           </div>
         </div>
       </div>
 
       <!-- TAB 2: SEA TRIAL (SPEED VS POWER BENCHMARK) -->
-      <div v-else-if="activeTab === 'sea-trial'" class="h-full flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-border/70 overflow-hidden">
-        <!-- Left Side: Benchmark Summary & Superintendent Diagnostic -->
-        <div class="w-full lg:w-[400px] xl:w-[440px] shrink-0 h-full overflow-y-auto p-3.5 space-y-3">
-          <div class="p-3 rounded-lg border border-border/80 bg-card space-y-2.5 shadow-2xs">
-            <div class="flex items-center justify-between gap-2 flex-wrap">
-              <div class="flex items-center gap-2">
-                <div class="w-7 h-7 rounded-md bg-sky-500/10 border border-sky-500/20 text-sky-500 flex items-center justify-center">
-                  <Gauge class="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 class="text-xs font-bold text-foreground">Sea Trial Speed-Power</h4>
-                  <p class="text-[10px] text-muted-foreground">Shipyard cubic baseline (P ∝ V³) vs. noons</p>
-                </div>
+      <div v-else-if="activeTab === 'sea-trial'" class="h-full overflow-y-auto p-3.5 space-y-3.5">
+        <!-- Benchmark Summary Card -->
+        <div class="p-3 rounded-lg border border-border/80 bg-card space-y-2.5 shadow-2xs">
+          <div class="flex items-center justify-between gap-2 flex-wrap">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-md bg-sky-500/10 border border-sky-500/20 text-sky-500 flex items-center justify-center">
+                <Gauge class="w-4 h-4" />
               </div>
-              <Badge variant="outline" class="text-[10px] font-mono border-sky-500/30 text-sky-600 dark:text-sky-400">
-                14.0 kts @ 4,200 kW
-              </Badge>
-            </div>
-
-            <!-- Quick Benchmark KPI Row -->
-            <div v-if="seaTrialStats" class="grid grid-cols-2 gap-2 pt-1">
-              <div class="p-2 rounded bg-muted/40 border border-border/60">
-                <span class="text-[10px] text-muted-foreground block">Voyage Avg SOG</span>
-                <span class="text-sm font-mono font-bold text-foreground">{{ seaTrialStats.avgSog }} kts</span>
-              </div>
-              <div class="p-2 rounded bg-muted/40 border border-border/60">
-                <span class="text-[10px] text-muted-foreground block">Avg Shaft Power</span>
-                <span class="text-sm font-mono font-bold text-foreground">{{ seaTrialStats.avgPower.toLocaleString() }} kW</span>
-              </div>
-              <div class="p-2 rounded bg-muted/40 border border-border/60">
-                <span class="text-[10px] text-muted-foreground block">Speed Delta (vs Trial)</span>
-                <span
-                  class="text-sm font-mono font-bold"
-                  :class="seaTrialStats.speedLoss < 0 ? 'text-rose-500' : 'text-emerald-500'"
-                >
-                  {{ seaTrialStats.speedLoss > 0 ? '+' : '' }}{{ seaTrialStats.speedLoss }} kts
-                </span>
-              </div>
-              <div class="p-2 rounded bg-muted/40 border border-border/60">
-                <span class="text-[10px] text-muted-foreground block">Avg Propeller Slip</span>
-                <span
-                  class="text-sm font-mono font-bold"
-                  :class="seaTrialStats.avgSlip > 20 ? 'text-amber-500' : 'text-foreground'"
-                >
-                  {{ seaTrialStats.avgSlip }}%
-                </span>
+              <div>
+                <h4 class="text-xs font-bold text-foreground">Sea Trial Speed-Power</h4>
+                <p class="text-[10px] text-muted-foreground">Shipyard cubic baseline (P ∝ V³) vs. noons</p>
               </div>
             </div>
+            <Badge variant="outline" class="text-[10px] font-mono border-sky-500/30 text-sky-600 dark:text-sky-400">
+              14.0 kts @ 4,200 kW
+            </Badge>
           </div>
 
-          <!-- Technical Superintendent Diagnostic Insights -->
-          <div class="p-3 rounded-lg bg-muted/30 border border-border/60 space-y-2 text-xs">
-            <div class="font-semibold text-foreground flex items-center gap-1.5 text-[11px]">
-              <Compass class="w-3.5 h-3.5 text-primary" />
-              <span>Hydrodynamic Interpretation</span>
+          <!-- Quick Benchmark KPI Row -->
+          <div v-if="seaTrialStats" class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+            <div class="p-2 rounded bg-muted/40 border border-border/60">
+              <span class="text-[10px] text-muted-foreground block">Voyage Avg SOG</span>
+              <span class="text-sm font-mono font-bold text-foreground">{{ seaTrialStats.avgSog }} kts</span>
             </div>
-            <p class="text-[11px] text-muted-foreground leading-relaxed">
-              Points positioned <strong>above the cyan baseline</strong> represent increased hull resistance, biofouling, or heavy weather requiring elevated power. Points <strong>close to baseline</strong> reflect clean hull performance under calm water.
-            </p>
-            <div class="pt-1 flex items-center justify-between">
-              <Button
-                variant="outline"
-                size="sm"
-                class="h-7 text-[11px] gap-1.5 cursor-pointer"
-                @click="activeTab = 'noon'"
+            <div class="p-2 rounded bg-muted/40 border border-border/60">
+              <span class="text-[10px] text-muted-foreground block">Avg Shaft Power</span>
+              <span class="text-sm font-mono font-bold text-foreground">{{ seaTrialStats.avgPower.toLocaleString() }} kW</span>
+            </div>
+            <div class="p-2 rounded bg-muted/40 border border-border/60">
+              <span class="text-[10px] text-muted-foreground block">Speed Delta</span>
+              <span
+                class="text-sm font-mono font-bold"
+                :class="seaTrialStats.speedLoss < 0 ? 'text-rose-500' : 'text-emerald-500'"
               >
-                <ArrowRight class="w-3 h-3" />
-                <span>Inspect D{{ currentNoon?.dayNumber || 1 }}</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                class="h-7 text-[11px] gap-1 text-primary hover:bg-primary/10 cursor-pointer"
-                @click="emit('ask-copilot', `Analyze hydrodynamic sea trial performance for vessel ${currentVoyage}: Speed vs Power curve shows ${seaTrialStats?.speedLoss} kts speed delta and ${seaTrialStats?.avgSlip}% propeller slip.`)"
+                {{ seaTrialStats.speedLoss > 0 ? '+' : '' }}{{ seaTrialStats.speedLoss }} kts
+              </span>
+            </div>
+            <div class="p-2 rounded bg-muted/40 border border-border/60">
+              <span class="text-[10px] text-muted-foreground block">Avg Slip</span>
+              <span
+                class="text-sm font-mono font-bold"
+                :class="seaTrialStats.avgSlip > 20 ? 'text-amber-500' : 'text-foreground'"
               >
-                <Sliders class="w-3 h-3" />
-                <span>Audit with Copilot</span>
-              </Button>
+                {{ seaTrialStats.avgSlip }}%
+              </span>
             </div>
           </div>
         </div>
 
-        <!-- Right Side: Full-Width EChart (Flex-1) -->
-        <div class="flex-1 h-full overflow-hidden p-3.5 flex flex-col min-w-0">
-          <div class="flex items-center justify-between pb-1.5 shrink-0">
+        <!-- Full-Width Interactive EChart -->
+        <div class="p-3 rounded-lg border border-border/80 bg-card space-y-2 shadow-2xs">
+          <div class="flex items-center justify-between">
             <div class="space-y-0.5">
               <div class="text-xs font-bold text-foreground flex items-center gap-1.5">
                 <Activity class="w-3.5 h-3.5 text-sky-500" />
                 <span>Speed vs. Shaft Power Curve</span>
               </div>
-              <p class="text-[10px] text-muted-foreground">Click any noon dot to inspect that day in Noon Log</p>
+              <p class="text-[10px] text-muted-foreground">Click dot to inspect noon report</p>
             </div>
-            <div class="flex items-center gap-2">
-              <span v-if="currentNoon" class="text-[10px] text-muted-foreground font-mono">
-                Active: D{{ currentNoon.dayNumber }} ({{ currentNoon.sog }} kts · {{ currentNoon.shaftPowerKw || 4200 }} kW)
-              </span>
-              <Badge variant="outline" class="text-[10px] font-mono">
-                {{ dailyNoons.length }} Noons
-              </Badge>
-            </div>
+            <Badge variant="outline" class="text-[10px] font-mono">
+              {{ dailyNoons.length }} Noons
+            </Badge>
           </div>
-          <div class="flex-1 w-full min-h-[220px]">
+          <div class="w-full h-[280px]">
             <ClientOnly>
               <VChart
                 v-if="seaTrialChartOption"
@@ -1147,106 +1113,99 @@ function handleScatterClick(params: any) {
             </ClientOnly>
           </div>
         </div>
+
+        <!-- Superintendent Hydrodynamic Interpretation Insights -->
+        <div class="p-3 rounded-lg bg-muted/30 border border-border/60 space-y-2 text-xs">
+          <div class="font-semibold text-foreground flex items-center gap-1.5 text-[11px]">
+            <Compass class="w-3.5 h-3.5 text-primary" />
+            <span>Hydrodynamic Interpretation</span>
+          </div>
+          <p class="text-[11px] text-muted-foreground leading-relaxed">
+            Points positioned <strong>above the cyan baseline</strong> represent increased hull resistance, biofouling, or heavy weather requiring elevated power. Points <strong>close to baseline</strong> reflect clean hull performance under calm water.
+          </p>
+          <div class="pt-1 flex items-center justify-between">
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-7 text-[11px] gap-1.5 cursor-pointer"
+              @click="activeTab = 'noon'"
+            >
+              <ArrowRight class="w-3 h-3" />
+              <span>Inspect D{{ currentNoon?.dayNumber || 1 }}</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              class="h-7 text-[11px] gap-1 text-primary hover:bg-primary/10 cursor-pointer"
+              @click="emit('ask-copilot', `Analyze hydrodynamic sea trial performance for vessel ${currentVoyage}: Speed vs Power curve shows ${seaTrialStats?.speedLoss} kts speed delta and ${seaTrialStats?.avgSlip}% propeller slip.`)"
+            >
+              <Sliders class="w-3 h-3" />
+              <span>Audit with Copilot</span>
+            </Button>
+          </div>
+        </div>
       </div>
 
       <!-- TAB 3: SHOP TRIAL (SFOC VS LOAD BENCHMARK) -->
-      <div v-else-if="activeTab === 'shop-trial'" class="h-full flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-border/70 overflow-hidden">
-        <!-- Left Side: Benchmark Summary & Engine Combustion Analysis -->
-        <div class="w-full lg:w-[400px] xl:w-[440px] shrink-0 h-full overflow-y-auto p-3.5 space-y-3">
-          <div class="p-3 rounded-lg border border-border/80 bg-card space-y-2.5 shadow-2xs">
-            <div class="flex items-center justify-between gap-2 flex-wrap">
-              <div class="flex items-center gap-2">
-                <div class="w-7 h-7 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center">
-                  <Fuel class="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 class="text-xs font-bold text-foreground">Shop Trial SFOC Benchmark</h4>
-                  <p class="text-[10px] text-muted-foreground">Engine testbed factory SFOC baseline</p>
-                </div>
+      <div v-else-if="activeTab === 'shop-trial'" class="h-full overflow-y-auto p-3.5 space-y-3.5">
+        <!-- Benchmark Summary Card -->
+        <div class="p-3 rounded-lg border border-border/80 bg-card space-y-2.5 shadow-2xs">
+          <div class="flex items-center justify-between gap-2 flex-wrap">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center">
+                <Fuel class="w-4 h-4" />
               </div>
-              <Badge variant="outline" class="text-[10px] font-mono border-amber-500/30 text-amber-600 dark:text-amber-400">
-                165 g/kWh @ 85% MCR
-              </Badge>
-            </div>
-
-            <!-- Quick Benchmark KPI Row -->
-            <div v-if="shopTrialStats" class="grid grid-cols-2 gap-2 pt-1">
-              <div class="p-2 rounded bg-muted/40 border border-border/60">
-                <span class="text-[10px] text-muted-foreground block">Voyage Avg SFOC</span>
-                <span class="text-sm font-mono font-bold text-foreground">{{ shopTrialStats.avgSfoc }} g/kWh</span>
-              </div>
-              <div class="p-2 rounded bg-muted/40 border border-border/60">
-                <span class="text-[10px] text-muted-foreground block">Testbed Baseline</span>
-                <span class="text-sm font-mono font-bold text-foreground">{{ shopTrialStats.baselineSfoc }} g/kWh</span>
-              </div>
-              <div class="p-2 rounded bg-muted/40 border border-border/60">
-                <span class="text-[10px] text-muted-foreground block">Thermal SFOC Delta</span>
-                <span
-                  class="text-sm font-mono font-bold"
-                  :class="shopTrialStats.deltaPct > 6 ? 'text-rose-500' : shopTrialStats.deltaPct > 3 ? 'text-amber-500' : 'text-emerald-500'"
-                >
-                  {{ shopTrialStats.deltaPct > 0 ? '+' : '' }}{{ shopTrialStats.deltaPct }}%
-                </span>
-              </div>
-              <div class="p-2 rounded bg-muted/40 border border-border/60">
-                <span class="text-[10px] text-muted-foreground block">Avg ME Load</span>
-                <span class="text-sm font-mono font-bold text-foreground">{{ shopTrialStats.avgLoad }}% MCR</span>
+              <div>
+                <h4 class="text-xs font-bold text-foreground">Shop Trial SFOC Benchmark</h4>
+                <p class="text-[10px] text-muted-foreground">Engine testbed factory SFOC baseline</p>
               </div>
             </div>
+            <Badge variant="outline" class="text-[10px] font-mono border-amber-500/30 text-amber-600 dark:text-amber-400">
+              165 g/kWh @ 85% MCR
+            </Badge>
           </div>
 
-          <!-- Engine Combustion & Thermal Analysis Insights -->
-          <div class="p-3 rounded-lg bg-muted/30 border border-border/60 space-y-2 text-xs">
-            <div class="font-semibold text-foreground flex items-center gap-1.5 text-[11px]">
-              <Zap class="w-3.5 h-3.5 text-amber-500" />
-              <span>Thermal Efficiency Analysis</span>
+          <!-- Quick Benchmark KPI Row -->
+          <div v-if="shopTrialStats" class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+            <div class="p-2 rounded bg-muted/40 border border-border/60">
+              <span class="text-[10px] text-muted-foreground block">Voyage Avg SFOC</span>
+              <span class="text-sm font-mono font-bold text-foreground">{{ shopTrialStats.avgSfoc }} g/kWh</span>
             </div>
-            <p class="text-[11px] text-muted-foreground leading-relaxed">
-              Values elevated beyond <strong>175 g/kWh</strong> (red/orange dots) signal thermal inefficiencies such as fuel injector wear, turbocharger compressor fouling, or high scavenge air temperatures.
-            </p>
-            <div class="pt-1 flex items-center justify-between">
-              <Button
-                variant="outline"
-                size="sm"
-                class="h-7 text-[11px] gap-1.5 cursor-pointer"
-                @click="activeTab = 'noon'"
+            <div class="p-2 rounded bg-muted/40 border border-border/60">
+              <span class="text-[10px] text-muted-foreground block">Avg Engine Load</span>
+              <span class="text-sm font-mono font-bold text-foreground">{{ shopTrialStats.avgLoad }}% MCR</span>
+            </div>
+            <div class="p-2 rounded bg-muted/40 border border-border/60">
+              <span class="text-[10px] text-muted-foreground block">Testbed Baseline</span>
+              <span class="text-sm font-mono font-bold text-foreground">{{ shopTrialStats.baselineSfoc }} g/kWh</span>
+            </div>
+            <div class="p-2 rounded bg-muted/40 border border-border/60">
+              <span class="text-[10px] text-muted-foreground block">Efficiency Delta</span>
+              <span
+                class="text-sm font-mono font-bold"
+                :class="shopTrialStats.deltaPct > 5 ? 'text-rose-500' : shopTrialStats.deltaPct > 0 ? 'text-amber-500' : 'text-emerald-500'"
               >
-                <ArrowRight class="w-3 h-3" />
-                <span>Inspect D{{ currentNoon?.dayNumber || 1 }}</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                class="h-7 text-[11px] gap-1 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 cursor-pointer"
-                @click="emit('ask-copilot', `Analyze engine thermal efficiency and SFOC for vessel ${currentVoyage}: Average SFOC is ${shopTrialStats?.avgSfoc} g/kWh (${shopTrialStats?.deltaPct}% vs testbed baseline of 165 g/kWh).`)"
-              >
-                <Sliders class="w-3 h-3" />
-                <span>Audit SFOC</span>
-              </Button>
+                {{ shopTrialStats.deltaPct > 0 ? '+' : '' }}{{ shopTrialStats.deltaPct }}%
+              </span>
             </div>
           </div>
         </div>
 
-        <!-- Right Side: Full-Width EChart (Flex-1) -->
-        <div class="flex-1 h-full overflow-hidden p-3.5 flex flex-col min-w-0">
-          <div class="flex items-center justify-between pb-1.5 shrink-0">
+        <!-- Full-Width Interactive EChart -->
+        <div class="p-3 rounded-lg border border-border/80 bg-card space-y-2 shadow-2xs">
+          <div class="flex items-center justify-between">
             <div class="space-y-0.5">
               <div class="text-xs font-bold text-foreground flex items-center gap-1.5">
                 <TrendingUp class="w-3.5 h-3.5 text-amber-500" />
-                <span>SFOC vs. Main Engine Load (% MCR)</span>
+                <span>SFOC vs. Engine Load (% MCR)</span>
               </div>
-              <p class="text-[10px] text-muted-foreground">Click any noon dot to inspect that day in Noon Log</p>
+              <p class="text-[10px] text-muted-foreground">Click dot to inspect noon report</p>
             </div>
-            <div class="flex items-center gap-2">
-              <span v-if="currentNoon" class="text-[10px] text-muted-foreground font-mono">
-                Active: D{{ currentNoon.dayNumber }} ({{ currentNoon.fuelConsumedMt.total }} MT/day)
-              </span>
-              <Badge variant="outline" class="text-[10px] font-mono">
-                {{ dailyNoons.length }} Noons
-              </Badge>
-            </div>
+            <Badge variant="outline" class="text-[10px] font-mono">
+              {{ dailyNoons.length }} Noons
+            </Badge>
           </div>
-          <div class="flex-1 w-full min-h-[220px]">
+          <div class="w-full h-[280px]">
             <ClientOnly>
               <VChart
                 v-if="shopTrialChartOption"
@@ -1261,12 +1220,43 @@ function handleScatterClick(params: any) {
             </ClientOnly>
           </div>
         </div>
+
+        <!-- Combustion Diagnostic Insights -->
+        <div class="p-3 rounded-lg bg-muted/30 border border-border/60 space-y-2 text-xs">
+          <div class="font-semibold text-foreground flex items-center gap-1.5 text-[11px]">
+            <Zap class="w-3.5 h-3.5 text-amber-500" />
+            <span>Combustion & Thermal Diagnostics</span>
+          </div>
+          <p class="text-[11px] text-muted-foreground leading-relaxed">
+            SFOC points significantly above testbed baseline indicate thermal degradation, fuel injection wear, elevated scavenging temperatures, or suboptimal air fuel ratios.
+          </p>
+          <div class="pt-1 flex items-center justify-between">
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-7 text-[11px] gap-1.5 cursor-pointer"
+              @click="activeTab = 'noon'"
+            >
+              <ArrowRight class="w-3 h-3" />
+              <span>Inspect D{{ currentNoon?.dayNumber || 1 }}</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              class="h-7 text-[11px] gap-1 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 cursor-pointer"
+              @click="emit('ask-copilot', `Analyze engine thermal efficiency and SFOC for vessel ${currentVoyage}: Average SFOC is ${shopTrialStats?.avgSfoc} g/kWh (${shopTrialStats?.deltaPct}% vs testbed baseline of 165 g/kWh).`)"
+            >
+              <Sliders class="w-3 h-3" />
+              <span>Audit SFOC</span>
+            </Button>
+          </div>
+        </div>
       </div>
 
       <!-- TAB 4: ROUTE STRATEGIES & ADVISORIES -->
-      <div v-else-if="activeTab === 'strategies'" class="h-full flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-border/70 overflow-hidden">
-        <!-- Left Side: Route Alternatives Comparison -->
-        <div class="w-full lg:w-[460px] xl:w-[520px] shrink-0 h-full overflow-y-auto p-3.5 space-y-3">
+      <div v-else-if="activeTab === 'strategies'" class="h-full overflow-y-auto p-3.5 space-y-3.5">
+        <!-- Route Alternatives Comparison -->
+        <div class="space-y-2">
           <div class="space-y-1">
             <div class="text-xs font-semibold text-foreground flex items-center justify-between">
               <span class="flex items-center gap-1.5">
@@ -1325,16 +1315,17 @@ function handleScatterClick(params: any) {
           </div>
         </div>
 
-        <!-- Right Side: Actionable Dispatch Advisories -->
-        <div class="flex-1 h-full overflow-y-auto p-3.5 space-y-3 min-w-0">
+        <!-- Actionable Dispatch Advisories -->
+        <div class="space-y-2 pt-2 border-t border-border/60">
           <div class="text-xs font-semibold text-foreground flex items-center justify-between">
             <span class="flex items-center gap-1.5">
               <Sparkles class="w-3.5 h-3.5 text-amber-500" />
               Actionable Dispatch Advisories
             </span>
+            <span class="text-[10px] text-muted-foreground font-mono">{{ advisories.length }} Active</span>
           </div>
 
-          <div class="grid grid-cols-1 xl:grid-cols-2 gap-2.5">
+          <div class="space-y-2.5">
             <div
               v-for="adv in advisories"
               :key="adv.id"
