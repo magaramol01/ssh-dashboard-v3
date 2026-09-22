@@ -69,16 +69,27 @@ use([
   MarkLineComponent,
 ])
 
-const isExpanded = ref(false)
-
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   isOpen: boolean
-}>()
+  isExpanded?: boolean
+}>(), {
+  isExpanded: false,
+})
 
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'ask-copilot', prompt: string): void
+  (e: 'update:isExpanded', value: boolean): void
 }>()
+
+const isExpandedLocal = ref(false)
+const isExpanded = computed({
+  get: () => props.isExpanded ?? isExpandedLocal.value,
+  set: (val: boolean) => {
+    isExpandedLocal.value = val
+    emit('update:isExpanded', val)
+  },
+})
 
 const {
   selectedDay,

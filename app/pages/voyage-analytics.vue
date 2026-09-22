@@ -28,6 +28,7 @@ const {
 
 // Map-first: drawer starts closed so the passage map is the clear hero on load
 const isDrawerOpen = ref(false)
+const isDrawerExpanded = ref(false)
 const isCopilotOpen = ref(false)
 const isCopilotFullscreen = ref(false)
 const copilotPanelRef = ref<any>(null)
@@ -144,46 +145,59 @@ onBeforeUnmount(() => {
         </ClientOnly>
       </div>
 
-      <!-- Floating 5-Tile Advisory KPI HUD (Mounted Over the Map) -->
-      <div class="absolute top-3 left-0 right-0 z-20 pointer-events-none">
-        <VoyageOptimizationKpiHud />
-      </div>
-
-      <!-- Floating Bottom Passage Timeline Scrubber -->
-      <div class="absolute bottom-4 left-4 right-4 max-w-4xl mx-auto z-20 pointer-events-auto flex items-center gap-3 p-2 px-3.5 rounded-xl bg-background/92 dark:bg-card/92 backdrop-blur-md border border-border/80 shadow-lg animate-in fade-in slide-in-from-bottom-2">
-        <div class="flex items-center gap-2 shrink-0 text-xs font-medium text-muted-foreground pr-1 border-r border-border/70 hidden sm:flex">
-          <Calendar class="w-3.5 h-3.5 text-primary" />
-          <span>Timeline</span>
-          <span class="text-[10px] font-mono px-1 rounded bg-muted text-muted-foreground">{{ dailyNoons.length }}d</span>
+      <!-- Floating Map Overlays Layer (Confined to Unobstructed Map Space) -->
+      <div
+        :class="[
+          'absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-3 sm:p-4 transition-all duration-300',
+          isDrawerOpen
+            ? isDrawerExpanded
+              ? 'sm:right-[705px] xl:right-[785px]'
+              : 'sm:right-[505px] xl:right-[565px]'
+            : 'right-0'
+        ]"
+      >
+        <!-- Top: 5-Tile Advisory KPI HUD -->
+        <div class="w-full pointer-events-none">
+          <VoyageOptimizationKpiHud />
         </div>
 
-        <!-- Scrubber Carousel (D1..Dn) -->
-        <div class="flex-1 flex items-center gap-1.5 overflow-x-auto scrollbar-thin py-0.5 min-w-0">
-          <button
-            v-for="d in dailyNoons"
-            :key="d.dayNumber"
-            type="button"
-            class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-semibold transition-all shrink-0 border cursor-pointer select-none"
-            :class="[
-              selectedDay?.dayNumber === d.dayNumber
-                ? 'bg-primary text-primary-foreground border-primary shadow-xs ring-1 ring-primary/40'
-                : 'bg-muted/50 hover:bg-muted text-foreground border-border/70'
-            ]"
-            @click="handleSelectDay(d)"
-          >
-            <span>D{{ d.dayNumber }}</span>
-            <span
-              class="w-1.5 h-1.5 rounded-full shrink-0"
-              :class="selectedDay?.dayNumber === d.dayNumber ? 'bg-white' : ciiDotClass(d.rating)"
-            />
-            <span class="text-[10px] opacity-75 font-normal">{{ d.sog }}kt</span>
-          </button>
+        <!-- Bottom: Passage Timeline Scrubber -->
+        <div class="w-full max-w-4xl mx-auto pointer-events-auto flex items-center gap-3 p-2 px-3.5 rounded-xl bg-background/92 dark:bg-card/92 backdrop-blur-md border border-border/80 shadow-lg animate-in fade-in slide-in-from-bottom-2">
+          <div class="flex items-center gap-2 shrink-0 text-xs font-medium text-muted-foreground pr-1 border-r border-border/70 hidden sm:flex">
+            <Calendar class="w-3.5 h-3.5 text-primary" />
+            <span>Timeline</span>
+            <span class="text-[10px] font-mono px-1 rounded bg-muted text-muted-foreground">{{ dailyNoons.length }}d</span>
+          </div>
+
+          <!-- Scrubber Carousel (D1..Dn) -->
+          <div class="flex-1 flex items-center gap-1.5 overflow-x-auto scrollbar-thin py-0.5 min-w-0">
+            <button
+              v-for="d in dailyNoons"
+              :key="d.dayNumber"
+              type="button"
+              class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-semibold transition-all shrink-0 border cursor-pointer select-none"
+              :class="[
+                selectedDay?.dayNumber === d.dayNumber
+                  ? 'bg-primary text-primary-foreground border-primary shadow-xs ring-1 ring-primary/40'
+                  : 'bg-muted/50 hover:bg-muted text-foreground border-border/70'
+              ]"
+              @click="handleSelectDay(d)"
+            >
+              <span>D{{ d.dayNumber }}</span>
+              <span
+                class="w-1.5 h-1.5 rounded-full shrink-0"
+                :class="selectedDay?.dayNumber === d.dayNumber ? 'bg-white' : ciiDotClass(d.rating)"
+              />
+              <span class="text-[10px] opacity-75 font-normal">{{ d.sog }}kt</span>
+            </button>
+          </div>
         </div>
       </div>
 
       <!-- Floating Translucent Glass Benchmark Cockpit -->
       <VoyageOptimizationDrawer
         :is-open="isDrawerOpen"
+        v-model:is-expanded="isDrawerExpanded"
         @close="isDrawerOpen = false"
         @ask-copilot="handleAskCopilot"
       />
