@@ -1,10 +1,28 @@
 import type { H3Event } from 'h3'
+import type { SentinelAgentDomain } from '../../../../shared/types/sentinel'
 import type { ValidSentinelRequest } from './schemas'
-import { getAllSentinelTools, getFleetOpsTools, getEmissionsTools, getVoyageTools } from '../agents'
+import { getAllSentinelTools } from '../agents'
+import { getFleetOpsTools } from '../agents/fleet-ops/tools'
+import { getEmissionsTools } from '../agents/emissions/tools'
+import { getVoyageTools } from '../agents/voyage/tools'
+import { fleetOpsPrompt } from '../agents/fleet-ops/prompt'
+import { emissionsPrompt } from '../agents/emissions/prompt'
+import { voyagePrompt } from '../agents/voyage/prompt'
+import { sentinelSystemPrompt } from '../prompts'
 
-export type AgentDomain = 'fleet-ops' | 'emissions' | 'voyage' | 'all'
+export interface ResolvedAgent {
+  domain: SentinelAgentDomain
+  prompt: string
+  tools: any[]
+}
 
-export function resolveAgentDomain(request: ValidSentinelRequest): AgentDomain {
+export function resolveAgentDomain(request: ValidSentinelRequest): SentinelAgentDomain {
+  // 1. Direct explicit agent routing from frontend request
+  if (request.agent && ['fleet-ops', 'emissions', 'voyage', 'general'].includes(request.agent)) {
+    return request.agent
+  }
+
+  // 2. Intelligent context fallback if frontend did not specify agent
   const latestPrompt = [...request.messages].reverse().find((m) => m.role === 'user')?.content.toLowerCase() || ''
   const ctx = request.context || {}
 
@@ -20,19 +38,41 @@ export function resolveAgentDomain(request: ValidSentinelRequest): AgentDomain {
     return 'fleet-ops'
   }
 
-  return 'all'
+  return 'general'
 }
 
-export function resolveToolsForDomain(domain: AgentDomain, tenant?: string, event?: H3Event) {
+export function resolveAgentConfig(
+  request: ValidSentinelRequest,
+  tenant?: string,
+  event?: H3Event
+): ResolvedAgent {
+  const domain = resolveAgentDomain(request)
+
   switch (domain) {
     case 'fleet-ops':
-      return getFleetOpsTools(tenant)
+      return {
+        domain,
+        prompt: fleetOpsPrompt,
+        tools: getFleetOpsTools(tenant),
+      }
     case 'emissions':
-      return getEmissionsTools(tenant)
+      return {
+        domain,
+        prompt: emissionsPrompt,
+        tools: getEmissionsTools(tenant),
+      }
     case 'voyage':
-      return getVoyageTools(tenant, event)
-    case 'all':
+      return {
+        domain,
+        prompt: voyagePrompt,
+        tools: getVoyageTools(tenant, event),
+      }
+    case 'general':
     default:
-      return getAllSentinelTools(tenant, event)
+      return {
+        domain: 'general',
+        prompt: sentinelSystemPrompt,
+        tools: getAllSentinelTools(tenant, event),
+      }
   }
 }

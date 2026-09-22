@@ -14,7 +14,10 @@ export const sentinelMessageSchema = z.discriminatedUnion('role', [
   }),
 ])
 
+export const sentinelAgentDomainSchema = z.enum(['fleet-ops', 'emissions', 'voyage', 'general']).optional()
+
 export const sentinelRequestSchema = z.object({
+  agent: sentinelAgentDomainSchema,
   messages: z.array(sentinelMessageSchema).min(1).max(20),
   context: z.object({
     alertId: z.number().int().positive().optional(),
@@ -83,6 +86,7 @@ export const sentinelBlockSchema = z.discriminatedUnion('type', [
 
 export const sentinelResponseSchema = z.object({
   message: z.object({ role: z.literal('agent'), content: z.string().min(1).max(8_000) }).strict(),
+  thought: z.string().max(8_000).optional(),
   blocks: z.array(sentinelBlockSchema).min(1).max(16),
   activity: z.array(z.object({
     name: z.string().min(1).max(60),

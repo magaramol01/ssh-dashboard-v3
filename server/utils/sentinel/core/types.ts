@@ -8,6 +8,7 @@ export type SentinelToolResult = {
 
 export type SentinelRawResponse = {
   text: string
+  thought?: string
   toolResults: SentinelToolResult[]
   activity: SentinelActivity[]
   references: SentinelReference[]

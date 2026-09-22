@@ -5,8 +5,7 @@ import { createReactAgent } from '@langchain/langgraph/prebuilt'
 import type { SentinelAction, SentinelActivity, SentinelReference } from '../../../shared/types/sentinel'
 import { getSentinelConfig } from './config'
 import type { SentinelRawResponse, SentinelToolResult } from './types'
-import { sentinelSystemPrompt } from '../prompts'
-import { getAllSentinelTools } from '../agents'
+import { resolveAgentConfig } from './router'
 import type { ValidSentinelRequest } from './schemas'
 import { getCurrentTenant } from '../../tenant-context'
 
@@ -136,7 +135,7 @@ function actionsFor(request: ValidSentinelRequest, references: SentinelReference
 export async function runSentinelConversation(request: ValidSentinelRequest, tenant?: string, event?: H3Event): Promise<SentinelRawResponse> {
   const activeTenant = tenant || getCurrentTenant()
   const config = getSentinelConfig()
-  const tools = getAllSentinelTools(activeTenant, event)
+  const { prompt, tools } = resolveAgentConfig(request, activeTenant, event)
   const model = new ChatOpenRouter({
     apiKey: config.apiKey,
     model: config.model,
@@ -147,7 +146,7 @@ export async function runSentinelConversation(request: ValidSentinelRequest, ten
   const graph = createReactAgent({
     llm: model,
     tools,
-    prompt: new SystemMessage(sentinelSystemPrompt),
+    prompt: new SystemMessage(prompt),
     version: 'v2',
   })
 
@@ -195,5 +194,21 @@ export async function runSentinelConversation(request: ValidSentinelRequest, ten
   const finalMessage = [...rawMessages].reverse().find((message) => message.type === 'ai' && !message.tool_calls?.length)
   const text = textContent(finalMessage?.content) || 'I could not produce an evidence-backed answer from the available marine data.'
   const uniqueReferences = [...new Map(references.map((reference) => [`${reference.kind}:${reference.id}`, reference])).values()].slice(0, 20)
-  return { text, toolResults, activity, references: uniqueReferences, actions: actionsFor(request, uniqueReferences, toolResults) }
+
+  const thoughts: string[] = []
+  for (const message of rawMessages) {
+    if (message.type === 'ai' || (message as any).role === 'assistant') {
+      const intermediate = textContent(message.content)
+      if (intermediate && message.tool_calls?.length) {
+        thoughts.push(intermediate)
+      }
+      const reasoning = (message as any).additional_kwargs?.reasoning_content
+      if (typeof reasoning === 'string' && reasoning.trim()) {
+        thoughts.push(reasoning.trim())
+      }
+    }
+  }
+  const thought = thoughts.length ? thoughts.join('\n\n') : undefined
+
+  return { text, thought, toolResults, activity, references: uniqueReferences, actions: actionsFor(request, uniqueReferences, toolResults) }
 }

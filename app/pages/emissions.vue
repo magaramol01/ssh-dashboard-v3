@@ -1877,6 +1877,7 @@ const fuelDonutOption = computed(() => ({
       ref="copilotPanelRef"
       v-model="isCopilotOpen"
       v-model:fullscreen="isCopilotFullscreen"
+      agent="emissions"
       :title="`${selectedVessel?.name || 'Vessel'} Emissions Copilot`"
       subtitle="CII Compliance & Speed Advisory"
       badge-text="AI Decarb"

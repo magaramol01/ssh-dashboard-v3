@@ -148,6 +148,7 @@ onBeforeUnmount(() => {
         v-model="isCopilotOpen"
         v-model:fullscreen="isCopilotFullscreen"
         variant="sidebar"
+        agent="voyage"
         :title="`${selectedVessel?.name || 'Vessel'} Operations Copilot`"
         subtitle="Voyage Performance & Carbon Intensity Advisory"
         badge-text="Operations"

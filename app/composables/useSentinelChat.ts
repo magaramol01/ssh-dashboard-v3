@@ -1,16 +1,17 @@
 import { ref } from 'vue'
-import type { SentinelAction, SentinelBlock, SentinelChatResponse } from '#shared/types/sentinel'
+import type { SentinelAction, SentinelAgentDomain, SentinelBlock, SentinelChatResponse } from '#shared/types/sentinel'
 
 export interface SentinelMessage {
   id: string
   role: 'user' | 'agent'
   content: string
+  thought?: string
   blocks?: SentinelBlock[]
-  tools?: { name: string; args: string; summary: string }[]
+  tools?: { name: string; args: string; rawArgs?: Record<string, unknown>; summary: string }[]
   actions?: { label: string; action: SentinelAction }[]
 }
 
-export function useSentinelChat(initialMessage?: string) {
+export function useSentinelChat(initialMessage?: string, defaultAgent?: SentinelAgentDomain) {
   const isProcessing = ref(false)
   const input = ref('')
   const messages = ref<SentinelMessage[]>([
@@ -23,7 +24,7 @@ export function useSentinelChat(initialMessage?: string) {
     },
   ])
 
-  async function sendMessage(promptText: string, context?: Record<string, any>) {
+  async function sendMessage(promptText: string, context?: Record<string, any>, agent?: SentinelAgentDomain) {
     const q = promptText.trim()
     if (!q || isProcessing.value) return
     input.value = ''
@@ -34,6 +35,7 @@ export function useSentinelChat(initialMessage?: string) {
       const response = await $fetch<SentinelChatResponse>('/api/sentinel/chat', {
         method: 'POST',
         body: {
+          agent: agent || defaultAgent,
           messages: messages.value.slice(-20).map(({ role, content }) => ({
             role: role === 'agent' ? 'assistant' : 'user',
             content,
@@ -45,10 +47,12 @@ export function useSentinelChat(initialMessage?: string) {
         id: `agent-${Date.now()}`,
         role: 'agent',
         content: response.message.content,
+        thought: response.thought,
         blocks: response.blocks,
         tools: response.activity.map(({ name, args, summary }) => ({
           name,
           args: typeof args === 'string' ? args : JSON.stringify(args),
+          rawArgs: typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : undefined,
           summary,
         })),
         actions: response.actions.map((action) => ({

@@ -76,3 +76,28 @@ test('accepts emissions context and apply-speed-scenario action', () => {
   })
   assert.equal(respResult.success, true)
 })
+
+test('validates agent domain routing and rejects unknown agent names', async () => {
+  const { resolveAgentConfig } = await import('../server/utils/sentinel/core/router')
+
+  // Valid agent names
+  assert.equal(sentinelRequestSchema.safeParse({ agent: 'emissions', messages: [{ role: 'user', content: 'test' }] }).success, true)
+  assert.equal(sentinelRequestSchema.safeParse({ agent: 'fleet-ops', messages: [{ role: 'user', content: 'test' }] }).success, true)
+  assert.equal(sentinelRequestSchema.safeParse({ agent: 'voyage', messages: [{ role: 'user', content: 'test' }] }).success, true)
+
+  // Invalid agent name
+  assert.equal(sentinelRequestSchema.safeParse({ agent: 'invalid-agent', messages: [{ role: 'user', content: 'test' }] }).success, false)
+
+  // Explicit emissions agent routing isolates tools
+  const emissionsConfig = resolveAgentConfig({ agent: 'emissions', messages: [{ role: 'user', content: 'Audit' }] })
+  assert.equal(emissionsConfig.domain, 'emissions')
+  assert.ok(emissionsConfig.tools.some((t: any) => t.name === 'get_vessel_cii_telemetry'))
+  assert.ok(!emissionsConfig.tools.some((t: any) => t.name === 'search_operational_alerts'))
+
+  // Explicit fleet-ops routing isolates tools
+  const fleetConfig = resolveAgentConfig({ agent: 'fleet-ops', messages: [{ role: 'user', content: 'Alerts' }] })
+  assert.equal(fleetConfig.domain, 'fleet-ops')
+  assert.ok(fleetConfig.tools.some((t: any) => t.name === 'search_operational_alerts'))
+  assert.ok(!fleetConfig.tools.some((t: any) => t.name === 'get_vessel_cii_telemetry'))
+})
+

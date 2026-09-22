@@ -255,6 +255,7 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
 export function formatSentinelResponse(raw: SentinelRawResponse): SentinelChatResponse {
   const candidate = {
     message: { role: 'agent' as const, content: raw.text.slice(0, 8_000) },
+    thought: raw.thought ? raw.thought.slice(0, 8_000) : undefined,
     blocks: [
       { type: 'markdown' as const, text: raw.text.slice(0, 8_000) || 'No evidence-backed answer is available.' },
       ...blocksFromToolResults(raw),

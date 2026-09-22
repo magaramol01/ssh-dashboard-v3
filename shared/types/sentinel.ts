@@ -1,6 +1,9 @@
 export type SentinelRole = 'user' | 'assistant'
 
+export type SentinelAgentDomain = 'fleet-ops' | 'emissions' | 'voyage' | 'general'
+
 export type SentinelChatRequest = {
+  agent?: SentinelAgentDomain
   messages: Array<{ role: SentinelRole; content: string }>
   context?: {
     alertId?: number
@@ -40,6 +43,7 @@ export type SentinelBlock =
 
 export type SentinelChatResponse = {
   message: { role: 'agent'; content: string }
+  thought?: string
   blocks: SentinelBlock[]
   activity: SentinelActivity[]
   references: SentinelReference[]

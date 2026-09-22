@@ -10,7 +10,8 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import {
   Target, X, Sparkles, Send, RotateCcw, ArrowUpRight,
   CloudRain, Compass, AlertTriangle, RefreshCw, ChevronDown, Maximize2, Minimize2,
-  Gauge, Clock, Search, Anchor, CheckCircle2, Wind, Waves, Navigation, Video
+  Gauge, Clock, Search, Anchor, CheckCircle2, Wind, Waves, Navigation, Video,
+  Brain, Wrench, Terminal
 } from 'lucide-vue-next'
 
 import { Badge } from '@/components/ui/badge'
@@ -121,6 +122,7 @@ interface AgentMessage {
   id: string
   role: 'user' | 'agent'
   content: string
+  thought?: string
   blocks?: SentinelBlock[]
   tools?: { name: string; args: string; summary: string }[]
   actions?: { label: string; handler: () => void }[]
@@ -173,6 +175,7 @@ async function askAgent(promptText: string, context?: { vesselId?: number }) {
     const response = await $fetch<SentinelChatResponse>('/api/sentinel/chat', {
       method: 'POST',
       body: {
+        agent: 'fleet-ops',
         messages: agentMessages.value.slice(-20).map(({ role, content }) => ({
           role: role === 'agent' ? 'assistant' : 'user',
           content,
@@ -184,6 +187,7 @@ async function askAgent(promptText: string, context?: { vesselId?: number }) {
       id: `agent-${Date.now()}`,
       role: 'agent',
       content: response.message.content,
+      thought: response.thought,
       blocks: response.blocks,
       tools: response.activity.map(({ name, args, summary }) => ({ name, args: JSON.stringify(args), summary })),
       actions: response.actions.map((action) => ({ label: action.label, handler: () => applyAgentAction(action) })),
@@ -227,6 +231,24 @@ function applyAgentAction(action: SentinelAction) {
 
 function toolLabel(name: string) {
   return name.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function traceSummaryLabel(msg: any) {
+  if (msg.thought && msg.tools?.length) {
+    return `Reasoning & ${msg.tools.length} diagnostic ${msg.tools.length === 1 ? 'tool' : 'tools'}`
+  }
+  if (msg.thought) {
+    return 'Agent reasoning & diagnosis'
+  }
+  if (msg.tools?.length) {
+    return `${msg.tools.length} diagnostic ${msg.tools.length === 1 ? 'source' : 'sources'} verified`
+  }
+  return 'Diagnostic trace'
+}
+
+function hasArgs(args?: string) {
+  if (!args || args === '{}' || args === 'null' || args === 'undefined') return false
+  return true
 }
 
 function resetAgentSession() {
@@ -1191,22 +1213,63 @@ watch(selected, (newSel, oldSel) => {
 
               <!-- Copilot Structured Response -->
               <div v-else class="rounded-lg border border-border/80 bg-background/90 p-3 space-y-2.5 shadow-xs">
-                <!-- Tool Executions Diagnostic Summary -->
-                <div v-if="msg.tools?.length" class="pb-1">
-                  <details class="group text-[11px]">
-                    <summary class="inline-flex items-center gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground select-none py-1 px-2 rounded-md bg-muted/40 hover:bg-muted/70 border border-border/50 transition-colors">
-                      <span class="text-emerald-500 font-bold">✓</span>
-                      <span class="font-medium text-[10px]">{{ msg.tools.length }} diagnostic {{ msg.tools.length === 1 ? 'source' : 'sources' }} verified</span>
-                      <ChevronDown class="size-3 text-muted-foreground transition-transform group-open:rotate-180 ml-0.5" />
+                <!-- Thinking & Tool Invocations Inspector -->
+                <div v-if="msg.thought || msg.tools?.length" class="pb-1">
+                  <details class="group text-[11px] rounded-md border border-border/60 bg-muted/20 overflow-hidden">
+                    <summary class="flex items-center justify-between cursor-pointer px-2.5 py-1.5 hover:bg-muted/40 select-none transition-colors">
+                      <div class="inline-flex items-center gap-1.5 text-muted-foreground font-medium text-[11px]">
+                        <Brain v-if="msg.thought" class="size-3.5 text-primary shrink-0" />
+                        <Wrench v-else class="size-3.5 text-emerald-500 shrink-0" />
+                        <span>{{ traceSummaryLabel(msg) }}</span>
+                      </div>
+                      <ChevronDown class="size-3.5 text-muted-foreground transition-transform group-open:rotate-180" />
                     </summary>
-                    <div class="mt-1.5 space-y-1 pl-2.5 border-l-2 border-border/70 pt-0.5">
-                      <div
-                        v-for="(t, idx) in msg.tools"
-                        :key="idx"
-                        class="flex items-start gap-1.5 text-[10px] text-muted-foreground"
-                      >
-                        <span class="text-foreground font-semibold shrink-0">{{ toolLabel(t.name) }}:</span>
-                        <span class="opacity-80 leading-tight">{{ t.summary }}</span>
+
+                    <div class="p-2.5 space-y-2.5 border-t border-border/40 bg-background/50">
+                      <!-- Agent Thought / Reasoning -->
+                      <div v-if="msg.thought" class="space-y-1">
+                        <div class="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                          <Brain class="size-3 text-primary shrink-0" />
+                          <span>Chain-of-Thought &amp; Diagnosis</span>
+                        </div>
+                        <div class="p-2 rounded bg-muted/30 border border-border/50 text-[11px] text-muted-foreground leading-relaxed whitespace-pre-line font-mono">
+                          {{ msg.thought }}
+                        </div>
+                      </div>
+
+                      <!-- Tool Calls -->
+                      <div v-if="msg.tools?.length" class="space-y-1.5">
+                        <div class="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                          <Terminal class="size-3 text-emerald-500 shrink-0" />
+                          <span>Tool Invocations &amp; Telemetry Payloads</span>
+                        </div>
+                        <div class="space-y-1.5">
+                          <div
+                            v-for="(t, idx) in msg.tools"
+                            :key="idx"
+                            class="p-2 rounded bg-muted/25 border border-border/40 space-y-1 text-[11px]"
+                          >
+                            <div class="flex items-center justify-between gap-2">
+                              <span class="font-medium text-foreground text-[11px] flex items-center gap-1">
+                                <span class="size-1.5 rounded-full bg-emerald-500 inline-block" />
+                                {{ toolLabel(t.name) }}
+                              </span>
+                              <code class="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">{{ t.name }}</code>
+                            </div>
+
+                            <!-- Arguments if present -->
+                            <div v-if="hasArgs(t.args)" class="text-[10px] text-muted-foreground/80 flex items-start gap-1 font-mono">
+                              <span class="text-muted-foreground font-semibold">args:</span>
+                              <span class="truncate max-w-[320px]">{{ t.args }}</span>
+                            </div>
+
+                            <!-- Verified output summary -->
+                            <div class="text-[10px] text-muted-foreground flex items-start gap-1">
+                              <span class="text-emerald-500 font-semibold shrink-0">result:</span>
+                              <span>{{ t.summary }}</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </details>

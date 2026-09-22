@@ -1,0 +1,57 @@
+<mxfile host="Electron" agent="Mozilla/5.0">
+  <diagram id="high-level-copilot-clean" name="Copilot High-Level Architecture">
+    <mxGraphModel dx="1920" dy="1208" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1240" pageHeight="980" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=none;fontColor=#FFFFFF;align=center;verticalAlign=middle;" value="&lt;b&gt;&lt;font style=&quot;font-size: 20px;&quot;&gt;Sentinel Copilot — High-Level Architecture&lt;/font&gt;&lt;/b&gt;" vertex="1">
+          <mxGeometry height="45" width="1120" x="60" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="ui_box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FDF4;strokeColor=#16A34A;strokeWidth=2;align=center;verticalAlign=top;spacingTop=10;" value="&lt;b&gt;&lt;font style=&quot;font-size: 14px;&quot;&gt;COMMON UI LAYER&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#15803D&quot;&gt;Unified Panel &amp;amp; Polymorphic Block Renderer&lt;/font&gt;&lt;hr&gt;• Single chat interface across all pages&lt;br&gt;• Auto-renders Markdown, KPI cards, ECharts &amp;amp; Tables" vertex="1">
+          <mxGeometry height="90" width="1120" x="60" y="85" as="geometry" />
+        </mxCell>
+        <mxCell id="gw_box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#2563EB;strokeWidth=2;align=center;verticalAlign=top;spacingTop=10;" value="&lt;b&gt;&lt;font style=&quot;font-size: 14px;&quot;&gt;COMMON COMMUNICATION &amp;amp; TENANCY GATEWAY&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#1D4ED8&quot;&gt;POST /api/sentinel/chat&lt;/font&gt;&lt;hr&gt;• Multi-Tenant Isolation (AsyncLocalStorage)&lt;br&gt;• Strict Request &amp;amp; Response Zod Contracts" vertex="1">
+          <mxGeometry height="90" width="1120" x="60" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="agents_group" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAF5FF;strokeColor=#9333EA;strokeWidth=2;align=left;verticalAlign=top;spacingLeft=15;spacingTop=10;fontColor=#6B21A8;" value="&lt;b&gt;&lt;font style=&quot;font-size: 14px;&quot;&gt;AGENT-WISE DOMAIN MODULES&lt;/font&gt;&lt;/b&gt; (LangGraph ReAct / OpenRouter LLM)" vertex="1">
+          <mxGeometry height="280" width="1120" x="60" y="335" as="geometry" />
+        </mxCell>
+        <mxCell id="card_fleet" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D8B4FE;align=left;verticalAlign=top;spacingLeft=12;spacingTop=10;" value="&lt;b&gt;&lt;font style=&quot;font-size: 15px;&quot; color=&quot;#6B21A8&quot;&gt;Fleet Operations Agent&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#64748B&quot;&gt;Control Tower &amp;amp; Alarms&lt;/font&gt;&lt;hr&gt;&lt;b&gt;🛡️ Guardrails:&lt;/b&gt;&lt;br&gt;• Read-only (no alarm silencing)&lt;br&gt;• Telemetry = untrusted data&lt;br&gt;&lt;br&gt;&lt;b&gt;🧠 Skills:&lt;/b&gt;&lt;br&gt;• Anomaly &amp;amp; root-cause diagnosis&lt;br&gt;• Fleet VSAT connectivity&lt;br&gt;• 24h hourly alarm trends&lt;br&gt;&lt;br&gt;&lt;b&gt;🔧 Dedicated Tools:&lt;/b&gt;&lt;br&gt;• &lt;code&gt;search_alerts&lt;/code&gt;&lt;br&gt;• &lt;code&gt;analyze_alert&lt;/code&gt;&lt;br&gt;• &lt;code&gt;fleet_connectivity&lt;/code&gt;&lt;br&gt;• &lt;code&gt;fleet_alarm_trends&lt;/code&gt;" vertex="1">
+          <mxGeometry height="225" width="340" x="85" y="375" as="geometry" />
+        </mxCell>
+        <mxCell id="card_emissions" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D8B4FE;align=left;verticalAlign=top;spacingLeft=12;spacingTop=10;" value="&lt;b&gt;&lt;font style=&quot;font-size: 15px;&quot; color=&quot;#6B21A8&quot;&gt;Decarbonization Agent&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#64748B&quot;&gt;Emissions &amp;amp; ESG Compliance&lt;/font&gt;&lt;hr&gt;&lt;b&gt;🛡️ Guardrails:&lt;/b&gt;&lt;br&gt;• Enforces IMO reference boundaries&lt;br&gt;• Disclaims legal certification&lt;br&gt;&lt;br&gt;&lt;b&gt;🧠 Skills:&lt;/b&gt;&lt;br&gt;• Attained vs. Required CII&lt;br&gt;• IMO Grade A–E classification&lt;br&gt;• EU ETS carbon liability (€65/t)&lt;br&gt;• Peer sister vessel benchmark&lt;br&gt;&lt;br&gt;&lt;b&gt;🔧 Dedicated Tools:&lt;/b&gt;&lt;br&gt;• &lt;code&gt;vessel_cii_telemetry&lt;/code&gt;&lt;br&gt;• &lt;code&gt;peer_benchmark_cache&lt;/code&gt;&lt;br&gt;• &lt;code&gt;fuel_ets_breakdown&lt;/code&gt;" vertex="1">
+          <mxGeometry height="225" width="340" x="450" y="375" as="geometry" />
+        </mxCell>
+        <mxCell id="card_voyage" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D8B4FE;align=left;verticalAlign=top;spacingLeft=12;spacingTop=10;" value="&lt;b&gt;&lt;font style=&quot;font-size: 15px;&quot; color=&quot;#6B21A8&quot;&gt;Voyage &amp;amp; Tracking Agent&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#64748B&quot;&gt;Speed &amp;amp; Navigation Audits&lt;/font&gt;&lt;hr&gt;&lt;b&gt;🛡️ Guardrails:&lt;/b&gt;&lt;br&gt;• Navigational safety limits&lt;br&gt;• Physical reality checks (great-circle)&lt;br&gt;&lt;br&gt;&lt;b&gt;🧠 Skills:&lt;/b&gt;&lt;br&gt;• Hydrodynamic speed cut simulation&lt;br&gt;• Daily noon-report GPS fixes&lt;br&gt;• Missing distance gap detection&lt;br&gt;• Passage ETA risk audit&lt;br&gt;&lt;br&gt;&lt;b&gt;🔧 Dedicated Tools:&lt;/b&gt;&lt;br&gt;• &lt;code&gt;simulate_speed_cut&lt;/code&gt;&lt;br&gt;• &lt;code&gt;vessel_daily_positions&lt;/code&gt;&lt;br&gt;• &lt;code&gt;get_fleet_voyages&lt;/code&gt;" vertex="1">
+          <mxGeometry height="225" width="340" x="815" y="375" as="geometry" />
+        </mxCell>
+        <mxCell id="fmt_box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDF2F8;strokeColor=#DB2777;strokeWidth=2;align=center;verticalAlign=top;spacingTop=10;" value="&lt;b&gt;&lt;font style=&quot;font-size: 14px;&quot;&gt;COMMON RESPONSE FORMATTER &amp;amp; SYNTHESIS&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#BE185D&quot;&gt;server/utils/sentinel/formatter.ts&lt;/font&gt;&lt;hr&gt;• &lt;b&gt;UI Blocks:&lt;/b&gt; Auto-converts tool results to KPI cards, ECharts series &amp;amp; data tables&lt;br&gt;• &lt;b&gt;Entity References:&lt;/b&gt; Generates clickable citation pills for vessels, alarms &amp;amp; telemetry&lt;br&gt;• &lt;b&gt;UI Actions:&lt;/b&gt; Dispatches safe client commands (&lt;i&gt;focus-vessel, filter-alerts, apply-speed-cut&lt;/i&gt;)" vertex="1">
+          <mxGeometry height="95" width="1120" x="60" y="650" as="geometry" />
+        </mxCell>
+        <mxCell id="ds_box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#475569;strokeWidth=2;align=center;verticalAlign=middle;" value="&lt;b&gt;&lt;font style=&quot;font-size: 14px;&quot;&gt;COMMON DATA &amp;amp; MARITIME COMPUTATION ENGINE&lt;/font&gt;&lt;/b&gt;&lt;hr&gt;PostgreSQL DB Pool &amp;nbsp;|&amp;nbsp; Marine CII &amp;amp; Power-Law Calculator &amp;nbsp;|&amp;nbsp; Upstream Microservices" vertex="1">
+          <mxGeometry height="60" width="1120" x="60" y="780" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow_1" edge="1" parent="1" source="ui_box" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563EB;strokeWidth=2;fontStyle=1;" target="gw_box" value="HTTP POST">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow_2" edge="1" parent="1" source="gw_box" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#9333EA;strokeWidth=2;fontStyle=1;" target="agents_group" value="Dispatches to Agent">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow_3" edge="1" parent="1" source="agents_group" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#DB2777;strokeWidth=2;fontStyle=1;" target="fmt_box" value="Tool Outputs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow_4" edge="1" parent="1" source="fmt_box" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;strokeWidth=2;fontStyle=1;" target="ds_box" value="Queries">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow_return" edge="1" parent="1" source="fmt_box" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=2;dashed=1;fontStyle=1;" target="ui_box" value="Formatted UI Blocks + Citations + Actions">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1200" y="698" />
+              <mxPoint x="1200" y="130" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
