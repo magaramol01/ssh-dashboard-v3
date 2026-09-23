@@ -29,6 +29,18 @@ export default defineNuxtConfig({
   },
   vite: {
     plugins: [tailwindcss()],
+    optimizeDeps: {
+      include: [
+        "class-variance-authority",
+        "clsx",
+        "echarts/core",
+        "echarts/features",
+        "lucide-vue-next",
+        "reka-ui",
+        "tailwind-merge",
+        "vue-sonner",
+      ],
+    },
   },
   app: {
     pageTransition: { name: "page", mode: "out-in" },
