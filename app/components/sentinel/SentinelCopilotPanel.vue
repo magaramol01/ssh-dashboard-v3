@@ -19,7 +19,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import SentinelBlockRenderer from '@/components/sentinel/SentinelBlockRenderer.vue'
-import type { SentinelAction, SentinelAgentDomain } from '#shared/types/sentinel'
+import MarkdownBlock from '@/components/sentinel/blocks/MarkdownBlock.vue'
+import type { SentinelAction, SentinelAgentDomain, SentinelBlock } from '#shared/types/sentinel'
 import { useSentinelChat } from '@/composables/useSentinelChat'
 
 export interface QuickDirective {
@@ -79,6 +80,20 @@ defineExpose({
 
 function toolLabel(name: string) {
   switch (name) {
+    case 'validate_vessel_noon_reports':
+      return 'Noon Report Validation Audit'
+    case 'get_voyage_overview_and_progress':
+      return 'Voyage Overview & Progress'
+    case 'diagnose_voyage_degradation':
+      return 'Degradation Root-Cause Diagnosis'
+    case 'analyze_propulsion_and_slip':
+      return 'Propulsion & Propeller Slip'
+    case 'evaluate_weather_impact_on_fuel':
+      return 'Weather Fuel & Speed Penalty'
+    case 'calculate_voyage_recovery_plan':
+      return 'CII Voyage Recovery Solver'
+    case 'read_file':
+      return 'Maritime Skill SOP & Guidelines'
     case 'get_vessel_cii_telemetry':
       return 'CII & Emissions Telemetry'
     case 'simulate_vessel_speed_reduction':
@@ -98,6 +113,11 @@ function toolLabel(name: string) {
     default:
       return name.replace(/_/g, ' ')
   }
+}
+
+function extraBlocks(blocks?: SentinelBlock[]) {
+  if (!blocks?.length) return []
+  return blocks.filter((b) => b.type !== 'markdown')
 }
 
 function traceSummaryLabel(msg: any) {
@@ -306,11 +326,17 @@ function close() {
                   </details>
                 </div>
 
-                <!-- Blocks Renderer -->
-                <div v-if="msg.blocks?.length" class="space-y-2.5">
-                  <SentinelBlockRenderer v-for="(block, idx) in msg.blocks" :key="`${msg.id}-block-${idx}`" :block="block" />
+                <!-- Unified Markdown Content (streaming and final) -->
+                <MarkdownBlock v-if="msg.content" :text="msg.content" />
+
+                <!-- Attached Rich Blocks (Charts, Tables, KPIs if any) -->
+                <div v-if="extraBlocks(msg.blocks)?.length" class="space-y-2.5 pt-1">
+                  <SentinelBlockRenderer
+                    v-for="(block, idx) in extraBlocks(msg.blocks)"
+                    :key="`${msg.id}-extra-block-${idx}`"
+                    :block="block"
+                  />
                 </div>
-                <p v-else class="text-xs text-foreground leading-relaxed whitespace-pre-line">{{ msg.content }}</p>
 
                 <!-- Interactive Actions -->
                 <div v-if="msg.actions?.length" class="pt-1.5 border-t border-border/40 flex flex-wrap gap-1.5">

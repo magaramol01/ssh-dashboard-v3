@@ -243,6 +243,218 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
       }
     }
 
+    if (result.name === 'get_voyage_overview_and_progress' && value.distanceSailedNm !== undefined) {
+      const fuel = value.fuelSummary as Record<string, unknown> | undefined
+      const cii = value.ciiSummary as Record<string, unknown> | undefined
+      const rating = text(cii?.rating, '—')
+      const tone = rating === 'A' || rating === 'B' ? 'success' : rating === 'C' ? 'default' : 'destructive'
+
+      blocks.push(
+        {
+          type: 'kpi',
+          label: 'Passage Progress',
+          value: `${text(value.distanceSailedNm)} / ${text(value.totalDistanceNm)} NM`,
+          detail: `${text(value.progressPercent, '0')}% complete · ${text(value.distanceToGoNm, '0')} NM to go`,
+        },
+        {
+          type: 'kpi',
+          label: 'Total Fuel Burn',
+          value: `${text(fuel?.totalFuelMt, '0')} MT`,
+          detail: `ME: ${text(fuel?.meFuelMt, '0')} MT · AE: ${text(fuel?.aeFuelMt, '0')} MT · Blr: ${text(fuel?.boilerFuelMt, '0')} MT`,
+        },
+        {
+          type: 'kpi',
+          label: 'Voyage Route',
+          value: `${text(value.departurePort, 'Origin')} → ${text(value.arrivalPort, 'Destination')}`,
+          detail: `Voyage ${text(value.voyageNumber, 'Active')}`,
+        },
+        {
+          type: 'kpi',
+          label: 'Current CII Band',
+          value: `Band ${rating}`,
+          detail: cii?.attainedCii != null ? `Attained ${cii.attainedCii} gCO₂/tnm` : undefined,
+          tone,
+        },
+      )
+    }
+
+    if (result.name === 'diagnose_voyage_degradation' && value.found !== false) {
+      const degradedDays = Array.isArray(value.degradedDays) ? (value.degradedDays as Array<Record<string, unknown>>) : []
+      if (degradedDays.length > 0) {
+        blocks.push({
+          type: 'table',
+          title: 'Degraded Passage Days',
+          columns: [
+            { key: 'day', label: 'Day' },
+            { key: 'rating', label: 'Rating' },
+            { key: 'speed', label: 'SOG / STW' },
+            { key: 'slip', label: 'Slip %' },
+            { key: 'weather', label: 'Wind / Seas' },
+            { key: 'cause', label: 'Root Cause' },
+          ],
+          rows: degradedDays.slice(0, 15).map((d) => ({
+            day: `Day ${text(d.dayNumber)}`,
+            rating: `Grade ${text(d.rating)}`,
+            speed: `${text(d.sog)} / ${text(d.stw)} kts`,
+            slip: `${text(d.slipPct)}%`,
+            weather: `Bf ${text(d.windBf)} (${text(d.seaState || `${d.waveHeightM}m`)})`,
+            cause: d.primaryRootCause === 'heavy_weather'
+              ? 'Heavy Weather'
+              : d.primaryRootCause === 'high_slip_resistance'
+                ? 'High Slip Resistance'
+                : d.primaryRootCause === 'excessive_fuel_consumption'
+                  ? 'Excessive Fuel Burn'
+                  : 'Degraded Performance',
+          })),
+        })
+      }
+      blocks.push({
+        type: 'kpi',
+        label: 'Degraded Days',
+        value: `${text(value.degradedDayCount, '0')} of ${text(value.totalVoyageDays, '0')} days`,
+        detail: text(value.overallDiagnosis, 'Performance assessment complete').slice(0, 200),
+        tone: Number(value.degradedDayCount) > 0 ? 'warning' : 'success',
+      })
+    }
+
+    if (result.name === 'analyze_propulsion_and_slip' && value.found !== false) {
+      const trend = Array.isArray(value.propulsionTrend) ? (value.propulsionTrend as Array<Record<string, unknown>>) : []
+      const slipPoints = trend
+        .filter((p) => typeof p.dayNumber === 'number' && typeof p.slipPercent === 'number' && Number.isFinite(p.slipPercent))
+        .map((p) => ({ label: `Day ${p.dayNumber}`, value: Number(p.slipPercent) }))
+        .slice(0, 30)
+
+      if (slipPoints.length > 0) {
+        blocks.push({
+          type: 'line-chart',
+          title: 'Propulsion Apparent Slip Trend (%)',
+          points: slipPoints,
+        })
+      }
+
+      const status = String(value.slipThresholdStatus || 'normal')
+      const maxDay = value.maxSlipDay as Record<string, unknown> | undefined
+      blocks.push({
+        type: 'kpi',
+        label: 'Average Propeller Slip',
+        value: `${text(value.averageSlipPercent, '0')}%`,
+        detail: maxDay ? `Peak ${text(maxDay.slipPercent)}% on Day ${text(maxDay.dayNumber)} (Bf ${text(maxDay.windBf)})` : undefined,
+        tone: status === 'critical' ? 'destructive' : status === 'elevated' ? 'warning' : 'success',
+      })
+    }
+
+    if (result.name === 'evaluate_weather_impact_on_fuel' && value.found !== false && value.weatherFuelPenaltyMt !== undefined) {
+      blocks.push(
+        {
+          type: 'kpi',
+          label: 'Weather Fuel Penalty',
+          value: `+${text(value.weatherFuelPenaltyMt, '0')} MT`,
+          detail: `+${text(value.weatherFuelPenaltyPercent, '0')}% over calm baseline (${text(value.baselineCalmWaterFuelMt, '0')} MT)`,
+          tone: Number(value.weatherFuelPenaltyMt) > 0 ? 'warning' : 'success',
+        },
+        {
+          type: 'kpi',
+          label: 'Weather Speed Loss',
+          value: `-${text(value.averageSpeedLossKnots, '0')} kts`,
+          detail: `${text(value.heavyWeatherDaysCount, '0')} heavy weather days (Beaufort 6+)`,
+          tone: Number(value.averageSpeedLossKnots) > 1.0 ? 'warning' : 'default',
+        },
+        {
+          type: 'kpi',
+          label: 'Weather CO₂ Impact',
+          value: `+${text(value.weatherCo2PenaltyMt, '0')} MT CO₂`,
+          detail: 'Added emissions from wind and wave resistance',
+          tone: 'warning',
+        },
+      )
+    }
+
+    if (result.name === 'calculate_voyage_recovery_plan' && value.found !== false) {
+      const rec = value.recommendedPlan as Record<string, unknown> | undefined
+      if (rec) {
+        const feasible = rec.isFeasible === true
+        blocks.push(
+          {
+            type: 'kpi',
+            label: `Target Band ${text(value.targetRating, 'B')} Feasibility`,
+            value: feasible ? 'Feasible' : 'Infeasible without Speed Cut',
+            detail: text(rec.recommendedActionSummary, 'Operational recovery assessment').slice(0, 200),
+            tone: feasible ? 'success' : 'destructive',
+          },
+          ...(feasible ? [
+            {
+              type: 'kpi' as const,
+              label: 'Recommended Speed / RPM',
+              value: `${text(rec.requiredAverageSpeedKts)} kts (${text(rec.recommendedRpm)} RPM)`,
+              detail: `Max fuel: ${text(rec.dailyFuelConsumptionLimitMt)} MT/day · Saves ${text(rec.fuelSavedMt)} MT`,
+              tone: 'success' as const,
+            },
+            {
+              type: 'kpi' as const,
+              label: 'Projected ETA Impact',
+              value: `+${text(rec.projectedArrivalDelayHours, '0')} hrs delay`,
+              detail: text(rec.etaDelayDescription, 'Arrival window update').slice(0, 200),
+            },
+          ] : []),
+        )
+      }
+
+      const options = Array.isArray(value.alternativeOptions) ? (value.alternativeOptions as Array<Record<string, unknown>>) : []
+      if (options.length > 0) {
+        blocks.push({
+          type: 'table',
+          title: 'CII Operational Recovery Strategies',
+          columns: [
+            { key: 'rating', label: 'Target Band' },
+            { key: 'speed', label: 'Req Speed' },
+            { key: 'rpm', label: 'Req RPM' },
+            { key: 'fuelLimit', label: 'Daily Fuel Limit' },
+            { key: 'delay', label: 'ETA Delay' },
+            { key: 'status', label: 'Feasibility' },
+          ],
+          rows: options.map((opt) => ({
+            rating: `Band ${text(opt.targetRating)}`,
+            speed: opt.isFeasible ? `${text(opt.requiredAverageSpeedKts)} kts` : '—',
+            rpm: opt.isFeasible ? `${text(opt.recommendedRpm)} RPM` : '—',
+            fuelLimit: opt.isFeasible ? `${text(opt.dailyFuelConsumptionLimitMt)} MT/day` : '—',
+            delay: opt.isFeasible ? `+${text(opt.projectedArrivalDelayHours)}h` : '—',
+            status: opt.isFeasible ? 'Feasible' : 'Mathematically Infeasible',
+          })),
+        })
+      }
+    }
+
+    if (result.name === 'validate_vessel_noon_reports' && value.found !== false && value.voyageAuditStatus !== undefined) {
+      const status = String(value.voyageAuditStatus)
+      const counts = value.summaryCounts as Record<string, number> | undefined
+      blocks.push({
+        type: 'kpi',
+        label: 'Chief Engineer Noon Audit',
+        value: status,
+        detail: `${text(value.evaluatedReportsCount, '0')} reports audited: ${counts?.critical ?? 0} critical, ${counts?.warning ?? 0} warnings`,
+        tone: status === 'RETURN FOR CORRECTION' ? 'destructive' : status === 'APPROVE WITH REMARKS' ? 'warning' : 'success',
+      })
+
+      const daily = Array.isArray(value.dailyValidations) ? (value.dailyValidations as Array<Record<string, unknown>>) : []
+      const issues = daily.filter((d) => d.status !== 'APPROVE')
+      if (issues.length > 0) {
+        blocks.push({
+          type: 'table',
+          title: 'Noon Report Discrepancies',
+          columns: [
+            { key: 'day', label: 'Day' },
+            { key: 'status', label: 'Audit Status' },
+            { key: 'findings', label: 'Chief Engineer Findings' },
+          ],
+          rows: issues.slice(0, 10).map((d) => ({
+            day: `Day ${text(d.dayNumber)}`,
+            status: text(d.status),
+            findings: Array.isArray(d.findings) ? (d.findings as string[]).join('; ').slice(0, 300) : '—',
+          })),
+        })
+      }
+    }
+
     const points = Array.isArray(value.points) ? value.points
       .filter((point): point is { label: string; value: number } => Boolean(point && typeof point === 'object' && typeof point.label === 'string' && typeof point.value === 'number' && Number.isFinite(point.value)))
       .slice(0, 100) : []

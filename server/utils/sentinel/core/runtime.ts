@@ -57,8 +57,37 @@ function summarizeToolResult(name: string, raw: string) {
         ? 'No noon-report position data available for that voyage or date range.'
         : `Loaded ${dayCount} daily noon-report position${dayCount === 1 ? '' : 's'} (lat/long and distance run).`
     }
+    if (name === 'validate_vessel_noon_reports') {
+      if (value.found === false) return String(value.message || 'No noon reports available for validation.')
+      const counts = value.summaryCounts as Record<string, number> | undefined
+      return `Noon audit: ${String(value.voyageAuditStatus || 'APPROVE')} (${String(value.evaluatedReportsCount ?? 0)} reports, ${counts?.critical ?? 0} critical, ${counts?.warning ?? 0} warnings).`
+    }
+    if (name === 'get_voyage_overview_and_progress') {
+      if (value.found === false) return String(value.message || 'No voyage data found.')
+      const fuel = value.fuelSummary as Record<string, unknown> | undefined
+      return `Voyage ${String(value.voyageNumber || 'Active')}: ${String(value.distanceSailedNm ?? 0)} NM sailed (${String(value.progressPercent ?? 0)}%), ${String(fuel?.totalFuelMt ?? 0)} MT fuel consumed.`
+    }
+    if (name === 'diagnose_voyage_degradation') {
+      if (value.found === false) return String(value.message || 'No voyage data available for degradation diagnosis.')
+      return `Diagnosed ${String(value.totalVoyageDays ?? 0)} voyage days (${String(value.degradedDayCount ?? 0)} degraded). ${Number(value.degradedDayCount) > 0 ? 'Degradation detected.' : 'All days nominal.'}`
+    }
+    if (name === 'analyze_propulsion_and_slip') {
+      if (value.found === false) return String(value.message || 'No propulsion data available.')
+      return `Analyzed propulsion: Avg slip ${String(value.averageSlipPercent ?? 0)}%, Avg RPM ${String(value.averageRpm ?? 0)}. Condition: ${String(value.slipThresholdStatus || 'normal')}.`
+    }
+    if (name === 'evaluate_weather_impact_on_fuel') {
+      if (value.found === false) return String(value.message || 'No weather impact data available.')
+      return `Weather impact: ${String(value.weatherFuelPenaltyMt ?? 0)} MT weather fuel penalty, Avg speed loss ${String(value.averageSpeedLossKnots ?? 0)} kts.`
+    }
+    if (name === 'calculate_voyage_recovery_plan') {
+      if (value.found === false) return String(value.message || 'No recovery plan calculated.')
+      const rec = value.recommendedPlan as Record<string, unknown> | undefined
+      return value.isRecoveryFeasible === false
+        ? 'Target rating is mathematically infeasible across remaining distance without speed cut.'
+        : `Recovery plan: Recommended speed ${String(rec?.requiredAverageSpeedKts ?? 0)} kts (${String(rec?.recommendedRpm ?? 0)} RPM), saving ${String(rec?.fuelSavedMt ?? 0)} MT fuel.`
+    }
     if (value.not_found) return 'Vessel was not found in the active vessel roster.'
-    return 'Loaded vessel context and recent open alerts.'
+    return 'Verified telemetry and diagnostic evidence.'
   } catch {
     return 'The data source returned an unavailable or invalid result.'
   }
@@ -96,7 +125,7 @@ function referencesFromResult(name: string, raw: string): SentinelReference[] {
       references.unshift({ kind: 'vessel', id: String(value.vesselId), label: String(value.vesselName || `Vessel ${value.vesselId}`) })
       references.push({ kind: 'telemetry', id: `cii-${value.vesselId}`, label: `CII ${value.rating || ''} (${value.attainedCii || ''} gCO₂/tnm)`.trim() })
     }
-    if (name === 'simulate_vessel_speed_reduction' && value.vesselId !== undefined) {
+    if ((name === 'simulate_vessel_speed_reduction' || name.startsWith('calculate_') || name.startsWith('evaluate_') || name.startsWith('diagnose_') || name.startsWith('get_voyage_') || name.startsWith('analyze_') || name.startsWith('validate_')) && value.vesselId !== undefined) {
       references.unshift({ kind: 'vessel', id: String(value.vesselId), label: String(value.vesselName || `Vessel ${value.vesselId}`) })
     }
     return references

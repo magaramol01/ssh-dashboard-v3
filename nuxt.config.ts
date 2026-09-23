@@ -36,6 +36,7 @@ export default defineNuxtConfig({
         "echarts/core",
         "echarts/features",
         "lucide-vue-next",
+        "marked",
         "reka-ui",
         "tailwind-merge",
         "vue-sonner",
