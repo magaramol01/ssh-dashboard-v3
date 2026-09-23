@@ -329,14 +329,11 @@ function close() {
                 <!-- Unified Markdown Content (streaming and final) -->
                 <MarkdownBlock v-if="msg.content" :text="msg.content" />
 
-                <!-- Attached Rich Blocks (Charts, Tables, KPIs if any) -->
-                <div v-if="extraBlocks(msg.blocks)?.length" class="space-y-2.5 pt-1">
-                  <SentinelBlockRenderer
-                    v-for="(block, idx) in extraBlocks(msg.blocks)"
-                    :key="`${msg.id}-extra-block-${idx}`"
-                    :block="block"
-                  />
-                </div>
+                <!-- Attached Rich Blocks (Calculated Widget Layout: KPIs Grid -> Charts -> Tables) -->
+                <SentinelBlocksLayout
+                  v-if="extraBlocks(msg.blocks)?.length"
+                  :blocks="msg.blocks"
+                />
 
                 <!-- Interactive Actions -->
                 <div v-if="msg.actions?.length" class="pt-1.5 border-t border-border/40 flex flex-wrap gap-1.5">

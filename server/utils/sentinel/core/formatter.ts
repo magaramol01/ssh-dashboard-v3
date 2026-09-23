@@ -385,14 +385,14 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
             {
               type: 'kpi' as const,
               label: 'Recommended Speed / RPM',
-              value: `${text(rec.requiredAverageSpeedKts)} kts (${text(rec.recommendedRpm)} RPM)`,
-              detail: `Max fuel: ${text(rec.dailyFuelConsumptionLimitMt)} MT/day · Saves ${text(rec.fuelSavedMt)} MT`,
+              value: `${text(rec.recommendedSpeedKts ?? rec.requiredAverageSpeedKts)} kts (${text(rec.recommendedRpm)} RPM)`,
+              detail: `Max fuel: ${text(rec.dailyFuelLimitMt ?? rec.dailyFuelConsumptionLimitMt)} MT/day · Saves ${text(rec.fuelSavedMt)} MT`,
               tone: 'success' as const,
             },
             {
               type: 'kpi' as const,
               label: 'Projected ETA Impact',
-              value: `+${text(rec.projectedArrivalDelayHours, '0')} hrs delay`,
+              value: `+${text(rec.etaDelayHours ?? rec.projectedArrivalDelayHours, '0')} hrs delay`,
               detail: text(rec.etaDelayDescription, 'Arrival window update').slice(0, 200),
             },
           ] : []),
@@ -413,12 +413,12 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
             { key: 'status', label: 'Feasibility' },
           ],
           rows: options.map((opt) => ({
-            rating: `Band ${text(opt.targetRating)}`,
-            speed: opt.isFeasible ? `${text(opt.requiredAverageSpeedKts)} kts` : '—',
-            rpm: opt.isFeasible ? `${text(opt.recommendedRpm)} RPM` : '—',
-            fuelLimit: opt.isFeasible ? `${text(opt.dailyFuelConsumptionLimitMt)} MT/day` : '—',
-            delay: opt.isFeasible ? `+${text(opt.projectedArrivalDelayHours)}h` : '—',
-            status: opt.isFeasible ? 'Feasible' : 'Mathematically Infeasible',
+            rating: `Band ${text(opt.projectedFinalRating ?? opt.targetRating)}`,
+            speed: opt.isFeasible !== false ? `${text(opt.speedKnots ?? opt.requiredAverageSpeedKts)} kts` : '—',
+            rpm: opt.isFeasible !== false ? `${text(opt.engineRpm ?? opt.recommendedRpm)} RPM` : '—',
+            fuelLimit: opt.isFeasible !== false ? `${text(opt.dailyFuelMt ?? opt.dailyFuelConsumptionLimitMt)} MT/day` : '—',
+            delay: opt.isFeasible !== false ? `+${text(opt.etaDelayHours ?? opt.projectedArrivalDelayHours)}h` : '—',
+            status: opt.isFeasible === false ? 'Mathematically Infeasible' : 'Feasible',
           })),
         })
       }
