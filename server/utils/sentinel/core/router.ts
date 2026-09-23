@@ -14,6 +14,7 @@ export interface ResolvedAgent {
   domain: SentinelAgentDomain
   prompt: string
   tools: any[]
+  skills?: string[]
 }
 
 export function resolveAgentDomain(request: ValidSentinelRequest): SentinelAgentDomain {
@@ -67,6 +68,7 @@ export function resolveAgentConfig(
         domain: 'voyage-analytics',
         prompt: voyagePrompt,
         tools: getVoyageTools(tenant, event),
+        skills: ['server/utils/sentinel/agents/voyage/skills/'],
       }
     case 'general':
     default:

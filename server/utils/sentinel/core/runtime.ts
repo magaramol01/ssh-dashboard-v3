@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { ChatOpenRouter } from '@langchain/openrouter'
 import { createReactAgent } from '@langchain/langgraph/prebuilt'
+import { createDeepAgent, FilesystemBackend } from 'deepagents'
 import type { SentinelAction, SentinelActivity, SentinelReference, SentinelStreamEvent } from '../../../shared/types/sentinel'
 import { getSentinelConfig } from './config'
 import type { SentinelRawResponse, SentinelToolResult } from './types'
@@ -28,6 +29,9 @@ function safeArgs(args: unknown): Record<string, unknown> {
 }
 
 function summarizeToolResult(name: string, raw: string) {
+  if (name === 'read_file') {
+    return 'Loaded skill instructions and maritime validation rules.'
+  }
   try {
     const value = JSON.parse(raw) as Record<string, unknown>
     if (name === 'search_operational_alerts') {
@@ -152,7 +156,8 @@ export async function runSentinelConversation(
 ): Promise<SentinelRawResponse> {
   const activeTenant = tenant || getCurrentTenant()
   const config = getSentinelConfig()
-  const { prompt, tools } = resolveAgentConfig(request, activeTenant, event)
+  const resolved = resolveAgentConfig(request, activeTenant, event)
+  const { prompt, tools, skills } = resolved
   const model = new ChatOpenRouter({
     apiKey: config.apiKey,
     model: config.model,
@@ -161,12 +166,26 @@ export async function runSentinelConversation(
     maxRetries: 3,
     siteName: 'ShipTrack Sentinel',
   })
-  const graph = createReactAgent({
-    llm: model,
-    tools,
-    prompt: new SystemMessage(prompt),
-    version: 'v2',
-  })
+
+  let graph: any
+  if (skills && skills.length > 0) {
+    const backend = new FilesystemBackend({ rootDir: process.cwd() })
+    graph = createDeepAgent({
+      model,
+      tools,
+      systemPrompt: prompt,
+      skills,
+      backend,
+      subagents: [],
+    })
+  } else {
+    graph = createReactAgent({
+      llm: model,
+      tools,
+      prompt: new SystemMessage(prompt),
+      version: 'v2',
+    })
+  }
 
   // Keep only the most recent 6 messages and truncate past assistant replies
   // to protect against prompt bloat and provider token rate limits (429)
