@@ -191,7 +191,7 @@ export async function runSentinelConversation(
     apiKey: config.apiKey,
     model: config.model,
     temperature: 0.1,
-    maxTokens: 700,
+    maxTokens: 2500,
     maxRetries: 3,
     siteName: 'ShipTrack Sentinel',
   })

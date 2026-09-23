@@ -12,6 +12,18 @@ function timestamp(value: unknown) {
   return Number.isNaN(date.getTime()) ? '—' : `${date.toISOString().slice(0, 16).replace('T', ' ')} UTC`
 }
 
+function formatFinding(f: unknown): string {
+  if (!f) return ''
+  if (typeof f === 'string') return f
+  if (typeof f === 'object') {
+    const obj = f as Record<string, unknown>
+    const id = obj.ruleId ? `[${obj.ruleId}] ` : obj.severity ? `[${obj.severity}] ` : ''
+    if (obj.likelyCause) return `${id}${obj.likelyCause}`
+    if (obj.parameter) return `${id}${obj.parameter}: reported ${obj.reported ?? '—'} vs expected ${obj.expected ?? '—'}`
+  }
+  return String(f)
+}
+
 function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
   const blocks: SentinelBlock[] = []
 
@@ -449,7 +461,9 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
           rows: issues.slice(0, 10).map((d) => ({
             day: `Day ${text(d.dayNumber)}`,
             status: text(d.status),
-            findings: Array.isArray(d.findings) ? (d.findings as string[]).join('; ').slice(0, 300) : '—',
+            findings: Array.isArray(d.findings)
+              ? d.findings.map(formatFinding).filter(Boolean).join('; ').slice(0, 300) || 'None'
+              : '—',
           })),
         })
       }
@@ -466,10 +480,10 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
 
 export function formatSentinelResponse(raw: SentinelRawResponse): SentinelChatResponse {
   const candidate = {
-    message: { role: 'agent' as const, content: raw.text.slice(0, 8_000) },
-    thought: raw.thought ? raw.thought.slice(0, 8_000) : undefined,
+    message: { role: 'agent' as const, content: raw.text.slice(0, 16_000) },
+    thought: raw.thought ? raw.thought.slice(0, 16_000) : undefined,
     blocks: [
-      { type: 'markdown' as const, text: raw.text.slice(0, 8_000) || 'No evidence-backed answer is available.' },
+      { type: 'markdown' as const, text: raw.text.slice(0, 16_000) || 'No evidence-backed answer is available.' },
       ...blocksFromToolResults(raw),
     ],
     activity: raw.activity,

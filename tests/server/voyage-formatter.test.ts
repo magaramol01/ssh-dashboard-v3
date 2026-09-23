@@ -108,3 +108,51 @@ test('formatSentinelResponse formats degradation and propulsion slip into tables
   const validated = sentinelResponseSchema.safeParse(response)
   assert.equal(validated.success, true)
 })
+
+test('formatSentinelResponse formats noon report findings into human readable strings without [object Object]', () => {
+  const raw = {
+    text: 'Chief Engineer noon report validation returned 1 finding.',
+    toolResults: [
+      {
+        name: 'validate_vessel_noon_reports',
+        raw: JSON.stringify({
+          vesselId: 1,
+          voyageAuditStatus: 'RETURN FOR CORRECTION',
+          evaluatedReportsCount: 27,
+          summaryCounts: { critical: 1, error: 0, warning: 0 },
+          dailyValidations: [
+            {
+              dayNumber: 16,
+              status: 'CRITICAL',
+              findings: [
+                {
+                  ruleId: 'T2',
+                  parameter: 'steamingHours',
+                  reported: 27.5,
+                  expected: '24.0 h (normal noon-to-noon)',
+                  severity: 'CRITICAL',
+                  likelyCause: 'Reported steaming hours exceed physical noon-to-noon interval.',
+                },
+              ],
+            },
+          ],
+        }),
+      },
+    ],
+    activity: [],
+    references: [],
+    actions: [],
+  }
+
+  const response = formatSentinelResponse(raw)
+  const tables = response.blocks.filter((b) => b.type === 'table')
+  assert.equal(tables.length, 1)
+
+  const row = tables[0].rows[0]
+  assert.ok(row.findings)
+  assert.ok(!String(row.findings).includes('[object Object]'), 'Findings must not contain [object Object]')
+  assert.ok(String(row.findings).includes('Reported steaming hours exceed physical noon-to-noon interval.'))
+
+  const validated = sentinelResponseSchema.safeParse(response)
+  assert.equal(validated.success, true)
+})

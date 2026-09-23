@@ -4,6 +4,17 @@ import { Table as TableIcon } from 'lucide-vue-next'
 
 type TableBlock = Extract<SentinelBlock, { type: 'table' }>
 defineProps<{ block: TableBlock }>()
+
+function formatCell(val: unknown): string {
+  if (val === null || val === undefined || val === '') return '—'
+  if (typeof val === 'object') {
+    if (Array.isArray(val)) {
+      return val.map((item) => (typeof item === 'object' ? JSON.stringify(item) : String(item))).join('; ')
+    }
+    return JSON.stringify(val)
+  }
+  return String(val)
+}
 </script>
 
 <template>
@@ -41,7 +52,7 @@ defineProps<{ block: TableBlock }>()
               :key="column.key"
               class="max-w-[240px] px-3 py-2 text-foreground/90 font-medium leading-relaxed"
             >
-              {{ row[column.key] ?? '—' }}
+              {{ formatCell(row[column.key]) }}
             </td>
           </tr>
         </tbody>

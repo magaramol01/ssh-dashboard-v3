@@ -7,10 +7,10 @@ export const sentinelMessageSchema = z.discriminatedUnion('role', [
   }),
   z.object({
     role: z.literal('assistant'),
-    // Must stay >= the response schema's message.content cap (8_000) —
+    // Must stay >= the response schema's message.content cap (16_000) —
     // the client replays prior assistant turns as history on every
     // new message, so a lower cap here rejects the client's own past replies.
-    content: z.string().trim().min(1).max(8_000),
+    content: z.string().trim().min(1).max(16_000),
   }),
 ])
 
@@ -38,7 +38,7 @@ export const sentinelRequestSchema = z.object({
 
 const markdownBlockSchema = z.object({
   type: z.literal('markdown'),
-  text: z.string().min(1).max(8_000),
+  text: z.string().min(1).max(16_000),
 }).strict()
 
 const lineChartBlockSchema = z.object({
@@ -86,8 +86,8 @@ export const sentinelBlockSchema = z.discriminatedUnion('type', [
 ])
 
 export const sentinelResponseSchema = z.object({
-  message: z.object({ role: z.literal('agent'), content: z.string().min(1).max(8_000) }).strict(),
-  thought: z.string().max(8_000).optional(),
+  message: z.object({ role: z.literal('agent'), content: z.string().min(1).max(16_000) }).strict(),
+  thought: z.string().max(16_000).optional(),
   blocks: z.array(sentinelBlockSchema).min(1).max(16),
   activity: z.array(z.object({
     name: z.string().min(1).max(60),
