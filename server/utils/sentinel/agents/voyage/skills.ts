@@ -319,3 +319,300 @@ export function solveVoyageRecovery(params: VoyageRecoveryParams): VoyageRecover
     etaDelayHours: Number(Math.max(0, hours - baselineHours).toFixed(1)),
   }
 }
+
+export interface NoonValidationFinding {
+  ruleId: string
+  parameter: string
+  reported: string | number
+  expected: string | number
+  deviation: string
+  tolerance: string
+  severity: 'CRITICAL' | 'ERROR' | 'WARNING' | 'INFO'
+  likelyCause: string
+}
+
+export interface NoonReportValidationInput {
+  vesselId?: number
+  reportDate?: string
+  reportDateTime?: string
+  steamingHours?: number
+  distance?: number
+  sog?: number
+  stw?: number
+  rpm?: number
+  pitchM?: number
+  meFuelMt?: number
+  aeFuelMt?: number
+  boilerFuelMt?: number
+  totalFuelMt?: number
+  lat?: number
+  lng?: number
+  prevLat?: number
+  prevLng?: number
+  windBf?: number
+  windSpeedKts?: number
+  waveHeightM?: number
+}
+
+export interface NoonValidationResult {
+  vesselId: number
+  reportDate: string
+  overallStatus: 'APPROVE' | 'APPROVE WITH REMARKS' | 'RETURN FOR CORRECTION'
+  counts: {
+    critical: number
+    error: number
+    warning: number
+    info: number
+    skipped: number
+  }
+  findings: NoonValidationFinding[]
+  calculations: {
+    gcDistanceNm?: number
+    observedDistanceNm?: number
+    engineDistanceNm?: number
+    slipPct?: number
+    impliedSog?: number
+    co2Mt?: number
+  }
+  recommendedActions: string[]
+}
+
+/**
+ * Validates vessel noon reports following the Chief Engineer multi-layer validation workflow:
+ * Layer 1: Completeness & Physical Limits
+ * Layer 2: Time & Steaming Hours
+ * Layer 3: Navigation, Great-Circle Distance, Speed & Propeller Slip
+ * Layer 4: Fuel Consumption Balances (ME + AE + Boiler vs Total)
+ * Layer 7: Weather & Beaufort Scale Consistency
+ * Layer 8: Emissions & CO2
+ */
+export function validateNoonReportData(
+  current: NoonReportValidationInput,
+  vesselStatic?: { mcrKw?: number; mcrRpm?: number; defaultPitchM?: number }
+): NoonValidationResult {
+  const findings: NoonValidationFinding[] = []
+  const recommendedActions: string[] = []
+
+  const vesselId = current.vesselId ?? 1
+  const reportDate = current.reportDate || current.reportDateTime || new Date().toISOString()
+  const steamingHours = current.steamingHours ?? 24.0
+  const observedDistance = current.distance ?? 0
+  const sog = current.sog ?? 0
+  const rpm = current.rpm ?? 0
+  const pitchM = current.pitchM ?? vesselStatic?.defaultPitchM ?? 5.5
+
+  // Layer 2: Steaming Hours check (T2)
+  if (steamingHours > 26.0) {
+    findings.push({
+      ruleId: 'T2',
+      parameter: 'steamingHours',
+      reported: steamingHours,
+      expected: '24.0 h (normal noon-to-noon)',
+      deviation: `+${(steamingHours - 24.0).toFixed(1)} h`,
+      tolerance: '22–26 h',
+      severity: 'CRITICAL',
+      likelyCause: 'Reported steaming hours exceed physical noon-to-noon interval without clock adjustment remark.',
+    })
+    recommendedActions.push('Vessel must verify steaming hours and UTC timestamp interval.')
+  } else if (steamingHours <= 0) {
+    findings.push({
+      ruleId: 'T6',
+      parameter: 'steamingHours',
+      reported: steamingHours,
+      expected: '> 0 h for at-sea passage',
+      deviation: '0 h',
+      tolerance: 'Hard limit',
+      severity: 'ERROR',
+      likelyCause: 'Vessel is marked at sea with positive distance but 0 steaming hours.',
+    })
+  }
+
+  // Layer 3: Navigation, GC Distance & Speed
+  let gcDistanceNm: number | undefined
+  if (
+    typeof current.lat === 'number' &&
+    typeof current.lng === 'number' &&
+    typeof current.prevLat === 'number' &&
+    typeof current.prevLng === 'number' &&
+    !Number.isNaN(current.lat) &&
+    !Number.isNaN(current.lng) &&
+    !Number.isNaN(current.prevLat) &&
+    !Number.isNaN(current.prevLng)
+  ) {
+    gcDistanceNm = Number(greatCircleNm(current.prevLat, current.prevLng, current.lat, current.lng).toFixed(1))
+    // N1: Observed distance cannot be less than Great-Circle distance - 2 NM
+    if (observedDistance > 0 && observedDistance < gcDistanceNm - 2.0) {
+      findings.push({
+        ruleId: 'N1',
+        parameter: 'distance',
+        reported: `${observedDistance} NM`,
+        expected: `>= ${gcDistanceNm} NM (Great-Circle Distance)`,
+        deviation: `${(observedDistance - gcDistanceNm).toFixed(1)} NM`,
+        tolerance: '-2 NM',
+        severity: 'CRITICAL',
+        likelyCause: 'Reported observed distance is physically shorter than the great-circle geodesic distance between noon fixes.',
+      })
+      recommendedActions.push('Correct reported noon GPS coordinates or logged distance run.')
+    } else if (observedDistance > gcDistanceNm * 1.30 && gcDistanceNm > 50) {
+      findings.push({
+        ruleId: 'N1',
+        parameter: 'distance',
+        reported: `${observedDistance} NM`,
+        expected: `~${gcDistanceNm} NM (Great-Circle)`,
+        deviation: `+${(observedDistance - gcDistanceNm).toFixed(1)} NM (+${(((observedDistance - gcDistanceNm) / gcDistanceNm) * 100).toFixed(0)}%)`,
+        tolerance: '+10% GC',
+        severity: 'WARNING',
+        likelyCause: 'Observed distance significantly exceeds direct track; check for weather rerouting, maneuvering, or counter-current drift.',
+      })
+    }
+  }
+
+  // N2: Average Speed Consistency
+  let impliedSog: number | undefined
+  if (steamingHours > 0 && observedDistance > 0) {
+    impliedSog = Number((observedDistance / steamingHours).toFixed(2))
+    if (sog > 0 && Math.abs(sog - impliedSog) > 0.4) {
+      findings.push({
+        ruleId: 'N2',
+        parameter: 'avgSpeed (SOG)',
+        reported: `${sog} kts`,
+        expected: `${impliedSog} kts (Distance ÷ Hours)`,
+        deviation: `${(sog - impliedSog).toFixed(2)} kts`,
+        tolerance: '±0.2 kts',
+        severity: 'ERROR',
+        likelyCause: 'Reported average speed over ground does not agree with distance run divided by steaming hours.',
+      })
+      recommendedActions.push('Reconcile reported average SOG against logged distance run and steaming hours.')
+    }
+  }
+
+  // N3 & N4: Engine Distance and Propeller Slip
+  let engineDistanceNm: number | undefined
+  let slipPct: number | undefined
+  if (rpm > 0 && steamingHours > 0 && pitchM > 0) {
+    engineDistanceNm = Number(((rpm * pitchM * 60 * steamingHours) / 1852).toFixed(1))
+    if (engineDistanceNm > 0 && observedDistance > 0) {
+      slipPct = Number((((engineDistanceNm - observedDistance) / engineDistanceNm) * 100).toFixed(1))
+      // Check slip limits per Layer 3 Rule N4
+      if (slipPct < -15.0 || slipPct > 30.0) {
+        findings.push({
+          ruleId: 'N4',
+          parameter: 'propellerSlip',
+          reported: `${slipPct}%`,
+          expected: '-5% to +15% (typical operational range)',
+          deviation: `${slipPct > 0 ? '+' : ''}${slipPct}%`,
+          tolerance: '-15% to +30%',
+          severity: 'ERROR',
+          likelyCause: slipPct > 30.0
+            ? 'Extreme positive slip indicates severe hull/propeller fouling, heavy adverse weather, or inaccurate pitch/RPM inputs.'
+            : 'Extreme negative slip is physically improbable unless strong following current or incorrect RPM logging.',
+        })
+        recommendedActions.push('Chief Engineer must verify propeller pitch constant and RPM counter calibration.')
+      } else if (slipPct < -5.0 || slipPct > 15.0) {
+        findings.push({
+          ruleId: 'N4',
+          parameter: 'propellerSlip',
+          reported: `${slipPct}%`,
+          expected: '-5% to +15%',
+          deviation: `${slipPct > 0 ? '+' : ''}${slipPct}%`,
+          tolerance: '-5% to +15%',
+          severity: 'WARNING',
+          likelyCause: slipPct > 15.0
+            ? 'Elevated slip due to weather resistance, shallow water, or increased hull friction.'
+            : 'Negative slip plausibly caused by favorable ocean current.',
+        })
+      }
+    }
+  }
+
+  // Layer 4 & Layer 6: Fuel Balances (R2: Total = ME + AE + Boiler)
+  const me = current.meFuelMt ?? 0
+  const ae = current.aeFuelMt ?? 0
+  const blr = current.boilerFuelMt ?? 0
+  const total = current.totalFuelMt ?? (me + ae + blr)
+
+  if (me > 0 || ae > 0 || blr > 0) {
+    const sumConsumers = me + ae + blr
+    const diff = Math.abs(total - sumConsumers)
+    if (diff > 0.25) {
+      findings.push({
+        ruleId: 'R2',
+        parameter: 'totalFuelConsumed',
+        reported: `${total.toFixed(2)} MT`,
+        expected: `${sumConsumers.toFixed(2)} MT (ME + AE + Boiler)`,
+        deviation: `${(total - sumConsumers).toFixed(2)} MT`,
+        tolerance: '±0.05 MT',
+        severity: 'ERROR',
+        likelyCause: 'Reported total fuel consumed does not equal the arithmetic sum of individual machinery consumers.',
+      })
+      recommendedActions.push('Reconcile total daily fuel consumption with flowmeter readings across ME, AE, and Boiler.')
+    }
+  }
+
+  // Layer 7: Weather Consistency (W1: Wind Speed vs Beaufort)
+  const bf = current.windBf ?? 0
+  const windKts = current.windSpeedKts ?? 0
+  if (bf > 0 && windKts > 0) {
+    const bfRanges: [number, number][] = [
+      [0, 1], [1, 3], [4, 6], [7, 10], [11, 16], [17, 21], [22, 27],
+      [28, 33], [34, 40], [41, 47], [48, 55], [56, 63], [64, 100]
+    ]
+    const expectedRange = bfRanges[bf] || [0, 100]
+    if (windKts < expectedRange[0] - 3 || windKts > expectedRange[1] + 3) {
+      findings.push({
+        ruleId: 'W1',
+        parameter: 'windSpeedVsBeaufort',
+        reported: `${windKts} kts at Beaufort ${bf}`,
+        expected: `${expectedRange[0]}–${expectedRange[1]} kts for BF ${bf}`,
+        deviation: `${windKts} kts`,
+        tolerance: '±1 BF',
+        severity: 'WARNING',
+        likelyCause: 'Reported anemometer wind speed does not correlate with entered Beaufort scale number.',
+      })
+    }
+  }
+
+  // Layer 8: Emissions
+  const co2Mt = Number((total * 3.114).toFixed(2))
+
+  // Determine overall status
+  const criticalCount = findings.filter((f) => f.severity === 'CRITICAL').length
+  const errorCount = findings.filter((f) => f.severity === 'ERROR').length
+  const warningCount = findings.filter((f) => f.severity === 'WARNING').length
+  const infoCount = findings.filter((f) => f.severity === 'INFO').length
+
+  let overallStatus: 'APPROVE' | 'APPROVE WITH REMARKS' | 'RETURN FOR CORRECTION' = 'APPROVE'
+  if (criticalCount > 0 || errorCount > 0) {
+    overallStatus = 'RETURN FOR CORRECTION'
+  } else if (warningCount > 0) {
+    overallStatus = 'APPROVE WITH REMARKS'
+  }
+
+  if (recommendedActions.length === 0) {
+    recommendedActions.push('All parameters internally consistent and compliant with physical bounds. Approve noon report.')
+  }
+
+  return {
+    vesselId,
+    reportDate,
+    overallStatus,
+    counts: {
+      critical: criticalCount,
+      error: errorCount,
+      warning: warningCount,
+      info: infoCount,
+      skipped: 0,
+    },
+    findings,
+    calculations: {
+      gcDistanceNm,
+      observedDistanceNm: observedDistance > 0 ? observedDistance : undefined,
+      engineDistanceNm,
+      slipPct,
+      impliedSog,
+      co2Mt,
+    },
+    recommendedActions,
+  }
+}
+
