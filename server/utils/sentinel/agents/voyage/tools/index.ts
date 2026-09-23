@@ -22,15 +22,3 @@ export function getVoyageTools(tenant?: string, event?: H3Event) {
     validateNoonReportsTool(tenant, event),
   ]
 }
-
-export {
-  fleetVoyagesTool,
-  simulateSpeedReductionTool,
-  vesselDailyPositionsTool,
-  voyageOverviewTool,
-  diagnoseDegradationTool,
-  propulsionSlipTool,
-  weatherFuelPenaltyTool,
-  voyageRecoveryTool,
-  validateNoonReportsTool,
-}
