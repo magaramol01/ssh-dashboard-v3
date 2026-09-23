@@ -215,13 +215,11 @@ function resolveNoonCoordinate(value: string | number | null | undefined): numbe
   return parseDmsCoordinate(trimmed)
 }
 
-/**
- * Real CII values from the API arrive at full floating-point precision
- * (e.g. 4.770194221727248) — round to 2 decimals for display everywhere
- * this is consumed, rather than patching each template that renders it.
- */
-function roundTo2(value: number): number {
-  return Math.round(value * 100) / 100
+export function roundTo2(value: number | string | null | undefined): number {
+  if (value === null || value === undefined || value === '') return 0
+  const n = typeof value === 'number' ? value : parseFloat(String(value))
+  if (Number.isNaN(n)) return 0
+  return Math.round(n * 100) / 100
 }
 
 /**
@@ -233,10 +231,10 @@ function roundTo2(value: number): number {
  * fields is reliable across every vessel's data.
  */
 function buildNoonWeather(noon: CiiDateRangeRecord['noonreportdata']): DailyNoonReport['weather'] {
-  const beaufort = noon?.Wind_Force || 0
-  const windSpeedKts = noon?.Wind_Speed || 0
-  const windDirectionDeg = Number(noon?.Wind_Direction) || 0
-  const waveHeightM = noon?.Wave_Height || 0
+  const beaufort = roundTo2(noon?.Wind_Force || 0)
+  const windSpeedKts = roundTo2(noon?.Wind_Speed || 0)
+  const windDirectionDeg = roundTo2(Number(noon?.Wind_Direction) || 0)
+  const waveHeightM = roundTo2(noon?.Wave_Height || 0)
   const swellDirection = String(noon?.Swell_Direction ?? '')
 
   const parts: string[] = []
@@ -341,7 +339,7 @@ export function mapCiiRecordsToDailyNoons(records: CiiDateRangeRecord[]): DailyN
 
     const byType: Record<string, { value: number; label: string }> = {}
     for (const [key, fuel] of Object.entries(record.consumptionData || {})) {
-      byType[key] = { value: fuel.value, label: fuel.label }
+      byType[key] = { value: roundTo2(fuel.value), label: fuel.label }
     }
 
     const reportDate = new Date(record.reportDateTime)
@@ -358,17 +356,17 @@ export function mapCiiRecordsToDailyNoons(records: CiiDateRangeRecord[]): DailyN
       dayNumber: index + 1,
       dateIso: record.reportDateTime,
       dateFormatted: reportDate.toISOString().slice(0, 10) + ' 12:00 UTC',
-      coords: [Number.isNaN(lat) ? 0 : lat, Number.isNaN(lng) ? 0 : lng],
-      distanceRunNm: record.distance || 0,
-      cumulativeDistanceNm: Math.round(cumulativeDistance * 10) / 10,
-      sog: Number(record.avgSpeed) || 0,
+      coords: [Number.isNaN(lat) ? 0 : roundTo2(lat), Number.isNaN(lng) ? 0 : roundTo2(lng)],
+      distanceRunNm: roundTo2(record.distance || 0),
+      cumulativeDistanceNm: roundTo2(cumulativeDistance),
+      sog: roundTo2(Number(record.avgSpeed) || 0),
       fuelConsumedMt: {
         byType,
-        total: Math.round((record.totalConsumption || 0) * 10) / 10,
+        total: roundTo2(record.totalConsumption || 0),
       },
-      cumulativeFuelMt: Math.round(cumulativeFuel * 10) / 10,
-      totalCo2Mt: Math.round((record.massOfCo2 || 0) * 100) / 100,
-      transportWork: Math.round(record.transportWork || 0),
+      cumulativeFuelMt: roundTo2(cumulativeFuel),
+      totalCo2Mt: roundTo2(record.massOfCo2 || 0),
+      transportWork: roundTo2(record.transportWork || 0),
       attainedCii: roundTo2(record.attainedCII),
       rating,
       requiredCii: roundTo2(record.CIIRating?.requiredCII || 0),
@@ -378,8 +376,8 @@ export function mapCiiRecordsToDailyNoons(records: CiiDateRangeRecord[]): DailyN
         upper: roundTo2(record.CIIRating?.ciiBoundaries?.upper || 0),
         inferior: roundTo2(record.CIIRating?.ciiBoundaries?.inferior || 0),
       },
-      draftFwdM: record.draftFwd || 0,
-      draftAftM: record.draftAft || 0,
+      draftFwdM: roundTo2(record.draftFwd || 0),
+      draftAftM: roundTo2(record.draftAft || 0),
       reportType: record.reportType || '',
       utilizationCategory: (() => {
         const portTypes = record.utilizationType?.portReportTypes
@@ -389,8 +387,8 @@ export function mapCiiRecordsToDailyNoons(records: CiiDateRangeRecord[]): DailyN
         return 'unknown'
       })(),
       weather: buildNoonWeather(record.noonreportdata),
-      slipPct: Number.isFinite(slipPct) ? Math.round(slipPct * 10) / 10 : 0,
-      meRpm: Number.isFinite(meRpm) ? Math.round(meRpm * 10) / 10 : 0,
+      slipPct: Number.isFinite(slipPct) ? roundTo2(slipPct) : 0,
+      meRpm: Number.isFinite(meRpm) ? roundTo2(meRpm) : 0,
       shaftPowerKw: Number.isFinite(shaftPowerKw) ? Math.round(shaftPowerKw) : 0,
       remarks: record.noonreportdata?.Remarks || '',
     }
@@ -621,29 +619,29 @@ export function calculateRouteStrategies(
   const currentCii = calculateCii(currentCo2, currentWork)
 
   // 1. Lowest Fuel (Fuel-Efficient): Reduces SOG by ~7% -> saves ~19% fuel via cubic law
-  const ecoSpeed = Math.round(safeSpeed0 * 0.93 * 10) / 10
+  const ecoSpeed = roundTo2(safeSpeed0 * 0.93)
   const ecoHours = baseDistanceNm / ecoSpeed
   const ecoEtaDate = new Date(Date.now() + ecoHours * 3600 * 1000)
-  const ecoFuel = Math.round(baseFuelMt * Math.pow(ecoSpeed / safeSpeed0, 3) * 10) / 10
-  const ecoSavings = Math.round((baseFuelMt - ecoFuel) * 10) / 10
+  const ecoFuel = roundTo2(baseFuelMt * Math.pow(ecoSpeed / safeSpeed0, 3))
+  const ecoSavings = roundTo2(baseFuelMt - ecoFuel)
   const ecoCo2 = ecoFuel * CF_VLSFO
   const ecoCii = calculateCii(ecoCo2, currentWork)
   const carbonSavingsEur = Math.round((baseFuelMt - ecoFuel) * CF_VLSFO * EU_ETS_CARBON_PRICE_EUR_PER_TON)
 
   // 2. Safest (Weather Avoidance): Diverts ~2.5% distance south/around cells -> saves engine strain & wave resistance
-  const safeDistance = Math.round(baseDistanceNm * 1.025)
+  const safeDistance = roundTo2(baseDistanceNm * 1.025)
   const safeSpeed = safeSpeed0
   const safeHours = safeDistance / safeSpeed
   const safeEtaDate = new Date(Date.now() + safeHours * 3600 * 1000)
-  const safeFuel = Math.round(baseFuelMt * 1.01 * 10) / 10
+  const safeFuel = roundTo2(baseFuelMt * 1.01)
   const safeWork = safeDistance * dwt
   const safeCii = calculateCii(safeFuel * CF_VLSFO, safeWork)
 
   // 3. Fastest: Increases SOG by ~6%
-  const fastSpeed = Math.round(safeSpeed0 * 1.06 * 10) / 10
+  const fastSpeed = roundTo2(safeSpeed0 * 1.06)
   const fastHours = baseDistanceNm / fastSpeed
   const fastEtaDate = new Date(Date.now() + fastHours * 3600 * 1000)
-  const fastFuel = Math.round(baseFuelMt * Math.pow(fastSpeed / safeSpeed0, 3) * 10) / 10
+  const fastFuel = roundTo2(baseFuelMt * Math.pow(fastSpeed / safeSpeed0, 3))
   const fastCo2 = fastFuel * CF_VLSFO
   const fastCii = calculateCii(fastCo2, currentWork)
 
@@ -696,7 +694,7 @@ export function calculateRouteStrategies(
       totalFuelMt: safeFuel,
       projectedCii: safeCii,
       projectedRating: resolveCiiRating(safeCii),
-      fuelSavingsMt: -Math.round((safeFuel - baseFuelMt) * 10) / 10,
+      fuelSavingsMt: -roundTo2(safeFuel - baseFuelMt),
       carbonSavingsEur: -Math.round((safeFuel - baseFuelMt) * CF_VLSFO * EU_ETS_CARBON_PRICE_EUR_PER_TON),
       colorHex: '#06b6d4',
       dashArray: '4 4',

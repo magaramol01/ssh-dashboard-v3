@@ -8,6 +8,7 @@ import {
   SlidersHorizontal,
   Layers,
   ChevronDown,
+  Sparkles,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -167,14 +168,13 @@ async function handleRefresh() {
     <div class="flex items-center gap-2 self-end lg:self-auto overflow-x-auto max-w-full pb-1 lg:pb-0">
       <!-- Copilot Toggle Button -->
       <Button
-        variant="outline"
+        :variant="isCopilotOpen ? 'default' : 'outline'"
         size="sm"
         class="h-9 px-2.5 sm:px-3 text-xs gap-1.5 font-medium shrink-0 cursor-pointer"
-        :class="isCopilotOpen ? 'bg-primary/10 border-primary/40 text-primary font-semibold' : 'text-foreground'"
         title="Toggle Operations Copilot (⌘J)"
         @click="emit('toggle-copilot')"
       >
-        <SlidersHorizontal class="w-3.5 h-3.5 text-muted-foreground" />
+        <Sparkles class="w-3.5 h-3.5" :class="isCopilotOpen ? 'text-primary-foreground' : 'text-primary'" />
         <span class="hidden sm:inline">Copilot</span>
         <span class="text-[10px] font-mono opacity-70 border border-current/30 rounded px-1 hidden md:inline">⌘J</span>
       </Button>

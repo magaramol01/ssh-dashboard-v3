@@ -138,7 +138,7 @@ function close() {
 </script>
 
 <template>
-  <div>
+  <div :class="[variant === 'sidebar' ? (modelValue ? (isFullscreen ? 'contents' : 'h-full flex shrink-0') : 'hidden') : '']">
     <!-- Mobile Backdrop (overlay variant only; a docked sidebar never covers content) -->
     <Transition name="fade">
       <div

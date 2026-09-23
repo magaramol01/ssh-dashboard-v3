@@ -168,78 +168,31 @@ function renderDailyNoonPins() {
   }
 
 function getNoonTooltipHtml(noon: DailyNoonReport, color: string): string {
-  const ratingLabels: Record<string, string> = {
-    A: 'Superior',
-    B: 'Compliant',
-    C: 'Standard',
-    D: 'Degraded',
-    E: 'Non-Compliant',
-  }
-  const ratingText = ratingLabels[noon.rating] || 'Standard'
-  const slipVal = noon.slipPct !== undefined ? `${noon.slipPct}%` : '—'
+  const power = (noon.shaftPowerKw && noon.shaftPowerKw > 0)
+    ? Math.round(noon.shaftPowerKw)
+    : Math.round(4200 * Math.pow(Math.max(noon.sog, 8) / 14, 3))
+  const slipVal = noon.slipPct !== undefined && noon.slipPct > 0 ? (Math.round(noon.slipPct * 100) / 100) : null
+  const slipText = slipVal !== null ? `${slipVal}%` : 'Unrecorded'
+  const speed = Math.round(noon.sog * 100) / 100
+  const fuel = Math.round(noon.fuelConsumedMt.total * 100) / 100
+  const dist = Math.round(noon.distanceRunNm * 100) / 100
 
   return `
     <div class="noon-tooltip-card">
       <div class="noon-tooltip-header">
         <div class="noon-tooltip-title">
           <span class="noon-tooltip-dot" style="background-color: ${color};"></span>
-          <span class="noon-tooltip-day">Day ${noon.dayNumber}</span>
-          <span class="noon-tooltip-date">${noon.dateFormatted.slice(0, 10)}</span>
+          <span>Day D${noon.dayNumber} · Band ${noon.rating}</span>
         </div>
-        <span class="noon-tooltip-band" style="background-color: ${color}15; color: ${color}; border-color: ${color}40;">
-          Band ${noon.rating} · ${ratingText}
-        </span>
+        <span class="noon-tooltip-date">${noon.dateFormatted.slice(0, 10)}</span>
       </div>
-
-      <div class="noon-tooltip-grid">
-        <div class="noon-tooltip-tile">
-          <div class="noon-tooltip-tile-label">Attained CII</div>
-          <div class="noon-tooltip-tile-value">
-            <span style="color: ${color};">${noon.attainedCii}</span>
-            <span class="noon-tooltip-sub">/ ${noon.requiredCii}</span>
-          </div>
-        </div>
-
-        <div class="noon-tooltip-tile">
-          <div class="noon-tooltip-tile-label">Speed SOG</div>
-          <div class="noon-tooltip-tile-value">
-            <span>${noon.sog} kts</span>
-          </div>
-        </div>
-
-        <div class="noon-tooltip-tile">
-          <div class="noon-tooltip-tile-label">24h Run</div>
-          <div class="noon-tooltip-tile-value">
-            <span>${noon.distanceRunNm} NM</span>
-          </div>
-        </div>
-
-        <div class="noon-tooltip-tile">
-          <div class="noon-tooltip-tile-label">24h Fuel</div>
-          <div class="noon-tooltip-tile-value">
-            <span style="color: var(--accent-brand, #efa555);">${noon.fuelConsumedMt.total} MT</span>
-          </div>
-        </div>
-
-        <div class="noon-tooltip-tile">
-          <div class="noon-tooltip-tile-label">Weather</div>
-          <div class="noon-tooltip-tile-value">
-            <span>BF ${noon.weather.beaufort}</span>
-            <span class="noon-tooltip-sub">· ${noon.weather.waveHeightM}m</span>
-          </div>
-        </div>
-
-        <div class="noon-tooltip-tile">
-          <div class="noon-tooltip-tile-label">Propeller Slip</div>
-          <div class="noon-tooltip-tile-value">
-            <span>${slipVal}</span>
-          </div>
-        </div>
+      <div class="noon-tooltip-body">
+        <div>Speed: <b>${speed} kts</b> | Power: <b>${power} kW</b></div>
+        <div>Slip: <b>${slipText}</b></div>
+        <div>Fuel: <b>${fuel} MT/day</b> (${dist} NM)</div>
       </div>
-
       <div class="noon-tooltip-footer">
-        <span>Click waypoint to inspect</span>
-        <span class="noon-tooltip-cta">Inspect ↗</span>
+        <span>Click to inspect ↗</span>
       </div>
     </div>
   `
@@ -427,7 +380,7 @@ onMounted(async () => {
     worldCopyJump: true,
   }).setView([-5, -120], 3)
 
-  L.control.zoom({ position: 'bottomright' }).addTo(mapInstance)
+  L.control.zoom({ position: 'bottomleft' }).addTo(mapInstance)
 
   updateTileLayer()
   refreshAllLayers()

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { SlidersHorizontal, Activity, Calendar } from 'lucide-vue-next'
@@ -59,7 +59,9 @@ function handleSelectDay(day?: any) {
 
 function handleAskCopilot(prompt: string) {
   isCopilotOpen.value = true
-  copilotPanelRef.value?.askPrompt(prompt)
+  nextTick(() => {
+    copilotPanelRef.value?.askPrompt(prompt)
+  })
 }
 
 function handleKeydown(e: KeyboardEvent) {
@@ -127,87 +129,85 @@ onBeforeUnmount(() => {
       />
     </header>
 
-    <!-- Main Container: 100% Full-Screen Edge-to-Edge Map with Floating Overlays -->
-    <div class="relative flex-1 w-full h-full min-h-0 overflow-hidden">
-      <!-- Full-Height Hero Passage Map Canvas -->
-      <div class="w-full h-full min-h-0">
-        <ClientOnly>
-          <VoyageOptimizationMap @select-day="handleSelectDay" />
-          <template #fallback>
-            <div class="w-full h-full min-h-[500px] flex items-center justify-center bg-muted/40 p-6">
-              <div class="space-y-4 w-full max-w-md text-center">
-                <div class="h-10 w-10 mx-auto rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                <p class="text-sm font-medium text-muted-foreground">Loading interactive passage map & weather grid...</p>
-                <Skeleton class="h-6 w-3/4 mx-auto" />
+    <!-- Main Passage Workspace: Map & Drawer + Docked Copilot Sidebar -->
+    <div class="flex flex-1 w-full h-full min-h-0 overflow-hidden">
+      <!-- Left: Passage Map Area & Benchmarks Cockpit -->
+      <div class="relative flex-1 min-w-0 h-full overflow-hidden">
+        <!-- Full-Height Hero Passage Map Canvas -->
+        <div class="w-full h-full min-h-0">
+          <ClientOnly>
+            <VoyageOptimizationMap @select-day="handleSelectDay" />
+            <template #fallback>
+              <div class="w-full h-full min-h-[500px] flex items-center justify-center bg-muted/40 p-6">
+                <div class="space-y-4 w-full max-w-md text-center">
+                  <div class="h-10 w-10 mx-auto rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                  <p class="text-sm font-medium text-muted-foreground">Loading interactive passage map & weather grid...</p>
+                  <Skeleton class="h-6 w-3/4 mx-auto" />
+                </div>
               </div>
+            </template>
+          </ClientOnly>
+        </div>
+
+        <!-- Floating Map Overlays Layer (Confined to Visible Map Space) -->
+        <div
+          v-if="!isDrawerOpen || !isDrawerExpanded"
+          class="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-3 sm:p-4 transition-all duration-300"
+          :class="isDrawerOpen ? 'sm:right-[515px] xl:right-[575px]' : 'right-0'"
+        >
+          <!-- Top: 5-Tile Advisory KPI HUD -->
+          <div class="w-full pointer-events-none">
+            <VoyageOptimizationKpiHud />
+          </div>
+
+          <!-- Bottom: Passage Timeline Scrubber -->
+          <div class="w-full max-w-4xl mx-auto pointer-events-auto flex items-center gap-3 p-2 px-3.5 rounded-xl bg-background/92 dark:bg-card/92 backdrop-blur-md border border-border/80 shadow-lg animate-in fade-in slide-in-from-bottom-2">
+            <div class="flex items-center gap-2 shrink-0 text-xs font-medium text-muted-foreground pr-1 border-r border-border/70 hidden sm:flex">
+              <Calendar class="w-4 h-4 text-primary" />
+              <span class="font-semibold text-foreground">Timeline</span>
+              <span class="text-xs font-mono px-1.5 py-0.2 rounded bg-muted text-muted-foreground">{{ dailyNoons.length }}d</span>
             </div>
-          </template>
-        </ClientOnly>
-      </div>
 
-      <!-- Floating Map Overlays Layer (Confined to Unobstructed Map Space) -->
-      <div
-        :class="[
-          'absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-3 sm:p-4 transition-all duration-300',
-          isDrawerOpen
-            ? isDrawerExpanded
-              ? 'sm:right-[745px] xl:right-[845px]'
-              : 'sm:right-[545px] xl:right-[605px]'
-            : 'right-0'
-        ]"
-      >
-        <!-- Top: 5-Tile Advisory KPI HUD -->
-        <div class="w-full pointer-events-none">
-          <VoyageOptimizationKpiHud />
-        </div>
-
-        <!-- Bottom: Passage Timeline Scrubber -->
-        <div class="w-full max-w-4xl mx-auto pointer-events-auto flex items-center gap-3 p-2 px-3.5 rounded-xl bg-background/92 dark:bg-card/92 backdrop-blur-md border border-border/80 shadow-lg animate-in fade-in slide-in-from-bottom-2">
-          <div class="flex items-center gap-2 shrink-0 text-xs font-medium text-muted-foreground pr-1 border-r border-border/70 hidden sm:flex">
-            <Calendar class="w-4 h-4 text-primary" />
-            <span class="font-semibold text-foreground">Timeline</span>
-            <span class="text-xs font-mono px-1.5 py-0.2 rounded bg-muted text-muted-foreground">{{ dailyNoons.length }}d</span>
-          </div>
-
-          <!-- Scrubber Carousel (D1..Dn) -->
-          <div class="flex-1 flex items-center gap-1.5 overflow-x-auto scrollbar-thin py-0.5 min-w-0">
-            <button
-              v-for="d in dailyNoons"
-              :key="d.dayNumber"
-              type="button"
-              class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all shrink-0 border cursor-pointer select-none"
-              :class="[
-                selectedDay?.dayNumber === d.dayNumber
-                  ? 'bg-primary text-primary-foreground border-primary shadow-xs ring-1 ring-primary/40'
-                  : 'bg-muted/50 hover:bg-muted text-foreground border-border/70'
-              ]"
-              @click="handleSelectDay(d)"
-            >
-              <span>D{{ d.dayNumber }}</span>
-              <span
-                class="w-2 h-2 rounded-full shrink-0"
-                :class="selectedDay?.dayNumber === d.dayNumber ? 'bg-white' : ciiDotClass(d.rating)"
-              />
-              <span class="text-xs opacity-85 font-medium">{{ d.sog }}kt</span>
-            </button>
+            <!-- Scrubber Carousel (D1..Dn) -->
+            <div class="flex-1 flex items-center gap-1.5 overflow-x-auto scrollbar-thin py-0.5 min-w-0">
+              <button
+                v-for="d in dailyNoons"
+                :key="d.dayNumber"
+                type="button"
+                class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all shrink-0 border cursor-pointer select-none"
+                :class="[
+                  selectedDay?.dayNumber === d.dayNumber
+                    ? 'bg-primary text-primary-foreground border-primary shadow-xs ring-1 ring-primary/40'
+                    : 'bg-muted/50 hover:bg-muted text-foreground border-border/70'
+                ]"
+                @click="handleSelectDay(d)"
+              >
+                <span>D{{ d.dayNumber }}</span>
+                <span
+                  class="w-2 h-2 rounded-full shrink-0"
+                  :class="selectedDay?.dayNumber === d.dayNumber ? 'bg-white' : ciiDotClass(d.rating)"
+                />
+                <span class="text-xs opacity-85 font-medium">{{ d.sog }}kt</span>
+              </button>
+            </div>
           </div>
         </div>
+
+        <!-- Floating Translucent Glass Benchmark Cockpit (Full Screen & Normal Modes) -->
+        <VoyageOptimizationDrawer
+          :is-open="isDrawerOpen"
+          v-model:is-expanded="isDrawerExpanded"
+          @close="isDrawerOpen = false"
+          @ask-copilot="handleAskCopilot"
+        />
       </div>
 
-      <!-- Floating Translucent Glass Benchmark Cockpit -->
-      <VoyageOptimizationDrawer
-        :is-open="isDrawerOpen"
-        v-model:is-expanded="isDrawerExpanded"
-        @close="isDrawerOpen = false"
-        @ask-copilot="handleAskCopilot"
-      />
-
-      <!-- Operations Copilot Overlay for Voyage Analytics & CII Intelligence -->
+      <!-- Docked Sidebar: Operations Copilot Intelligence -->
       <SentinelCopilotPanel
         ref="copilotPanelRef"
         v-model="isCopilotOpen"
         v-model:fullscreen="isCopilotFullscreen"
-        variant="overlay"
+        variant="sidebar"
         agent="voyage-analytics"
         :title="`${selectedVessel?.name || 'Vessel'} Voyage Analytics Copilot`"
         subtitle="Voyage Performance, CII Trajectory & Speed Advisory"
