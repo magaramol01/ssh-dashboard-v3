@@ -5,34 +5,36 @@ import { backendFetch } from '../../../../http-adapter'
 import { getVesselTelemetry } from '../../emissions/skills'
 import { calculateApparentSlip } from '../skills'
 
-export const propulsionSlipTool = (tenant?: string, event?: H3Event) =>
+export const propulsionSlipTool = (tenant?: string, event?: H3Event, injectedRecords?: any[]) =>
   tool(
     async ({ vesselId, voyageNumber, year }) => {
       const y = year ?? new Date().getFullYear()
       const tel = getVesselTelemetry(vesselId, y)
 
-      let rawRecords: any[] = []
-      try {
-        if (voyageNumber) {
-          const voyRes = await backendFetch<any[]>(
-            `/prod/api/v1/cii/voyage?voyageNumber=${encodeURIComponent(voyageNumber)}&vesselId=${vesselId}&year=${y}`,
-            { tenant, event }
-          )
-          if (voyRes.success && Array.isArray(voyRes.data) && voyRes.data.length > 0) {
-            rawRecords = voyRes.data
+      let rawRecords: any[] = injectedRecords || []
+      if (!rawRecords.length) {
+        try {
+          if (voyageNumber) {
+            const voyRes = await backendFetch<any[]>(
+              `/prod/api/v1/cii/voyage?voyageNumber=${encodeURIComponent(voyageNumber)}&vesselId=${vesselId}&year=${y}`,
+              { tenant, event }
+            )
+            if (voyRes.success && Array.isArray(voyRes.data) && voyRes.data.length > 0) {
+              rawRecords = voyRes.data
+            }
           }
-        }
-        if (!rawRecords.length) {
-          const res = await backendFetch<any[]>(
-            `/prod/api/v1/cii/date-range?vesselId=${vesselId}&startDate=&endDate=&year=${y}&voyageType=all&type=byDate`,
-            { tenant, event }
-          )
-          if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-            rawRecords = res.data
+          if (!rawRecords.length) {
+            const res = await backendFetch<any[]>(
+              `/prod/api/v1/cii/date-range?vesselId=${vesselId}&startDate=&endDate=&year=${y}&voyageType=all&type=byDate`,
+              { tenant, event }
+            )
+            if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+              rawRecords = res.data
+            }
           }
+        } catch {
+          // External API unreachable
         }
-      } catch {
-        // Fallback to synthetic telemetry when external API is unreachable
       }
 
       // Filter genuine noon reports
@@ -68,16 +70,16 @@ export const propulsionSlipTool = (tenant?: string, event?: H3Event) =>
       if (sorted.length > 0) {
         sorted.forEach((r, idx) => {
           const dayNumber = idx + 1
-          const sog = parseFloat(r.avgSpeed) || 12.5
-          const stw = parseFloat(r.engineSpeed) || sog * 1.08
-          const rpm = parseFloat(r.rpm) || parseFloat(r.noonreportdata?.RPM) || 84.0
+          const sog = parseFloat(r.avgSpeed ?? r.noonreportdata?.Avg_Speed) || 0
+          const stw = parseFloat(r.engineSpeed ?? r.noonreportdata?.LOG_SPEED) || sog
+          const rpm = parseFloat(r.rpm ?? r.noonreportdata?.ME_RPM ?? r.noonreportdata?.RPM) || 0
           const slipPercent = calculateApparentSlip(sog, stw)
-          const meConsumptionMt = parseFloat(r.meFuel || r.me_fuel || r.noonreportdata?.ME_Fuel_Oil_Cons) || 22.0
-          const windBf = parseFloat(r.noonreportdata?.Wind_Force) || 4
+          const meConsumptionMt = parseFloat(r.meFuel ?? r.noonreportdata?.Total_HFOME_Consumed_In_MT ?? r.noonreportdata?.ME_Fuel_Oil_Cons) || 0
+          const windBf = parseFloat(r.noonreportdata?.Wind_Force) || 0
 
           propulsionTrend.push({
             dayNumber,
-            dateIso: r.reportDateTime || new Date(Date.now() - (sorted.length - idx) * 86400000).toISOString(),
+            dateIso: r.reportDateTime || '',
             rpm: Number(rpm.toFixed(1)),
             sog: Number(sog.toFixed(1)),
             stw: Number(stw.toFixed(1)),
@@ -87,31 +89,11 @@ export const propulsionSlipTool = (tenant?: string, event?: H3Event) =>
           })
         })
       } else {
-        // Deterministic passage sequence (7 days)
-        const mockSogs = [14.0, 13.8, 11.2, 9.8, 12.8, 13.9, 14.1]
-        const mockStws = [14.4, 14.3, 13.5, 13.2, 13.8, 14.4, 14.5]
-        const mockRpms = [88.0, 88.0, 86.5, 84.0, 87.0, 88.0, 88.0]
-        const mockWinds = [3, 4, 6, 8, 5, 4, 3]
-        const mockMes = [24.0, 24.2, 27.5, 29.8, 25.4, 24.1, 23.9]
-
-        for (let i = 0; i < mockSogs.length; i++) {
-          const dayNumber = i + 1
-          const sog = mockSogs[i]!
-          const stw = mockStws[i]!
-          const rpm = mockRpms[i]!
-          const slipPercent = calculateApparentSlip(sog, stw)
-
-          propulsionTrend.push({
-            dayNumber,
-            dateIso: new Date(Date.now() - (mockSogs.length - i) * 86400000).toISOString(),
-            rpm,
-            sog,
-            stw,
-            slipPercent,
-            meConsumptionMt: mockMes[i]!,
-            windBf: mockWinds[i]!,
-          })
-        }
+        return JSON.stringify({
+          vesselId,
+          found: false,
+          message: 'No noon-report propulsion data available for the requested voyage or date range.',
+        })
       }
 
       const totalDays = propulsionTrend.length

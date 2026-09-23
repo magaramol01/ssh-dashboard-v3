@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import sampleRecords from '../fixtures/cii-date-range-sample.json'
 import { voyageRecoveryTool } from '../../server/utils/sentinel/agents/voyage/tools/voyage-recovery'
 
 test('voyageRecoveryTool has correct name and schema', () => {
@@ -8,8 +9,18 @@ test('voyageRecoveryTool has correct name and schema', () => {
   assert.ok(toolInstance.description.includes('recovery options'))
 })
 
-test('voyageRecoveryTool computes actionable recovery scenario for Band B', async () => {
+test('voyageRecoveryTool handles empty data honestly', async () => {
   const toolInstance = voyageRecoveryTool()
+  const raw = await toolInstance.invoke({ vesselId: 9999, year: 2026 })
+  const result = JSON.parse(raw as string)
+
+  assert.equal(result.vesselId, 9999)
+  assert.equal(result.found, false)
+  assert.ok(result.message.includes('No noon-report data available'))
+})
+
+test('voyageRecoveryTool computes actionable recovery scenario for Band B with real records', async () => {
+  const toolInstance = voyageRecoveryTool(undefined, undefined, sampleRecords)
   const raw = await toolInstance.invoke({ vesselId: 1, targetRating: 'B', year: 2026 })
   const result = JSON.parse(raw as string)
 

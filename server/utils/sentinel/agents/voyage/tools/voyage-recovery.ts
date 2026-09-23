@@ -5,35 +5,37 @@ import { backendFetch } from '../../../../http-adapter'
 import { getVesselTelemetry } from '../../emissions/skills'
 import { solveVoyageRecovery } from '../skills'
 
-export const voyageRecoveryTool = (tenant?: string, event?: H3Event) =>
+export const voyageRecoveryTool = (tenant?: string, event?: H3Event, injectedRecords?: any[]) =>
   tool(
     async ({ vesselId, targetRating, voyageNumber, year }) => {
       const y = year ?? new Date().getFullYear()
       const tel = getVesselTelemetry(vesselId, y)
       const target = targetRating || 'B'
 
-      let rawRecords: any[] = []
-      try {
-        if (voyageNumber) {
-          const voyRes = await backendFetch<any[]>(
-            `/prod/api/v1/cii/voyage?voyageNumber=${encodeURIComponent(voyageNumber)}&vesselId=${vesselId}&year=${y}`,
-            { tenant, event }
-          )
-          if (voyRes.success && Array.isArray(voyRes.data) && voyRes.data.length > 0) {
-            rawRecords = voyRes.data
+      let rawRecords: any[] = injectedRecords || []
+      if (!rawRecords.length) {
+        try {
+          if (voyageNumber) {
+            const voyRes = await backendFetch<any[]>(
+              `/prod/api/v1/cii/voyage?voyageNumber=${encodeURIComponent(voyageNumber)}&vesselId=${vesselId}&year=${y}`,
+              { tenant, event }
+            )
+            if (voyRes.success && Array.isArray(voyRes.data) && voyRes.data.length > 0) {
+              rawRecords = voyRes.data
+            }
           }
-        }
-        if (!rawRecords.length) {
-          const res = await backendFetch<any[]>(
-            `/prod/api/v1/cii/date-range?vesselId=${vesselId}&startDate=&endDate=&year=${y}&voyageType=all&type=byDate`,
-            { tenant, event }
-          )
-          if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-            rawRecords = res.data
+          if (!rawRecords.length) {
+            const res = await backendFetch<any[]>(
+              `/prod/api/v1/cii/date-range?vesselId=${vesselId}&startDate=&endDate=&year=${y}&voyageType=all&type=byDate`,
+              { tenant, event }
+            )
+            if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+              rawRecords = res.data
+            }
           }
+        } catch {
+          // External API unreachable
         }
-      } catch {
-        // Fallback to telemetry baseline when external API is unreachable
       }
 
       // Filter genuine noon reports
@@ -53,46 +55,89 @@ export const voyageRecoveryTool = (tenant?: string, event?: H3Event) =>
         (a, b) => new Date(a.reportDateTime).getTime() - new Date(b.reportDateTime).getTime()
       )
 
-      let pastDistanceNm = 0
-      let pastCo2Mt = 0
-      let distanceToGoNm = 0
-
-      if (sorted.length > 0) {
-        pastDistanceNm = sorted.reduce((acc, r) => acc + (parseFloat(r.distance) || 0), 0)
-        pastCo2Mt = sorted.reduce((acc, r) => acc + (parseFloat(r.massOfCo2) || (parseFloat(r.totalConsumption) || 0) * 3.114), 0)
-
-        const latest = sorted[sorted.length - 1]
-        const remainingRaw = latest?.noonreportdata?.Distance_Remaining_To_EOV || latest?.distancetogo
-        if (remainingRaw) {
-          distanceToGoNm = parseFloat(remainingRaw) || 0
-        }
+      if (!sorted.length) {
+        return JSON.stringify({
+          vesselId,
+          found: false,
+          message: 'No noon-report data available for the requested voyage or date range.',
+        })
       }
 
-      if (pastDistanceNm <= 0) {
-        pastDistanceNm = 2450.0
-        pastCo2Mt = 820.0
-      }
+      const pastDistanceNm = sorted.reduce((acc, r) => acc + (parseFloat(r.distance) || 0), 0)
+      const pastCo2Mt = sorted.reduce(
+        (acc, r) => acc + (parseFloat(r.massOfCo2) || (parseFloat(r.totalConsumption) || 0) * 3.114),
+        0
+      )
+
+      const latest = sorted[sorted.length - 1]
+      const remainingRaw = latest?.noonreportdata?.Distance_Remaining_To_EOV || latest?.distancetogo
+      const distanceToGoNm = remainingRaw ? parseFloat(remainingRaw) || 0 : 0
+
       if (distanceToGoNm <= 0) {
-        distanceToGoNm = 1850.0
+        return JSON.stringify({
+          vesselId,
+          found: false,
+          message: 'No remaining distance to end of voyage reported in noon data.',
+        })
       }
 
-      const boundaries = tel.boundaries || {
-        superior_boundary: 3.42,
-        lower_boundary: 4.65,
-        upper_boundary: 5.92,
-        inferior_boundary: 7.35,
-        requiredCII: 5.25,
+      if (!tel.deadweight || tel.deadweight <= 0) {
+        return JSON.stringify({
+          vesselId,
+          found: false,
+          message: 'Vessel deadweight metric is missing, cannot calculate CII transport work.',
+        })
       }
 
-      const baselineSpeed = 14.0
-      const baselineRpm = 88.0
-      const dailyFuelBase = 26.0
+      const boundaries = tel.boundaries
+      if (!boundaries) {
+        return JSON.stringify({
+          vesselId,
+          found: false,
+          message: 'Vessel CII rating boundaries not configured for calculation.',
+        })
+      }
+
+      const totalPastSteamingHours = sorted.reduce(
+        (acc, r) => acc + (parseFloat(r.steamingHours ?? r.noonreportdata?.ME_Running_Hrs) || 24),
+        0
+      )
+      const baselineSpeed =
+        totalPastSteamingHours > 0 && pastDistanceNm > 0
+          ? Number((pastDistanceNm / totalPastSteamingHours).toFixed(1))
+          : Number(
+              (
+                sorted.reduce((acc, r) => acc + (parseFloat(r.avgSpeed ?? r.noonreportdata?.Avg_Speed) || 0), 0) /
+                sorted.length
+              ).toFixed(1)
+            )
+
+      if (baselineSpeed <= 0) {
+        return JSON.stringify({
+          vesselId,
+          found: false,
+          message: 'Cannot determine baseline steaming speed from active voyage records.',
+        })
+      }
+
+      const totalRpm = sorted.reduce(
+        (acc, r) => acc + (parseFloat(r.rpm ?? r.noonreportdata?.ME_RPM ?? r.noonreportdata?.RPM) || 0),
+        0
+      )
+      const validRpmCount = sorted.filter((r) => parseFloat(r.rpm ?? r.noonreportdata?.ME_RPM ?? r.noonreportdata?.RPM) > 0).length
+      const baselineRpm = validRpmCount > 0 ? Math.round(totalRpm / validRpmCount) : 80
+
+      const pastFuelMt = pastCo2Mt > 0 ? pastCo2Mt / 3.114 : sorted.reduce((acc, r) => acc + (parseFloat(r.totalConsumption ?? r.noonreportdata?.Total_HFO_Consumed_In_MT) || 0), 0)
+      const dailyFuelBase =
+        totalPastSteamingHours > 0
+          ? Number(((pastFuelMt / totalPastSteamingHours) * 24).toFixed(1))
+          : Number((pastFuelMt / sorted.length).toFixed(1))
 
       const recovery = solveVoyageRecovery({
         remainingDistanceNm: distanceToGoNm,
         pastCo2Mt,
         pastDistanceNm,
-        dwt: tel.deadweight || 65000,
+        dwt: tel.deadweight,
         targetRating: target,
         boundaries,
         baselineSpeedKts: baselineSpeed,
@@ -110,7 +155,7 @@ export const voyageRecoveryTool = (tenant?: string, event?: H3Event) =>
         const etaDelay = Number(Math.max(0, hours - baseHours).toFixed(1))
         const remFuel = Number((dailyFuel * (hours / 24)).toFixed(1))
         const remCo2 = remFuel * 3.114
-        const totalWork = (pastDistanceNm + distanceToGoNm) * (tel.deadweight || 65000)
+        const totalWork = (pastDistanceNm + distanceToGoNm) * tel.deadweight
         const projCii = Number((((pastCo2Mt + remCo2) * 1e6) / totalWork).toFixed(2))
 
         let projRating = 'E'

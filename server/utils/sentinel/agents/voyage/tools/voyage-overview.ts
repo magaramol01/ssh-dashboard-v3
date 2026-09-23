@@ -4,34 +4,44 @@ import { z } from 'zod'
 import { backendFetch } from '../../../../http-adapter'
 import { getVesselTelemetry } from '../../emissions/skills'
 
-export const voyageOverviewTool = (tenant?: string, event?: H3Event) =>
+export const voyageOverviewTool = (tenant?: string, event?: H3Event, injectedRecords?: any[]) =>
   tool(
     async ({ vesselId, voyageNumber, year }) => {
       const y = year ?? new Date().getFullYear()
       const tel = getVesselTelemetry(vesselId, y)
 
-      let records: any[] = []
-      try {
-        if (voyageNumber) {
-          const voyRes = await backendFetch<any[]>(
-            `/prod/api/v1/cii/voyage?voyageNumber=${encodeURIComponent(voyageNumber)}&vesselId=${vesselId}&year=${y}`,
-            { tenant, event }
-          )
-          if (voyRes.success && Array.isArray(voyRes.data) && voyRes.data.length > 0) {
-            records = voyRes.data
+      let records: any[] = injectedRecords || []
+      if (!records.length) {
+        try {
+          if (voyageNumber) {
+            const voyRes = await backendFetch<any[]>(
+              `/prod/api/v1/cii/voyage?voyageNumber=${encodeURIComponent(voyageNumber)}&vesselId=${vesselId}&year=${y}`,
+              { tenant, event }
+            )
+            if (voyRes.success && Array.isArray(voyRes.data) && voyRes.data.length > 0) {
+              records = voyRes.data
+            }
           }
-        }
-        if (!records.length) {
-          const res = await backendFetch<any[]>(
-            `/prod/api/v1/cii/date-range?vesselId=${vesselId}&startDate=&endDate=&year=${y}&voyageType=all&type=byDate`,
-            { tenant, event }
-          )
-          if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-            records = res.data
+          if (!records.length) {
+            const res = await backendFetch<any[]>(
+              `/prod/api/v1/cii/date-range?vesselId=${vesselId}&startDate=&endDate=&year=${y}&voyageType=all&type=byDate`,
+              { tenant, event }
+            )
+            if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+              records = res.data
+            }
           }
+        } catch {
+          // External API unreachable
         }
-      } catch {
-        // Fallback to telemetry baseline when external API is unreachable or returns empty
+      }
+
+      if (!records.length) {
+        return JSON.stringify({
+          vesselId,
+          found: false,
+          message: 'No noon-report voyage data available for the requested voyage or date range.',
+        })
       }
 
       const vesselName =
@@ -45,82 +55,55 @@ export const voyageOverviewTool = (tenant?: string, event?: H3Event) =>
         records[0]?.Voyage ||
         records[0]?.voyage ||
         records[0]?.noonreportdata?.Voyage_Number ||
-        `VOY-${y}-${String(vesselId).padStart(2, '0')}`
+        null
 
       const departurePort =
         records[0]?.departurePort ||
         records[0]?.departure_port ||
         records[0]?.noonreportdata?.Start_Port ||
-        'Port of Rotterdam'
+        null
 
-      const latestRecord = records.length > 0 ? records[records.length - 1] : null
+      const latestRecord = records[records.length - 1]
       const arrivalPort =
         latestRecord?.nextPort ||
         latestRecord?.next_port ||
         latestRecord?.noonreportdata?.Next_Port ||
-        'Port of Singapore'
+        null
 
-      // Calculate distance metrics
-      let totalDistanceNm = 0
-      let distanceSailedNm = 0
-      let distanceToGoNm = 0
+      // Calculate distance metrics from actual records
+      const distanceSailedNm = Number(
+        records
+          .reduce((acc, r) => acc + (parseFloat(r.distance) || 0), 0)
+          .toFixed(1)
+      )
 
-      if (records.length > 0) {
-        const sailedFromRecords = records.reduce((acc, r) => {
-          const d = parseFloat(r.distance) || 0
-          return acc + d
-        }, 0)
-        distanceSailedNm = Number(sailedFromRecords.toFixed(1))
+      const remainingRaw = latestRecord?.noonreportdata?.Distance_Remaining_To_EOV || latestRecord?.distancetogo
+      const distanceToGoNm = remainingRaw ? Number((parseFloat(remainingRaw) || 0).toFixed(1)) : 0
+      const totalDistanceNm = distanceToGoNm > 0 ? Number((distanceSailedNm + distanceToGoNm).toFixed(1)) : distanceSailedNm
+      const progressPercent = totalDistanceNm > 0 ? Number(((distanceSailedNm / totalDistanceNm) * 100).toFixed(1)) : 0
 
-        const remainingRaw = latestRecord?.noonreportdata?.Distance_Remaining_To_EOV || latestRecord?.distancetogo
-        if (remainingRaw) {
-          distanceToGoNm = Number((parseFloat(remainingRaw) || 0).toFixed(1))
-        }
-
-        totalDistanceNm = Number((distanceSailedNm + distanceToGoNm).toFixed(1))
-      }
-
-      // Telemetry fallback if records are missing or empty
-      if (totalDistanceNm <= 0) {
-        totalDistanceNm = tel.totalDistanceNm > 0 ? tel.totalDistanceNm : 3850
-        distanceSailedNm = Number((totalDistanceNm * 0.65).toFixed(1))
-        distanceToGoNm = Number((totalDistanceNm - distanceSailedNm).toFixed(1))
-      }
-
-      const progressPercent =
-        totalDistanceNm > 0 ? Number(((distanceSailedNm / totalDistanceNm) * 100).toFixed(1)) : 0
-
-      // Calculate fuel breakdown (ME, AE, Boiler in MT)
+      // Calculate fuel breakdown (ME, AE, Boiler in MT) from actual records
       let meFuelMt = 0
       let aeFuelMt = 0
       let boilerFuelMt = 0
 
-      if (records.length > 0) {
-        for (const r of records) {
-          const me = parseFloat(r.meFuel || r.me_fuel || r.noonreportdata?.ME_Fuel_Oil_Cons || r.consumptionData?.me?.value) || 0
-          const ae = parseFloat(r.aeFuel || r.ae_fuel || r.noonreportdata?.DG_Fuel_Oil_Cons || r.consumptionData?.ae?.value) || 0
-          const blr = parseFloat(r.boilerFuel || r.boiler_fuel || r.noonreportdata?.Boiler_Fuel_Oil_Cons || r.consumptionData?.boiler?.value) || 0
-          meFuelMt += me
-          aeFuelMt += ae
-          boilerFuelMt += blr
-        }
+      for (const r of records) {
+        const me = parseFloat(r.meFuel || r.me_fuel || r.noonreportdata?.ME_Fuel_Oil_Cons || r.consumptionData?.me?.value) || 0
+        const ae = parseFloat(r.aeFuel || r.ae_fuel || r.noonreportdata?.DG_Fuel_Oil_Cons || r.consumptionData?.ae?.value) || 0
+        const blr = parseFloat(r.boilerFuel || r.boiler_fuel || r.noonreportdata?.Boiler_Fuel_Oil_Cons || r.consumptionData?.boiler?.value) || 0
+        meFuelMt += me
+        aeFuelMt += ae
+        boilerFuelMt += blr
       }
 
-      let totalFuelMt = Number((meFuelMt + aeFuelMt + boilerFuelMt).toFixed(1))
-      if (totalFuelMt <= 0) {
-        totalFuelMt = Number((tel.totalCo2Mt / 3.15).toFixed(1))
-        meFuelMt = Number((totalFuelMt * 0.78).toFixed(1))
-        aeFuelMt = Number((totalFuelMt * 0.16).toFixed(1))
-        boilerFuelMt = Number((totalFuelMt - meFuelMt - aeFuelMt).toFixed(1))
-      } else {
-        meFuelMt = Number(meFuelMt.toFixed(1))
-        aeFuelMt = Number(aeFuelMt.toFixed(1))
-        boilerFuelMt = Number(boilerFuelMt.toFixed(1))
-      }
+      const totalFuelMt = Number((meFuelMt + aeFuelMt + boilerFuelMt).toFixed(1))
+      meFuelMt = Number(meFuelMt.toFixed(1))
+      aeFuelMt = Number(aeFuelMt.toFixed(1))
+      boilerFuelMt = Number(boilerFuelMt.toFixed(1))
 
       const marginPercent =
         tel.requiredCii > 0
-          ? Number((((tel.attainedCii - tel.requiredCii) / tel.requiredCii) * 100).toFixed(1))
+          ? Number((((tel.attainedCii - tel.requiredCii) / tel.requiredCII || tel.requiredCii) * 100).toFixed(1))
           : 0
 
       return JSON.stringify({

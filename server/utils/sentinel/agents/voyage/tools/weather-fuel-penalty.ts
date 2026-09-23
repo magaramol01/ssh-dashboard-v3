@@ -5,34 +5,36 @@ import { backendFetch } from '../../../../http-adapter'
 import { getVesselTelemetry } from '../../emissions/skills'
 import { calculateWeatherFuelPenalty } from '../skills'
 
-export const weatherFuelPenaltyTool = (tenant?: string, event?: H3Event) =>
+export const weatherFuelPenaltyTool = (tenant?: string, event?: H3Event, injectedRecords?: any[]) =>
   tool(
     async ({ vesselId, voyageNumber, year }) => {
       const y = year ?? new Date().getFullYear()
       const tel = getVesselTelemetry(vesselId, y)
 
-      let rawRecords: any[] = []
-      try {
-        if (voyageNumber) {
-          const voyRes = await backendFetch<any[]>(
-            `/prod/api/v1/cii/voyage?voyageNumber=${encodeURIComponent(voyageNumber)}&vesselId=${vesselId}&year=${y}`,
-            { tenant, event }
-          )
-          if (voyRes.success && Array.isArray(voyRes.data) && voyRes.data.length > 0) {
-            rawRecords = voyRes.data
+      let rawRecords: any[] = injectedRecords || []
+      if (!rawRecords.length) {
+        try {
+          if (voyageNumber) {
+            const voyRes = await backendFetch<any[]>(
+              `/prod/api/v1/cii/voyage?voyageNumber=${encodeURIComponent(voyageNumber)}&vesselId=${vesselId}&year=${y}`,
+              { tenant, event }
+            )
+            if (voyRes.success && Array.isArray(voyRes.data) && voyRes.data.length > 0) {
+              rawRecords = voyRes.data
+            }
           }
-        }
-        if (!rawRecords.length) {
-          const res = await backendFetch<any[]>(
-            `/prod/api/v1/cii/date-range?vesselId=${vesselId}&startDate=&endDate=&year=${y}&voyageType=all&type=byDate`,
-            { tenant, event }
-          )
-          if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-            rawRecords = res.data
+          if (!rawRecords.length) {
+            const res = await backendFetch<any[]>(
+              `/prod/api/v1/cii/date-range?vesselId=${vesselId}&startDate=&endDate=&year=${y}&voyageType=all&type=byDate`,
+              { tenant, event }
+            )
+            if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+              rawRecords = res.data
+            }
           }
+        } catch {
+          // External API unreachable
         }
-      } catch {
-        // Fallback to synthetic telemetry when external API is unreachable
       }
 
       // Filter genuine noon reports
@@ -69,16 +71,16 @@ export const weatherFuelPenaltyTool = (tenant?: string, event?: H3Event) =>
       if (sorted.length > 0) {
         sorted.forEach((r, idx) => {
           const dayNumber = idx + 1
-          const sog = parseFloat(r.avgSpeed) || 12.5
-          const meFuel = parseFloat(r.meFuel || r.me_fuel || r.noonreportdata?.ME_Fuel_Oil_Cons) || 22.0
-          const windBf = parseFloat(r.noonreportdata?.Wind_Force) || 4
-          const waveHeightM = parseFloat(r.noonreportdata?.Wave_Height) || 1.8
+          const sog = parseFloat(r.avgSpeed ?? r.noonreportdata?.Avg_Speed) || 0
+          const meFuel = parseFloat(r.meFuel ?? r.noonreportdata?.Total_HFOME_Consumed_In_MT ?? r.noonreportdata?.ME_Fuel_Oil_Cons) || 0
+          const windBf = parseFloat(r.noonreportdata?.Wind_Force) || 0
+          const waveHeightM = parseFloat(r.noonreportdata?.Wave_Height) || 0
 
-          const penalty = calculateWeatherFuelPenalty(meFuel, sog, windBf, waveHeightM, 14.0)
+          const penalty = calculateWeatherFuelPenalty(meFuel, sog, windBf, waveHeightM, sog)
 
           dailyImpacts.push({
             dayNumber,
-            dateIso: r.reportDateTime || new Date(Date.now() - (sorted.length - idx) * 86400000).toISOString(),
+            dateIso: r.reportDateTime || '',
             sog: Number(sog.toFixed(1)),
             windBf,
             waveHeightM: Number(waveHeightM.toFixed(1)),
@@ -89,33 +91,11 @@ export const weatherFuelPenaltyTool = (tenant?: string, event?: H3Event) =>
           })
         })
       } else {
-        // Fallback realistic passage sequence (7 days with a weather storm on D3-D4)
-        const mockSogs = [14.0, 13.8, 11.2, 9.8, 12.8, 13.9, 14.1]
-        const mockMes = [24.0, 24.2, 27.5, 29.8, 25.4, 24.1, 23.9]
-        const mockWinds = [3, 4, 6, 8, 5, 4, 3]
-        const mockWaves = [1.2, 1.6, 3.2, 5.0, 2.5, 1.8, 1.2]
-
-        for (let i = 0; i < mockSogs.length; i++) {
-          const dayNumber = i + 1
-          const sog = mockSogs[i]!
-          const meFuel = mockMes[i]!
-          const windBf = mockWinds[i]!
-          const waveHeightM = mockWaves[i]!
-
-          const penalty = calculateWeatherFuelPenalty(meFuel, sog, windBf, waveHeightM, 14.0)
-
-          dailyImpacts.push({
-            dayNumber,
-            dateIso: new Date(Date.now() - (mockSogs.length - i) * 86400000).toISOString(),
-            sog,
-            windBf,
-            waveHeightM,
-            actualMeFuelMt: meFuel,
-            weatherFuelPenaltyMt: penalty.weatherFuelPenaltyMt,
-            speedLossKts: penalty.speedLossKts,
-            weatherCo2PenaltyMt: penalty.weatherCo2PenaltyMt,
-          })
-        }
+        return JSON.stringify({
+          vesselId,
+          found: false,
+          message: 'No noon-report weather and fuel data available for the requested voyage or date range.',
+        })
       }
 
       const totalVoyageFuelMt = Number(dailyImpacts.reduce((a, b) => a + b.actualMeFuelMt, 0).toFixed(1))

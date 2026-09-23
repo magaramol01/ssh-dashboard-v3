@@ -5,34 +5,36 @@ import { backendFetch } from '../../../../http-adapter'
 import { getVesselTelemetry } from '../../emissions/skills'
 import { classifyDegradedDay, calculateApparentSlip } from '../skills'
 
-export const diagnoseDegradationTool = (tenant?: string, event?: H3Event) =>
+export const diagnoseDegradationTool = (tenant?: string, event?: H3Event, injectedRecords?: any[]) =>
   tool(
     async ({ vesselId, voyageNumber, targetDayNumber, year }) => {
       const y = year ?? new Date().getFullYear()
       const tel = getVesselTelemetry(vesselId, y)
 
-      let rawRecords: any[] = []
-      try {
-        if (voyageNumber) {
-          const voyRes = await backendFetch<any[]>(
-            `/prod/api/v1/cii/voyage?voyageNumber=${encodeURIComponent(voyageNumber)}&vesselId=${vesselId}&year=${y}`,
-            { tenant, event }
-          )
-          if (voyRes.success && Array.isArray(voyRes.data) && voyRes.data.length > 0) {
-            rawRecords = voyRes.data
+      let rawRecords: any[] = injectedRecords || []
+      if (!rawRecords.length) {
+        try {
+          if (voyageNumber) {
+            const voyRes = await backendFetch<any[]>(
+              `/prod/api/v1/cii/voyage?voyageNumber=${encodeURIComponent(voyageNumber)}&vesselId=${vesselId}&year=${y}`,
+              { tenant, event }
+            )
+            if (voyRes.success && Array.isArray(voyRes.data) && voyRes.data.length > 0) {
+              rawRecords = voyRes.data
+            }
           }
-        }
-        if (!rawRecords.length) {
-          const res = await backendFetch<any[]>(
-            `/prod/api/v1/cii/date-range?vesselId=${vesselId}&startDate=&endDate=&year=${y}&voyageType=all&type=byDate`,
-            { tenant, event }
-          )
-          if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-            rawRecords = res.data
+          if (!rawRecords.length) {
+            const res = await backendFetch<any[]>(
+              `/prod/api/v1/cii/date-range?vesselId=${vesselId}&startDate=&endDate=&year=${y}&voyageType=all&type=byDate`,
+              { tenant, event }
+            )
+            if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+              rawRecords = res.data
+            }
           }
+        } catch {
+          // External API unreachable
         }
-      } catch {
-        // Fallback to synthetic passage telemetry when external API is unreachable
       }
 
       // Filter genuine noon reports
@@ -74,15 +76,15 @@ export const diagnoseDegradationTool = (tenant?: string, event?: H3Event) =>
       if (sorted.length > 0) {
         sorted.forEach((r, idx) => {
           const dayNumber = idx + 1
-          const rating = r.CIIRating?.rating || r.rating || (dayNumber === 3 ? 'D' : dayNumber === 4 ? 'E' : 'B')
-          const dailyCii = parseFloat(r.attainedCII) || parseFloat(r.dailyCII) || tel.attainedCii
-          const sog = parseFloat(r.avgSpeed) || 12.5
-          const stw = parseFloat(r.engineSpeed) || sog * 1.08
-          const rpm = parseFloat(r.rpm) || parseFloat(r.noonreportdata?.RPM) || 82
-          const windBf = parseFloat(r.noonreportdata?.Wind_Force) || (rating === 'E' ? 7 : rating === 'D' ? 6 : 4)
-          const waveHeightM = parseFloat(r.noonreportdata?.Wave_Height) || (windBf >= 7 ? 4.5 : windBf >= 6 ? 3.2 : 1.5)
+          const rating = r.CIIRating?.rating || r.rating || 'Unknown'
+          const dailyCii = parseFloat(r.attainedCII || r.dailyCII) || 0
+          const sog = parseFloat(r.avgSpeed ?? r.noonreportdata?.Avg_Speed) || 0
+          const stw = parseFloat(r.engineSpeed ?? r.noonreportdata?.LOG_SPEED) || sog
+          const rpm = parseFloat(r.rpm ?? r.noonreportdata?.ME_RPM ?? r.noonreportdata?.RPM) || 0
+          const windBf = parseFloat(r.noonreportdata?.Wind_Force) || 0
+          const waveHeightM = parseFloat(r.noonreportdata?.Wave_Height) || 0
           const slipPct = calculateApparentSlip(sog, stw)
-          const fuel = parseFloat(r.totalConsumption) || 24.5
+          const fuel = parseFloat(r.totalConsumption ?? r.noonreportdata?.Total_HFO_Consumed_In_MT) || 0
 
           const classification = classifyDegradedDay({
             rating,
@@ -95,7 +97,7 @@ export const diagnoseDegradationTool = (tenant?: string, event?: H3Event) =>
 
           days.push({
             dayNumber,
-            dateIso: r.reportDateTime || new Date(Date.now() - (sorted.length - idx) * 86400000).toISOString(),
+            dateIso: r.reportDateTime || '',
             rating,
             dailyCii: Number(dailyCii.toFixed(2)),
             sog: Number(sog.toFixed(1)),
@@ -111,50 +113,11 @@ export const diagnoseDegradationTool = (tenant?: string, event?: H3Event) =>
           })
         })
       } else {
-        // Fallback realistic passage sequence (7 days with weather onset on D3/D4)
-        const mockRatings = ['B', 'B', 'D', 'E', 'C', 'B', 'B']
-        const mockWinds = [3, 4, 6, 8, 5, 4, 3]
-        const mockWaves = [1.2, 1.6, 3.2, 5.0, 2.5, 1.8, 1.2]
-        const mockSogs = [14.0, 13.8, 11.2, 9.8, 12.8, 13.9, 14.1]
-        const mockRpms = [88, 88, 86, 82, 87, 88, 88]
-
-        for (let i = 0; i < mockRatings.length; i++) {
-          const dayNumber = i + 1
-          const rating = mockRatings[i]!
-          const windBf = mockWinds[i]!
-          const waveHeightM = mockWaves[i]!
-          const sog = mockSogs[i]!
-          const stw = 14.2
-          const rpm = mockRpms[i]!
-          const slipPct = calculateApparentSlip(sog, stw)
-          const fuel = rating === 'E' ? 31.5 : rating === 'D' ? 28.2 : 24.0
-
-          const classification = classifyDegradedDay({
-            rating,
-            windBf,
-            waveHeightM,
-            slipPct,
-            sog,
-            rpm,
-          })
-
-          days.push({
-            dayNumber,
-            dateIso: new Date(Date.now() - (mockRatings.length - i) * 86400000).toISOString(),
-            rating,
-            dailyCii: rating === 'E' ? 7.85 : rating === 'D' ? 6.20 : 4.40,
-            sog,
-            stw,
-            rpm,
-            windBf,
-            waveHeightM,
-            seaState: waveHeightM >= 4 ? 'Rough / High Seas' : waveHeightM >= 2.5 ? 'Moderate to Rough' : 'Slight',
-            slipPct,
-            fuelConsumptionMt: fuel,
-            primaryRootCause: classification.primaryRootCause,
-            causeAnalysis: classification.causeAnalysis,
-          })
-        }
+        return JSON.stringify({
+          vesselId,
+          found: false,
+          message: 'No noon-report data available for the requested voyage or date range.',
+        })
       }
 
       // Filter by target day if specified, or pick all degraded days (D and E ratings)

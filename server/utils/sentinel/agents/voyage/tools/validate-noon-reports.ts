@@ -10,34 +10,36 @@ import {
   type NoonValidationResult,
 } from '../skills'
 
-export const validateNoonReportsTool = (tenant?: string, event?: H3Event) =>
+export const validateNoonReportsTool = (tenant?: string, event?: H3Event, injectedRecords?: any[]) =>
   tool(
     async ({ vesselId, voyageNumber, dayNumber, year }) => {
       const y = year ?? new Date().getFullYear()
       const tel = getVesselTelemetry(vesselId, y)
 
-      let rawRecords: any[] = []
-      try {
-        if (voyageNumber) {
-          const voyRes = await backendFetch<any[]>(
-            `/prod/api/v1/cii/voyage?voyageNumber=${encodeURIComponent(voyageNumber)}&vesselId=${vesselId}&year=${y}`,
-            { tenant, event }
-          )
-          if (voyRes.success && Array.isArray(voyRes.data) && voyRes.data.length > 0) {
-            rawRecords = voyRes.data
+      let rawRecords: any[] = injectedRecords || []
+      if (!rawRecords.length) {
+        try {
+          if (voyageNumber) {
+            const voyRes = await backendFetch<any[]>(
+              `/prod/api/v1/cii/voyage?voyageNumber=${encodeURIComponent(voyageNumber)}&vesselId=${vesselId}&year=${y}`,
+              { tenant, event }
+            )
+            if (voyRes.success && Array.isArray(voyRes.data) && voyRes.data.length > 0) {
+              rawRecords = voyRes.data
+            }
           }
-        }
-        if (!rawRecords.length) {
-          const res = await backendFetch<any[]>(
-            `/prod/api/v1/cii/date-range?vesselId=${vesselId}&startDate=&endDate=&year=${y}&voyageType=all&type=byDate`,
-            { tenant, event }
-          )
-          if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-            rawRecords = res.data
+          if (!rawRecords.length) {
+            const res = await backendFetch<any[]>(
+              `/prod/api/v1/cii/date-range?vesselId=${vesselId}&startDate=&endDate=&year=${y}&voyageType=all&type=byDate`,
+              { tenant, event }
+            )
+            if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+              rawRecords = res.data
+            }
           }
+        } catch {
+          // External API unreachable
         }
-      } catch {
-        // Fallback to synthetic passage telemetry when external API is unreachable
       }
 
       // Filter genuine noon reports
@@ -66,16 +68,16 @@ export const validateNoonReportsTool = (tenant?: string, event?: H3Event) =>
         sorted.forEach((r, idx) => {
           const lat = resolveCoordinate(r.noonreportdata?.Latitude)
           const lng = resolveCoordinate(r.noonreportdata?.Longitude)
-          const distance = parseFloat(r.distance) || 0
-          const sog = parseFloat(r.avgSpeed) || 0
-          const rpm = parseFloat(r.rpm) || parseFloat(r.noonreportdata?.RPM) || 84
-          const meFuel = parseFloat(r.meFuel || r.noonreportdata?.ME_Fuel_Oil_Cons) || 22.5
-          const aeFuel = parseFloat(r.aeFuel || r.noonreportdata?.DG_Fuel_Oil_Cons) || 3.8
-          const blrFuel = parseFloat(r.boilerFuel || r.noonreportdata?.Boiler_Fuel_Oil_Cons) || 1.2
-          const totalFuel = parseFloat(r.totalConsumption) || (meFuel + aeFuel + blrFuel)
-          const windBf = parseFloat(r.noonreportdata?.Wind_Force) || 4
-          const windSpeed = parseFloat(r.noonreportdata?.Wind_Speed) || 15
-          const waveHeight = parseFloat(r.noonreportdata?.Wave_Height) || 1.8
+          const distance = parseFloat(r.distance ?? r.noonreportdata?.Distance) || 0
+          const sog = parseFloat(r.avgSpeed ?? r.noonreportdata?.Avg_Speed) || 0
+          const rpm = parseFloat(r.rpm ?? r.noonreportdata?.ME_RPM ?? r.noonreportdata?.RPM) || 0
+          const meFuel = parseFloat(r.meFuel ?? r.noonreportdata?.Total_HFOME_Consumed_In_MT ?? r.noonreportdata?.ME_Fuel_Oil_Cons) || 0
+          const aeFuel = parseFloat(r.aeFuel ?? r.noonreportdata?.Total_HFOAE_Consumed_In_MT ?? r.noonreportdata?.DG_Fuel_Oil_Cons) || 0
+          const blrFuel = parseFloat(r.boilerFuel ?? r.noonreportdata?.Total_HFOBLR_Consumed_In_MT ?? r.noonreportdata?.Boiler_Fuel_Oil_Cons) || 0
+          const totalFuel = parseFloat(r.totalConsumption ?? r.noonreportdata?.Total_HFO_Consumed_In_MT) || (meFuel + aeFuel + blrFuel)
+          const windBf = parseFloat(r.noonreportdata?.Wind_Force) || 0
+          const windSpeed = parseFloat(r.noonreportdata?.Wind_Speed) || 0
+          const waveHeight = parseFloat(r.noonreportdata?.Wave_Height) || 0
 
           validationInputs.push({
             vesselId,
@@ -103,38 +105,11 @@ export const validateNoonReportsTool = (tenant?: string, event?: H3Event) =>
           }
         })
       } else {
-        // Fallback realistic voyage logs (5 days)
-        const mockPositions = [
-          { lat: 1.28, lng: 103.85 },
-          { lat: 2.80, lng: 101.50 },
-          { lat: 5.40, lng: 98.20 },
-          { lat: 7.90, lng: 94.50 },
-          { lat: 9.80, lng: 90.10 },
-        ]
-
-        for (let i = 0; i < mockPositions.length; i++) {
-          const pos = mockPositions[i]!
-          const prev = i > 0 ? mockPositions[i - 1] : undefined
-          validationInputs.push({
-            vesselId,
-            reportDate: new Date(Date.now() - (mockPositions.length - i) * 86400000).toISOString().slice(0, 10),
-            steamingHours: 24.0,
-            distance: 310.0,
-            sog: 12.9,
-            rpm: 84.0,
-            meFuelMt: 23.5,
-            aeFuelMt: 3.2,
-            boilerFuelMt: 1.1,
-            totalFuelMt: 27.8,
-            lat: pos.lat,
-            lng: pos.lng,
-            prevLat: prev?.lat,
-            prevLng: prev?.lng,
-            windBf: i === 2 ? 6 : 4,
-            windSpeedKts: i === 2 ? 25 : 14,
-            waveHeightM: i === 2 ? 3.0 : 1.5,
-          })
-        }
+        return JSON.stringify({
+          vesselId,
+          found: false,
+          message: 'No noon-report data available for the requested voyage or date range.',
+        })
       }
 
       // Filter by day if requested
