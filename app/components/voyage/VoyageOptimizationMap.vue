@@ -167,6 +167,84 @@ function renderDailyNoonPins() {
     }
   }
 
+function getNoonTooltipHtml(noon: DailyNoonReport, color: string): string {
+  const ratingLabels: Record<string, string> = {
+    A: 'Superior',
+    B: 'Compliant',
+    C: 'Standard',
+    D: 'Degraded',
+    E: 'Non-Compliant',
+  }
+  const ratingText = ratingLabels[noon.rating] || 'Standard'
+  const slipVal = noon.slipPct !== undefined ? `${noon.slipPct}%` : '—'
+
+  return `
+    <div class="noon-tooltip-card">
+      <div class="noon-tooltip-header">
+        <div class="noon-tooltip-title">
+          <span class="noon-tooltip-dot" style="background-color: ${color};"></span>
+          <span class="noon-tooltip-day">Day ${noon.dayNumber}</span>
+          <span class="noon-tooltip-date">${noon.dateFormatted.slice(0, 10)}</span>
+        </div>
+        <span class="noon-tooltip-band" style="background-color: ${color}15; color: ${color}; border-color: ${color}40;">
+          Band ${noon.rating} · ${ratingText}
+        </span>
+      </div>
+
+      <div class="noon-tooltip-grid">
+        <div class="noon-tooltip-tile">
+          <div class="noon-tooltip-tile-label">Attained CII</div>
+          <div class="noon-tooltip-tile-value">
+            <span style="color: ${color};">${noon.attainedCii}</span>
+            <span class="noon-tooltip-sub">/ ${noon.requiredCii}</span>
+          </div>
+        </div>
+
+        <div class="noon-tooltip-tile">
+          <div class="noon-tooltip-tile-label">Speed SOG</div>
+          <div class="noon-tooltip-tile-value">
+            <span>${noon.sog} kts</span>
+          </div>
+        </div>
+
+        <div class="noon-tooltip-tile">
+          <div class="noon-tooltip-tile-label">24h Run</div>
+          <div class="noon-tooltip-tile-value">
+            <span>${noon.distanceRunNm} NM</span>
+          </div>
+        </div>
+
+        <div class="noon-tooltip-tile">
+          <div class="noon-tooltip-tile-label">24h Fuel</div>
+          <div class="noon-tooltip-tile-value">
+            <span style="color: var(--accent-brand, #efa555);">${noon.fuelConsumedMt.total} MT</span>
+          </div>
+        </div>
+
+        <div class="noon-tooltip-tile">
+          <div class="noon-tooltip-tile-label">Weather</div>
+          <div class="noon-tooltip-tile-value">
+            <span>BF ${noon.weather.beaufort}</span>
+            <span class="noon-tooltip-sub">· ${noon.weather.waveHeightM}m</span>
+          </div>
+        </div>
+
+        <div class="noon-tooltip-tile">
+          <div class="noon-tooltip-tile-label">Propeller Slip</div>
+          <div class="noon-tooltip-tile-value">
+            <span>${slipVal}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="noon-tooltip-footer">
+        <span>Click waypoint to inspect</span>
+        <span class="noon-tooltip-cta">Inspect ↗</span>
+      </div>
+    </div>
+  `
+}
+
   for (const [index, noon] of noons.entries()) {
     const isSelected = selectedDay.value?.dayNumber === noon.dayNumber
     const color = ciiHexColor(noon.rating)
@@ -195,40 +273,23 @@ function renderDailyNoonPins() {
     const marker = L.marker(unwrappedCoords[index]!, { icon })
 
     // Rich on-map telemetry popover anchored directly to the pin
-    const popupHtml = `
-      <div style="min-width: 210px; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; padding: 4px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 6px; margin-bottom: 6px;">
-          <div style="font-weight: 700; display: flex; align-items: center; gap: 6px;">
-            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${color};"></span>
-            <span>Day ${noon.dayNumber} · ${noon.dateFormatted.slice(0, 10)}</span>
-          </div>
-          <span style="background: ${color}22; color: ${color}; border: 1px solid ${color}55; padding: 1px 6px; border-radius: 4px; font-weight: 800; font-family: monospace; font-size: 10px;">
-            Band ${noon.rating}
-          </span>
-        </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; line-height: 1.4; opacity: 0.95;">
-          <div>Attained CII: <b style="color:${color};">${noon.attainedCii}</b></div>
-          <div>Req. Target: <b>${noon.requiredCii}</b></div>
-          <div>Speed SOG: <b>${noon.sog} kts</b></div>
-          <div>Prop Slip: <b>${noon.slipPct}%</b></div>
-          <div>Weather: <b>BF ${noon.weather.beaufort} · ${noon.weather.waveHeightM}m</b></div>
-          <div>24h Run: <b>${noon.distanceRunNm} NM</b></div>
-        </div>
-        <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: space-between; font-size: 10px; opacity: 0.85;">
-          <span>Fuel: <b>${noon.fuelConsumedMt.total} MT</b></span>
-          <span style="color: #38bdf8; font-weight: 600;">Click to inspect ↗</span>
-        </div>
-      </div>
-    `
+    const tooltipHtml = getNoonTooltipHtml(noon, color)
 
-    marker.bindPopup(popupHtml, {
-      className: 'noon-glass-popup',
-      closeButton: false,
+    marker.bindTooltip(tooltipHtml, {
+      className: 'noon-glass-tooltip',
+      direction: 'top',
       offset: [0, -14],
+      opacity: 1,
+      interactive: true,
     })
 
-    marker.on('mouseover', () => marker.openPopup())
-    marker.on('mouseout', () => marker.closePopup())
+    const tooltip = marker.getTooltip()
+    if (tooltip) {
+      tooltip.on('click', () => {
+        selectDay(noon)
+        emit('select-day', noon)
+      })
+    }
 
     marker.on('click', () => {
       selectDay(noon)
@@ -464,5 +525,38 @@ watch([weatherAlongRoute, showWeatherLayer], () => renderWeatherNodes())
 :deep(.leaflet-top),
 :deep(.leaflet-bottom) {
   z-index: 20;
+}
+
+:deep(.leaflet-tooltip.noon-glass-tooltip),
+:deep(.leaflet-popup.noon-glass-popup .leaflet-popup-content-wrapper) {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 12px !important;
+  color: var(--foreground) !important;
+}
+
+:deep(.leaflet-tooltip-top.noon-glass-tooltip::before) {
+  border-top-color: var(--card) !important;
+  bottom: 0 !important;
+  margin-bottom: -6px !important;
+  border-width: 6px 6px 0 !important;
+}
+
+:deep(.leaflet-tooltip-bottom.noon-glass-tooltip::before) {
+  border-bottom-color: var(--card) !important;
+  top: 0 !important;
+  margin-top: -6px !important;
+  border-width: 0 6px 6px !important;
+}
+
+:deep(.leaflet-popup.noon-glass-popup .leaflet-popup-content) {
+  margin: 0 !important;
+  line-height: normal !important;
+}
+
+:deep(.leaflet-popup.noon-glass-popup .leaflet-popup-tip-container) {
+  display: none !important;
 }
 </style>

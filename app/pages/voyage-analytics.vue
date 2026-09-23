@@ -151,8 +151,8 @@ onBeforeUnmount(() => {
           'absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-3 sm:p-4 transition-all duration-300',
           isDrawerOpen
             ? isDrawerExpanded
-              ? 'sm:right-[705px] xl:right-[785px]'
-              : 'sm:right-[505px] xl:right-[565px]'
+              ? 'sm:right-[745px] xl:right-[845px]'
+              : 'sm:right-[545px] xl:right-[605px]'
             : 'right-0'
         ]"
       >
@@ -164,9 +164,9 @@ onBeforeUnmount(() => {
         <!-- Bottom: Passage Timeline Scrubber -->
         <div class="w-full max-w-4xl mx-auto pointer-events-auto flex items-center gap-3 p-2 px-3.5 rounded-xl bg-background/92 dark:bg-card/92 backdrop-blur-md border border-border/80 shadow-lg animate-in fade-in slide-in-from-bottom-2">
           <div class="flex items-center gap-2 shrink-0 text-xs font-medium text-muted-foreground pr-1 border-r border-border/70 hidden sm:flex">
-            <Calendar class="w-3.5 h-3.5 text-primary" />
-            <span>Timeline</span>
-            <span class="text-[10px] font-mono px-1 rounded bg-muted text-muted-foreground">{{ dailyNoons.length }}d</span>
+            <Calendar class="w-4 h-4 text-primary" />
+            <span class="font-semibold text-foreground">Timeline</span>
+            <span class="text-xs font-mono px-1.5 py-0.2 rounded bg-muted text-muted-foreground">{{ dailyNoons.length }}d</span>
           </div>
 
           <!-- Scrubber Carousel (D1..Dn) -->
@@ -175,7 +175,7 @@ onBeforeUnmount(() => {
               v-for="d in dailyNoons"
               :key="d.dayNumber"
               type="button"
-              class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-semibold transition-all shrink-0 border cursor-pointer select-none"
+              class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all shrink-0 border cursor-pointer select-none"
               :class="[
                 selectedDay?.dayNumber === d.dayNumber
                   ? 'bg-primary text-primary-foreground border-primary shadow-xs ring-1 ring-primary/40'
@@ -185,10 +185,10 @@ onBeforeUnmount(() => {
             >
               <span>D{{ d.dayNumber }}</span>
               <span
-                class="w-1.5 h-1.5 rounded-full shrink-0"
+                class="w-2 h-2 rounded-full shrink-0"
                 :class="selectedDay?.dayNumber === d.dayNumber ? 'bg-white' : ciiDotClass(d.rating)"
               />
-              <span class="text-[10px] opacity-75 font-normal">{{ d.sog }}kt</span>
+              <span class="text-xs opacity-85 font-medium">{{ d.sog }}kt</span>
             </button>
           </div>
         </div>

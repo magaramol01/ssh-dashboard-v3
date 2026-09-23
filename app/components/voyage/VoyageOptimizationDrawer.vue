@@ -217,18 +217,18 @@ const ciiTrajectoryChartOption = computed(() => {
 
   return {
     grid: {
-      top: 18,
+      top: 20,
       right: 12,
-      bottom: 22,
-      left: 36,
+      bottom: 24,
+      left: 38,
     },
     tooltip: {
       trigger: 'axis',
       backgroundColor: chartTooltipBg.value,
       borderColor: chartTooltipBorder.value,
       borderWidth: 1,
-      padding: [6, 10],
-      textStyle: { color: chartTooltipText.value, fontSize: 11 },
+      padding: [8, 12],
+      textStyle: { color: chartTooltipText.value, fontSize: 12 },
       formatter: (params: any) => {
         const item = params[0]
         if (!item) return ''
@@ -238,14 +238,14 @@ const ciiTrajectoryChartOption = computed(() => {
         const color = ratingColors[noon.rating] || '#94a3b8'
         const isOutlier = noon.attainedCii > yAxisMax
         return `
-          <div class="space-y-0.5 text-xs">
+          <div class="space-y-1 text-xs">
             <div class="font-bold flex items-center justify-between gap-3">
               <span>Day ${noon.dayNumber} · ${noon.dateFormatted.slice(0, 10)}</span>
-              <span class="px-1 py-0.2 rounded font-mono text-[10px]" style="background:${color}22;color:${color};border:1px solid ${color}44;">Band ${noon.rating}</span>
+              <span class="px-1.5 py-0.5 rounded font-mono text-[11px]" style="background:${color}22;color:${color};border:1px solid ${color}44;">Band ${noon.rating}</span>
             </div>
             <div>Attained CII: <b>${noon.attainedCii}</b> g/MT·NM ${isOutlier ? '<span style="color:#f43f5e;font-weight:bold;">(Outlier)</span>' : ''}</div>
             <div>Req. Baseline: <b>${noon.requiredCii}</b></div>
-            <div style="opacity:0.75;font-size:10px;">24h Run: ${noon.distanceRunNm} NM · ${noon.sog} kts</div>
+            <div style="opacity:0.8;font-size:11px;">24h Run: ${noon.distanceRunNm} NM · ${noon.sog} kts</div>
           </div>
         `
       },
@@ -256,8 +256,8 @@ const ciiTrajectoryChartOption = computed(() => {
       data: xData,
       axisLabel: {
         color: chartTextColor.value,
-        fontSize: 10,
-        interval: noons.length > 20 ? 2 : 1,
+        fontSize: 11,
+        interval: noons.length > 22 ? 2 : 1,
       },
       axisLine: { lineStyle: { color: chartAxisColor.value } },
       axisTick: { show: false },
@@ -266,8 +266,8 @@ const ciiTrajectoryChartOption = computed(() => {
       type: 'value',
       name: 'CII',
       max: yAxisMax,
-      nameTextStyle: { color: chartTextColor.value, fontSize: 9, padding: [0, 14, 0, 0] },
-      axisLabel: { color: chartTextColor.value, fontSize: 9 },
+      nameTextStyle: { color: chartTextColor.value, fontSize: 11, padding: [0, 14, 0, 0] },
+      axisLabel: { color: chartTextColor.value, fontSize: 10 },
       splitLine: { lineStyle: { color: chartSplitLineColor.value, type: 'dashed' } },
     },
     series: [
@@ -286,7 +286,7 @@ const ciiTrajectoryChartOption = computed(() => {
                 show: true,
                 position: 'insideEndTop',
                 formatter: `Req ${requiredCii}`,
-                fontSize: 9,
+                fontSize: 10,
                 color: '#f59e0b',
               },
             },
@@ -337,15 +337,15 @@ const factorDonutChartOption = computed(() => {
       backgroundColor: chartTooltipBg.value,
       borderColor: chartTooltipBorder.value,
       borderWidth: 1,
-      padding: [6, 10],
-      textStyle: { color: chartTooltipText.value, fontSize: 11 },
+      padding: [8, 12],
+      textStyle: { color: chartTooltipText.value, fontSize: 12 },
       formatter: (params: any) => {
         const d = params.data
         return `
-          <div class="space-y-0.5 text-xs">
+          <div class="space-y-1 text-xs">
             <div class="font-semibold">${d.name}</div>
             <div>Attribution Impact: <b>${d.value}%</b></div>
-            <div style="opacity:0.75;font-size:10px;">Metric: ${d.metric} (${d.severity})</div>
+            <div style="opacity:0.8;font-size:11px;">Metric: ${d.metric} (${d.severity})</div>
           </div>
         `
       },
@@ -368,16 +368,16 @@ const factorDonutChartOption = computed(() => {
           formatter: `{val|${attained}}\n{band|Band ${rating}}`,
           rich: {
             val: {
-              fontSize: 15,
+              fontSize: 17,
               fontWeight: 'bold',
               color: chartTextColor.value,
-              lineHeight: 18,
+              lineHeight: 20,
             },
             band: {
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: '600',
               color: rating === 'E' ? '#f43f5e' : rating === 'D' ? '#f97316' : rating === 'C' ? '#f59e0b' : '#10b981',
-              lineHeight: 13,
+              lineHeight: 14,
             },
           },
         },
@@ -422,8 +422,8 @@ const seaTrialChartOption = computed(() => {
       backgroundColor: chartTooltipBg.value,
       borderColor: chartTooltipBorder.value,
       borderWidth: 1,
-      padding: [6, 10],
-      textStyle: { color: chartTooltipText.value, fontSize: 11 },
+      padding: [8, 12],
+      textStyle: { color: chartTooltipText.value, fontSize: 12 },
       formatter: (params: any) => {
         if (params.seriesName === 'Sea Trial Baseline') {
           return `<div class="text-xs font-sans"><b>Sea Trial Baseline:</b> ${params.value[0]} kts @ ${params.value[1]} kW</div>`
@@ -434,7 +434,7 @@ const seaTrialChartOption = computed(() => {
           <div class="space-y-1 text-xs font-sans">
             <div class="font-bold flex items-center justify-between gap-2">
               <span>Day D${n.dayNumber} · Band ${n.rating}</span>
-              <span class="text-[10px] text-muted-foreground">${n.dateFormatted.slice(0, 10)}</span>
+              <span class="text-xs text-muted-foreground">${n.dateFormatted.slice(0, 10)}</span>
             </div>
             <div>Speed: <b>${d.value[0]} kts</b> | Power: <b>${d.value[1]} kW</b></div>
             <div>Slip: <b>${n.slipPct ? n.slipPct + '%' : 'Unrecorded'}</b></div>
@@ -445,17 +445,18 @@ const seaTrialChartOption = computed(() => {
     },
     legend: {
       data: ['Sea Trial Baseline', 'Actual Daily Fixes'],
-      textStyle: { color: chartTextColor.value, fontSize: 10 },
+      textStyle: { color: chartTextColor.value, fontSize: 11 },
       top: 0,
       right: 10,
     },
-    grid: { left: 45, right: 20, top: 30, bottom: 25 },
+    grid: { left: 48, right: 20, top: 32, bottom: 28 },
     xAxis: {
       type: 'value',
       name: 'Speed (kts)',
       min: 8,
       max: 18,
-      axisLabel: { color: chartTextColor.value, fontSize: 10 },
+      nameTextStyle: { color: chartTextColor.value, fontSize: 11 },
+      axisLabel: { color: chartTextColor.value, fontSize: 11 },
       axisLine: { lineStyle: { color: chartAxisColor.value } },
       splitLine: { lineStyle: { color: chartSplitLineColor.value, type: 'dashed' } },
     },
@@ -464,7 +465,8 @@ const seaTrialChartOption = computed(() => {
       name: 'Power (kW)',
       min: 0,
       max: 8500,
-      axisLabel: { color: chartTextColor.value, fontSize: 9 },
+      nameTextStyle: { color: chartTextColor.value, fontSize: 11 },
+      axisLabel: { color: chartTextColor.value, fontSize: 10 },
       axisLine: { lineStyle: { color: chartAxisColor.value } },
       splitLine: { lineStyle: { color: chartSplitLineColor.value, type: 'dashed' } },
     },
@@ -526,8 +528,8 @@ const shopTrialChartOption = computed(() => {
       backgroundColor: chartTooltipBg.value,
       borderColor: chartTooltipBorder.value,
       borderWidth: 1,
-      padding: [6, 10],
-      textStyle: { color: chartTooltipText.value, fontSize: 11 },
+      padding: [8, 12],
+      textStyle: { color: chartTooltipText.value, fontSize: 12 },
       formatter: (params: any) => {
         if (params.seriesName === 'Shop Trial Baseline') {
           return `<div class="text-xs font-sans"><b>Shop Trial Testbed:</b> ${params.value[0]}% Load @ ${params.value[1]} g/kWh</div>`
@@ -538,7 +540,7 @@ const shopTrialChartOption = computed(() => {
           <div class="space-y-1 text-xs font-sans">
             <div class="font-bold flex items-center justify-between gap-2">
               <span>Day D${n.dayNumber} · SFOC</span>
-              <span class="text-[10px] text-muted-foreground">${n.dateFormatted.slice(0, 10)}</span>
+              <span class="text-xs text-muted-foreground">${n.dateFormatted.slice(0, 10)}</span>
             </div>
             <div>ME Load: <b>${d.value[0]}% MCR</b> | SFOC: <b>${d.sfoc} g/kWh</b></div>
             <div>Benchmark: ~165 g/kWh @ 85% MCR</div>
@@ -549,17 +551,18 @@ const shopTrialChartOption = computed(() => {
     },
     legend: {
       data: ['Shop Trial Baseline', 'Actual Daily SFOC'],
-      textStyle: { color: chartTextColor.value, fontSize: 10 },
+      textStyle: { color: chartTextColor.value, fontSize: 11 },
       top: 0,
       right: 10,
     },
-    grid: { left: 45, right: 20, top: 30, bottom: 25 },
+    grid: { left: 48, right: 20, top: 32, bottom: 28 },
     xAxis: {
       type: 'value',
       name: 'Load (% MCR)',
       min: 30,
       max: 105,
-      axisLabel: { color: chartTextColor.value, fontSize: 10 },
+      nameTextStyle: { color: chartTextColor.value, fontSize: 11 },
+      axisLabel: { color: chartTextColor.value, fontSize: 11 },
       axisLine: { lineStyle: { color: chartAxisColor.value } },
       splitLine: { lineStyle: { color: chartSplitLineColor.value, type: 'dashed' } },
     },
@@ -568,7 +571,8 @@ const shopTrialChartOption = computed(() => {
       name: 'SFOC (g/kWh)',
       min: 150,
       max: 215,
-      axisLabel: { color: chartTextColor.value, fontSize: 9 },
+      nameTextStyle: { color: chartTextColor.value, fontSize: 11 },
+      axisLabel: { color: chartTextColor.value, fontSize: 10 },
       axisLine: { lineStyle: { color: chartAxisColor.value } },
       splitLine: { lineStyle: { color: chartSplitLineColor.value, type: 'dashed' } },
     },
@@ -676,18 +680,18 @@ const activeFuelTypes = computed(() => {
     v-show="isOpen"
     :class="[
       'absolute top-3 right-3 bottom-3 z-30 flex flex-col overflow-hidden rounded-2xl border border-border/80 bg-background/85 dark:bg-card/85 backdrop-blur-xl shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-right-4',
-      isExpanded ? 'w-full sm:w-[680px] xl:w-[760px]' : 'w-full sm:w-[480px] xl:w-[540px]'
+      isExpanded ? 'w-full sm:w-[720px] xl:w-[820px]' : 'w-full sm:w-[520px] xl:w-[580px]'
     ]"
   >
     <!-- Row 1: Drawer Header Title & Action Buttons -->
-    <div class="h-11 px-3.5 border-b border-border/70 flex items-center justify-between shrink-0 bg-muted/30">
-      <div class="flex items-center gap-2 min-w-0">
-        <div class="h-7 w-7 rounded-md bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shrink-0">
-          <Sliders class="w-3.5 h-3.5" />
+    <div class="h-12 px-4 border-b border-border/70 flex items-center justify-between shrink-0 bg-muted/30">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shrink-0">
+          <Sliders class="w-4 h-4" />
         </div>
         <div class="flex items-center gap-2 min-w-0">
-          <h3 class="text-xs font-bold text-foreground leading-tight truncate">Voyage Analytics</h3>
-          <Badge v-if="currentVoyage" variant="outline" class="text-[10px] font-mono px-1.5 py-0 shrink-0">
+          <h3 class="text-sm font-bold text-foreground leading-tight truncate">Voyage Analytics</h3>
+          <Badge v-if="currentVoyage" variant="outline" class="text-xs font-mono px-2 py-0.5 shrink-0">
             Voy. {{ currentVoyage }}
           </Badge>
         </div>
@@ -698,17 +702,17 @@ const activeFuelTypes = computed(() => {
         <Button
           variant="ghost"
           size="icon"
-          class="h-7 w-7 text-muted-foreground hover:text-foreground hidden sm:flex cursor-pointer"
+          class="h-8 w-8 text-muted-foreground hover:text-foreground hidden sm:flex cursor-pointer"
           :title="isExpanded ? 'Collapse width' : 'Expand width for charts'"
           @click="isExpanded = !isExpanded"
         >
-          <Minimize2 v-if="isExpanded" class="w-3.5 h-3.5" />
-          <Maximize2 v-else class="w-3.5 h-3.5" />
+          <Minimize2 v-if="isExpanded" class="w-4 h-4" />
+          <Maximize2 v-else class="w-4 h-4" />
         </Button>
         <Button
           variant="ghost"
           size="icon"
-          class="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
+          class="h-8 w-8 text-muted-foreground hover:text-foreground cursor-pointer"
           title="Close Drawer"
           @click="emit('close')"
         >
@@ -718,24 +722,24 @@ const activeFuelTypes = computed(() => {
     </div>
 
     <!-- Row 2: Full-Width Dedicated Navigation Tabs -->
-    <div class="px-3.5 py-1.5 border-b border-border/70 bg-muted/15 shrink-0">
+    <div class="px-4 py-2 border-b border-border/70 bg-muted/15 shrink-0">
       <Tabs v-model="activeTab" class="w-full">
-        <TabsList class="w-full grid grid-cols-4 h-8 bg-background/80 border border-border/70 p-0.5">
-          <TabsTrigger value="noon" class="text-[11px] px-1 h-7 flex items-center justify-center gap-1 cursor-pointer">
+        <TabsList class="w-full grid grid-cols-4 h-9 bg-background/80 border border-border/70 p-0.5">
+          <TabsTrigger value="noon" class="text-xs sm:text-[13px] px-1.5 h-8 flex items-center justify-center gap-1.5 cursor-pointer font-medium">
             <span>Noon</span>
-            <span v-if="currentNoon" class="px-1 py-0 rounded bg-primary/15 text-primary text-[9px] font-bold">
+            <span v-if="currentNoon" class="px-1.5 py-0.2 rounded bg-primary/15 text-primary text-[10px] font-bold">
               D{{ currentNoon.dayNumber }}
             </span>
           </TabsTrigger>
-          <TabsTrigger value="sea-trial" class="text-[11px] px-1 h-7 flex items-center justify-center cursor-pointer">
+          <TabsTrigger value="sea-trial" class="text-xs sm:text-[13px] px-1.5 h-8 flex items-center justify-center cursor-pointer font-medium">
             <span>Sea Trial</span>
           </TabsTrigger>
-          <TabsTrigger value="shop-trial" class="text-[11px] px-1 h-7 flex items-center justify-center cursor-pointer">
+          <TabsTrigger value="shop-trial" class="text-xs sm:text-[13px] px-1.5 h-8 flex items-center justify-center cursor-pointer font-medium">
             <span>Shop Trial</span>
           </TabsTrigger>
-          <TabsTrigger value="strategies" class="text-[11px] px-1 h-7 flex items-center justify-center gap-1 cursor-pointer">
+          <TabsTrigger value="strategies" class="text-xs sm:text-[13px] px-1.5 h-8 flex items-center justify-center gap-1.5 cursor-pointer font-medium">
             <span>Advisories</span>
-            <span v-if="advisories.length" class="px-1 py-0 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[9px] font-bold">
+            <span v-if="advisories.length" class="px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">
               {{ advisories.length }}
             </span>
           </TabsTrigger>
@@ -746,13 +750,13 @@ const activeFuelTypes = computed(() => {
     <!-- Drawer Body -->
     <div class="flex-1 min-h-0 overflow-hidden">
       <!-- TAB 1: DAILY NOON REPORT LOG -->
-      <div v-if="activeTab === 'noon'" class="h-full overflow-y-auto p-3.5 space-y-3.5">
+      <div v-if="activeTab === 'noon'" class="h-full overflow-y-auto p-4 space-y-4">
         <!-- AI Degradation Voyage Alert Banner -->
         <div
           v-if="degradationSummary"
-          class="p-2.5 rounded-lg border border-orange-500/30 bg-orange-500/10 flex items-center justify-between text-xs text-orange-600 dark:text-orange-400 shadow-2xs animate-in fade-in"
+          class="p-3 rounded-xl border border-orange-500/30 bg-orange-500/10 flex items-center justify-between text-xs sm:text-sm text-orange-600 dark:text-orange-400 shadow-2xs animate-in fade-in"
         >
-          <div class="flex items-center gap-2 min-w-0 pr-2">
+          <div class="flex items-center gap-2.5 min-w-0 pr-2">
             <AlertTriangle class="w-4 h-4 shrink-0 text-orange-500" />
             <span class="truncate">
               <strong>{{ degradationSummary.count }} degraded day(s)</strong> ({{ degradationSummary.dayRange }})
@@ -761,7 +765,7 @@ const activeFuelTypes = computed(() => {
           <Button
             variant="ghost"
             size="sm"
-            class="h-6 text-[11px] px-2 shrink-0 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 font-medium cursor-pointer"
+            class="h-7 text-xs px-2.5 shrink-0 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 font-semibold cursor-pointer"
             @click="selectDay(degradationSummary.worstDay)"
           >
             Jump to D{{ degradationSummary.worstDay.dayNumber }}
@@ -769,24 +773,24 @@ const activeFuelTypes = computed(() => {
         </div>
 
         <!-- Day Stepper & Sequential Navigation -->
-        <div class="flex items-center justify-between p-1.5 px-2.5 rounded-lg bg-muted/40 border border-border/70 text-xs">
+        <div class="flex items-center justify-between p-2 px-3 rounded-xl bg-muted/40 border border-border/70 text-xs sm:text-sm">
           <Button
             variant="ghost"
             size="sm"
-            class="h-7 px-2 text-xs gap-1 cursor-pointer"
+            class="h-8 px-2.5 text-xs gap-1.5 cursor-pointer font-medium"
             :disabled="!prevNoon"
             @click="prevNoon && selectDay(prevNoon)"
           >
-            <ChevronLeft class="w-3.5 h-3.5" />
-            <span class="text-[11px]">Prev (D{{ prevNoon?.dayNumber }})</span>
+            <ChevronLeft class="w-4 h-4" />
+            <span>Prev (D{{ prevNoon?.dayNumber }})</span>
           </Button>
 
-          <div class="flex items-center gap-2 font-mono text-xs">
+          <div class="flex items-center gap-2 font-mono text-sm">
             <span class="font-bold text-foreground">Day {{ currentNoon?.dayNumber }}</span>
-            <span class="text-muted-foreground text-[10px]">of {{ dailyNoons.length }}</span>
+            <span class="text-muted-foreground text-xs">of {{ dailyNoons.length }}</span>
             <span
               v-if="currentNoon"
-              class="w-2 h-2 rounded-full"
+              class="w-2.5 h-2.5 rounded-full"
               :class="ciiDotClass(currentNoon.rating)"
             />
           </div>
@@ -794,39 +798,39 @@ const activeFuelTypes = computed(() => {
           <Button
             variant="ghost"
             size="sm"
-            class="h-7 px-2 text-xs gap-1 cursor-pointer"
+            class="h-8 px-2.5 text-xs gap-1.5 cursor-pointer font-medium"
             :disabled="!nextNoon"
             @click="nextNoon && selectDay(nextNoon)"
           >
-            <span class="text-[11px]">Next (D{{ nextNoon?.dayNumber }})</span>
-            <ChevronRight class="w-3.5 h-3.5" />
+            <span>Next (D{{ nextNoon?.dayNumber }})</span>
+            <ChevronRight class="w-4 h-4" />
           </Button>
         </div>
 
         <!-- Active Day Telemetry Card -->
         <template v-if="currentNoon">
           <Card class="border-border/80 shadow-2xs overflow-hidden">
-            <CardHeader class="p-3 pb-2 border-b border-border/50 bg-muted/20">
+            <CardHeader class="p-3.5 pb-2.5 border-b border-border/50 bg-muted/20">
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                  <Calendar class="w-3.5 h-3.5 text-muted-foreground" />
-                  <span class="text-xs font-mono font-bold text-foreground">
+                  <Calendar class="w-4 h-4 text-muted-foreground" />
+                  <span class="text-sm font-mono font-bold text-foreground">
                     {{ currentNoon.dateFormatted }}
                   </span>
                 </div>
                 <div class="flex items-center gap-1.5">
-                  <span class="text-[10px] text-muted-foreground font-mono">
+                  <span class="text-xs text-muted-foreground font-mono">
                     {{ currentNoon.coords[0].toFixed(2) }}°, {{ currentNoon.coords[1].toFixed(2) }}°
                   </span>
                 </div>
               </div>
             </CardHeader>
-            <CardContent class="p-3 space-y-2.5">
+            <CardContent class="p-3.5 space-y-3">
               <!-- IMO Rating Band & Diagnostic Chips -->
-              <div class="flex items-center justify-between gap-2 flex-wrap">
-                <div class="flex items-center gap-2">
+              <div class="flex items-center justify-between gap-3 flex-wrap">
+                <div class="flex items-center gap-3">
                   <div
-                    class="w-8 h-8 rounded-md flex items-center justify-center font-bold text-sm font-mono shadow-xs border"
+                    class="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-base font-mono shadow-xs border shrink-0"
                     :class="[
                       currentNoon.rating === 'A' ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400' :
                       currentNoon.rating === 'B' ? 'bg-teal-500/15 border-teal-500/40 text-teal-600 dark:text-teal-400' :
@@ -838,54 +842,54 @@ const activeFuelTypes = computed(() => {
                     {{ currentNoon.rating }}
                   </div>
                   <div>
-                    <div class="text-xs font-bold text-foreground">{{ ciiRatingBadge(currentNoon.rating).text }}</div>
-                    <div class="text-[10px] text-muted-foreground font-mono">
+                    <div class="text-sm font-bold text-foreground">{{ ciiRatingBadge(currentNoon.rating).text }}</div>
+                    <div class="text-xs text-muted-foreground font-mono mt-0.5">
                       Attained CII: <strong class="text-foreground">{{ currentNoon.attainedCii }}</strong> g/MT·NM · Req: {{ currentNoon.requiredCii }}
                     </div>
                   </div>
                 </div>
-                <Badge variant="outline" class="text-[10px] font-mono">
+                <Badge variant="outline" class="text-xs font-mono px-2 py-0.5">
                   Work: {{ (currentNoon.transportWork / 1e6).toFixed(1) }}M MT·NM
                 </Badge>
               </div>
 
               <!-- Diagnostic Chips (Replaces Text Bloat) -->
-              <div class="flex flex-wrap gap-1.5 pt-0.5">
+              <div class="flex flex-wrap gap-2 pt-0.5">
                 <span
-                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border"
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border"
                   :class="currentNoon.weather.beaufort >= 6 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30 font-semibold' : 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30'"
                 >
-                  <Wind class="w-3 h-3" />
+                  <Wind class="w-3.5 h-3.5" />
                   BF {{ currentNoon.weather.beaufort }} · {{ currentNoon.weather.waveHeightM }}m seas
                 </span>
                 <span
                   v-if="currentNoon.slipPct !== undefined"
-                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border"
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border"
                   :class="currentNoon.slipPct > 25 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30 font-semibold' : currentNoon.slipPct > 15 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'"
                 >
-                  <Activity class="w-3 h-3" />
+                  <Activity class="w-3.5 h-3.5" />
                   Propeller Slip: {{ currentNoon.slipPct }}%
                 </span>
                 <span
-                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border"
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border"
                   :class="currentNoon.sog < 11 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'"
                 >
-                  <Gauge class="w-3 h-3" />
+                  <Gauge class="w-3.5 h-3.5" />
                   SOG {{ currentNoon.sog }} kts
                 </span>
               </div>
 
               <!-- 24h Distance, Speed, & Propulsion Telemetry -->
-              <div class="grid grid-cols-2 gap-2 text-xs">
-                <div class="p-2 rounded bg-muted/40 border border-border/60">
-                  <span class="text-muted-foreground text-[10px] block">24h Run Distance</span>
-                  <span class="font-bold text-foreground font-mono text-sm">{{ currentNoon.distanceRunNm }} NM</span>
-                  <span class="text-[10px] text-muted-foreground block">Cumul: {{ currentNoon.cumulativeDistanceNm }} NM</span>
+              <div class="grid grid-cols-2 gap-2.5 text-xs sm:text-sm">
+                <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60">
+                  <span class="text-muted-foreground text-xs font-medium block mb-0.5">24h Run Distance</span>
+                  <span class="font-bold text-foreground font-mono text-base">{{ currentNoon.distanceRunNm }} NM</span>
+                  <span class="text-xs text-muted-foreground block mt-0.5">Cumul: {{ currentNoon.cumulativeDistanceNm }} NM</span>
                 </div>
-                <div class="p-2 rounded bg-muted/40 border border-border/60">
-                  <span class="text-muted-foreground text-[10px] block">Average 24h SOG</span>
-                  <span class="font-bold text-foreground font-mono text-sm">{{ currentNoon.sog }} kts</span>
-                  <span class="text-[10px] text-muted-foreground block">
+                <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60">
+                  <span class="text-muted-foreground text-xs font-medium block mb-0.5">Average 24h SOG</span>
+                  <span class="font-bold text-foreground font-mono text-base">{{ currentNoon.sog }} kts</span>
+                  <span class="text-xs text-muted-foreground block mt-0.5 truncate">
                     {{ currentNoon.slipPct !== undefined && currentNoon.slipPct > 0 ? `Slip: ${currentNoon.slipPct}%` : `Draft: ${currentNoon.draftFwdM}m / ${currentNoon.draftAftM}m` }}
                   </span>
                 </div>
@@ -894,10 +898,10 @@ const activeFuelTypes = computed(() => {
               <!-- Operational Guidance Callout -->
               <div
                 v-if="currentNoon.aiDiagnostics"
-                class="p-2.5 rounded bg-muted/40 border border-border/70 flex items-start gap-2 text-[11px] text-foreground"
+                class="p-3 rounded-lg bg-muted/40 border border-border/70 flex items-start gap-2.5 text-xs sm:text-sm text-foreground"
               >
-                <Compass class="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
-                <div class="leading-tight">
+                <Compass class="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                <div class="leading-relaxed">
                   <strong class="font-semibold text-foreground">Guidance:</strong>
                   <span class="ml-1 text-muted-foreground">{{ currentNoon.aiDiagnostics.recommendation }}</span>
                 </div>
@@ -916,17 +920,17 @@ const activeFuelTypes = computed(() => {
         </div>
 
         <!-- Voyage CII Trajectory Chart (Clamped to prevent outlier distortion) -->
-        <div v-if="dailyNoons.length > 0" class="p-3 rounded-lg border border-border/80 bg-card space-y-2 shadow-2xs">
-          <div class="flex items-center justify-between text-xs font-semibold">
-            <span class="flex items-center gap-1.5 text-foreground">
-              <BarChart3 class="w-3.5 h-3.5 text-primary" />
+        <div v-if="dailyNoons.length > 0" class="p-3.5 rounded-xl border border-border/80 bg-card space-y-2.5 shadow-2xs">
+          <div class="flex items-center justify-between text-sm font-semibold">
+            <span class="flex items-center gap-2 text-foreground">
+              <BarChart3 class="w-4 h-4 text-primary" />
               Voyage CII Trajectory
             </span>
-            <span class="text-[10px] text-muted-foreground font-normal">
+            <span class="text-xs text-muted-foreground font-normal">
               Click bar to inspect · Target Band B
             </span>
           </div>
-          <div class="w-full h-[140px]">
+          <div class="w-full h-[175px]">
             <ClientOnly>
               <VChart
                 v-if="ciiTrajectoryChartOption"
@@ -945,34 +949,34 @@ const activeFuelTypes = computed(() => {
         <!-- Factor Attribution Breakdown Card (NO REDUNDANT TEXT PROSE) -->
         <div
           v-if="currentNoon?.aiDiagnostics"
-          class="p-3 rounded-lg border border-border/70 bg-card space-y-2.5 shadow-2xs"
+          class="p-3.5 rounded-xl border border-border/70 bg-card space-y-3 shadow-2xs"
         >
           <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-1.5 min-w-0">
-              <div class="w-5 h-5 rounded bg-muted flex items-center justify-center shrink-0">
-                <Activity class="w-3.5 h-3.5 text-foreground" />
+            <div class="flex items-center gap-2 min-w-0">
+              <div class="w-6 h-6 rounded-md bg-muted flex items-center justify-center shrink-0">
+                <Activity class="w-4 h-4 text-foreground" />
               </div>
-              <span class="text-xs font-bold text-foreground truncate">Factor Attribution</span>
-              <Badge variant="outline" class="text-[9px] uppercase font-mono px-1.5 py-0 border-border text-foreground shrink-0">
+              <span class="text-sm font-bold text-foreground truncate">Factor Attribution</span>
+              <Badge variant="outline" class="text-[10px] uppercase font-mono px-2 py-0.5 border-border text-foreground shrink-0">
                 {{ currentNoon.aiDiagnostics.driverLabel }}
               </Badge>
             </div>
             <Button
               variant="outline"
               size="sm"
-              class="h-6 px-2 text-[10px] gap-1 font-medium bg-background hover:bg-muted border-border shrink-0 cursor-pointer"
+              class="h-7 px-2.5 text-xs gap-1.5 font-medium bg-background hover:bg-muted border-border shrink-0 cursor-pointer"
               title="Audit telemetry with Operations Copilot"
               @click="emit('ask-copilot', currentNoon.aiDiagnostics.promptContext)"
             >
-              <Sliders class="w-3 h-3 text-muted-foreground" />
+              <Sliders class="w-3.5 h-3.5 text-muted-foreground" />
               <span>Audit</span>
             </Button>
           </div>
 
           <!-- Donut & Breakdown Grid -->
-          <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center pt-1 border-t border-border/60">
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center pt-1.5 border-t border-border/60">
             <!-- Donut Chart -->
-            <div class="sm:col-span-5 flex items-center justify-center h-[120px]">
+            <div class="sm:col-span-5 flex items-center justify-center h-[135px]">
               <ClientOnly>
                 <VChart
                   v-if="factorDonutChartOption"
@@ -987,37 +991,37 @@ const activeFuelTypes = computed(() => {
             </div>
 
             <!-- Factor Detail Metric Progress Bars -->
-            <div class="sm:col-span-7 space-y-1.5">
+            <div class="sm:col-span-7 space-y-2">
               <div
                 v-for="factor in currentNoon.aiDiagnostics.factors"
                 :key="factor.key"
-                class="p-1.5 px-2 rounded bg-muted/40 border border-border/60 space-y-1"
+                class="p-2 px-2.5 rounded-lg bg-muted/40 border border-border/60 space-y-1.5"
               >
-                <div class="flex items-center justify-between text-[10px]">
+                <div class="flex items-center justify-between text-xs">
                   <div class="flex items-center gap-1.5 min-w-0">
                     <span
-                      class="w-2 h-2 rounded-full shrink-0"
+                      class="w-2.5 h-2.5 rounded-full shrink-0"
                       :class="factor.key === 'weather' ? 'bg-sky-400' : factor.key === 'slip' ? 'bg-rose-500' : factor.key === 'distance' ? 'bg-amber-500' : 'bg-purple-500'"
                     />
-                    <span class="font-medium text-foreground truncate">{{ factor.name }}</span>
+                    <span class="font-semibold text-foreground truncate">{{ factor.name }}</span>
                   </div>
                   <span
-                    class="px-1 py-0.2 rounded font-mono font-bold text-[9px] shrink-0"
+                    class="px-1.5 py-0.5 rounded font-mono font-bold text-xs shrink-0"
                     :class="factor.severity === 'critical' ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400' : factor.severity === 'moderate' ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'"
                   >
                     {{ factor.scorePercent }}%
                   </span>
                 </div>
-                <div class="w-full bg-muted/60 rounded-full h-1 overflow-hidden">
+                <div class="w-full bg-muted/60 rounded-full h-1.5 overflow-hidden">
                   <div
                     class="h-full rounded-full transition-all"
                     :class="factor.severity === 'critical' ? 'bg-rose-500' : factor.severity === 'moderate' ? 'bg-amber-500' : 'bg-emerald-500'"
                     :style="{ width: `${factor.scorePercent}%` }"
                   />
                 </div>
-                <div class="flex items-center justify-between text-[9px] text-muted-foreground">
-                  <span class="font-mono font-semibold truncate pr-1">{{ factor.metric }}</span>
-                  <span class="capitalize text-[9px] shrink-0 font-medium" :class="factor.severity === 'critical' ? 'text-rose-500' : factor.severity === 'moderate' ? 'text-amber-500' : 'text-emerald-500'">
+                <div class="flex items-center justify-between text-xs text-muted-foreground">
+                  <span class="font-mono font-medium truncate pr-1">{{ factor.metric }}</span>
+                  <span class="capitalize text-xs shrink-0 font-semibold" :class="factor.severity === 'critical' ? 'text-rose-500' : factor.severity === 'moderate' ? 'text-amber-500' : 'text-emerald-500'">
                     {{ factor.severity }}
                   </span>
                 </div>
@@ -1029,19 +1033,20 @@ const activeFuelTypes = computed(() => {
         <!-- Fuel Consumption Breakdown & Recorded Weather Grid (Only active fuels shown!) -->
         <div v-if="currentNoon" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <!-- Fuel Consumption -->
-          <div class="p-3 rounded-lg bg-muted/30 border border-border/60 space-y-2">
-            <div class="flex items-center justify-between text-xs font-semibold">
+          <div class="p-3.5 rounded-xl bg-muted/30 border border-border/60 space-y-2.5">
+            <div class="flex items-center justify-between text-sm font-semibold">
               <span class="flex items-center gap-1.5 text-foreground">
-                <Fuel class="w-3.5 h-3.5 text-amber-500" />
+                <Fuel class="w-4 h-4 text-amber-500" />
                 24h Fuel Consumed
               </span>
-              <span class="font-mono text-primary font-bold">{{ currentNoon.fuelConsumedMt.total }} MT</span>
+              <span class="font-mono text-primary font-bold text-sm">{{ currentNoon.fuelConsumedMt.total }} MT</span>
             </div>
-            <div class="space-y-1 text-[11px] text-muted-foreground pt-1 border-t border-border/60">
-              <div v-for="fuel in activeFuelTypes" :key="fuel.key">
-                {{ fuel.label }}: <strong class="text-foreground font-mono">{{ fuel.value }} MT</strong>
+            <div class="space-y-1.5 text-xs sm:text-[13px] text-muted-foreground pt-1.5 border-t border-border/60">
+              <div v-for="fuel in activeFuelTypes" :key="fuel.key" class="flex justify-between">
+                <span>{{ fuel.label }}</span>
+                <strong class="text-foreground font-mono">{{ fuel.value }} MT</strong>
               </div>
-              <div class="flex justify-between pt-1 border-t border-border/40 text-[10px]">
+              <div class="flex justify-between pt-1.5 border-t border-border/40 text-xs">
                 <span>24h CO₂: <strong class="text-foreground font-mono">{{ currentNoon.totalCo2Mt }} MT</strong></span>
                 <span>Voyage: <strong class="text-foreground font-mono">{{ currentNoon.cumulativeFuelMt }} MT</strong></span>
               </div>
@@ -1049,67 +1054,75 @@ const activeFuelTypes = computed(() => {
           </div>
 
           <!-- Recorded Weather at Position -->
-          <div class="p-3 rounded-lg bg-muted/30 border border-border/60 space-y-2">
-            <div class="flex items-center justify-between text-xs font-semibold">
+          <div class="p-3.5 rounded-xl bg-muted/30 border border-border/60 space-y-2.5">
+            <div class="flex items-center justify-between text-sm font-semibold">
               <span class="flex items-center gap-1.5 text-foreground">
-                <Wind class="w-3.5 h-3.5 text-cyan-500" />
+                <Wind class="w-4 h-4 text-cyan-500" />
                 Recorded Weather
               </span>
-              <Badge variant="outline" class="text-[10px] text-cyan-600 dark:text-cyan-400 font-bold border-cyan-500/30">
+              <Badge variant="outline" class="text-xs text-cyan-600 dark:text-cyan-400 font-bold border-cyan-500/30">
                 BF {{ currentNoon.weather.beaufort }}
               </Badge>
             </div>
-            <div class="space-y-1 text-[11px] text-muted-foreground pt-1 border-t border-border/60">
-              <div>Wind: <strong class="text-foreground">{{ currentNoon.weather.windSpeedKts }} kts ({{ currentNoon.weather.windDirectionDeg }}°)</strong></div>
-              <div>Seas: <strong class="text-foreground">{{ currentNoon.weather.waveHeightM }}m wave</strong></div>
-              <div class="text-[10px] text-muted-foreground truncate">{{ currentNoon.weather.swellDirection }} · {{ currentNoon.weather.shortForecast }}</div>
+            <div class="space-y-1.5 text-xs sm:text-[13px] text-muted-foreground pt-1.5 border-t border-border/60">
+              <div class="flex justify-between">
+                <span>Wind</span>
+                <strong class="text-foreground font-mono">{{ currentNoon.weather.windSpeedKts }} kts ({{ currentNoon.weather.windDirectionDeg }}°)</strong>
+              </div>
+              <div class="flex justify-between">
+                <span>Seas</span>
+                <strong class="text-foreground font-mono">{{ currentNoon.weather.waveHeightM }}m wave</strong>
+              </div>
+              <div class="text-xs text-muted-foreground truncate pt-0.5">
+                {{ currentNoon.weather.swellDirection }} · {{ currentNoon.weather.shortForecast }}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       <!-- TAB 2: SEA TRIAL (SPEED VS POWER BENCHMARK) -->
-      <div v-else-if="activeTab === 'sea-trial'" class="h-full overflow-y-auto p-3.5 space-y-3.5">
+      <div v-else-if="activeTab === 'sea-trial'" class="h-full overflow-y-auto p-4 space-y-4">
         <!-- Benchmark Summary Card -->
-        <div class="p-3 rounded-lg border border-border/80 bg-card space-y-2.5 shadow-2xs">
+        <div class="p-3.5 rounded-xl border border-border/80 bg-card space-y-3 shadow-2xs">
           <div class="flex items-center justify-between gap-2 flex-wrap">
-            <div class="flex items-center gap-2">
-              <div class="w-7 h-7 rounded-md bg-sky-500/10 border border-sky-500/20 text-sky-500 flex items-center justify-center">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-500 flex items-center justify-center">
                 <Gauge class="w-4 h-4" />
               </div>
               <div>
-                <h4 class="text-xs font-bold text-foreground">Sea Trial Speed-Power</h4>
-                <p class="text-[10px] text-muted-foreground">Shipyard cubic baseline (P ∝ V³) vs. noons</p>
+                <h4 class="text-sm font-bold text-foreground">Sea Trial Speed-Power</h4>
+                <p class="text-xs text-muted-foreground">Shipyard cubic baseline (P ∝ V³) vs. noons</p>
               </div>
             </div>
-            <Badge variant="outline" class="text-[10px] font-mono border-sky-500/30 text-sky-600 dark:text-sky-400">
+            <Badge variant="outline" class="text-xs font-mono border-sky-500/30 text-sky-600 dark:text-sky-400">
               14.0 kts @ 4,200 kW
             </Badge>
           </div>
 
           <!-- Quick Benchmark KPI Row -->
-          <div v-if="seaTrialStats" class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-            <div class="p-2 rounded bg-muted/40 border border-border/60">
-              <span class="text-[10px] text-muted-foreground block">Voyage Avg SOG</span>
-              <span class="text-sm font-mono font-bold text-foreground">{{ seaTrialStats.avgSog }} kts</span>
+          <div v-if="seaTrialStats" class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60">
+              <span class="text-xs text-muted-foreground font-medium block mb-0.5">Voyage Avg SOG</span>
+              <span class="text-base sm:text-lg font-mono font-bold text-foreground">{{ seaTrialStats.avgSog }} kts</span>
             </div>
-            <div class="p-2 rounded bg-muted/40 border border-border/60">
-              <span class="text-[10px] text-muted-foreground block">Avg Shaft Power</span>
-              <span class="text-sm font-mono font-bold text-foreground">{{ seaTrialStats.avgPower.toLocaleString() }} kW</span>
+            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60">
+              <span class="text-xs text-muted-foreground font-medium block mb-0.5">Avg Shaft Power</span>
+              <span class="text-base sm:text-lg font-mono font-bold text-foreground">{{ seaTrialStats.avgPower.toLocaleString() }} kW</span>
             </div>
-            <div class="p-2 rounded bg-muted/40 border border-border/60">
-              <span class="text-[10px] text-muted-foreground block">Speed Delta</span>
+            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60">
+              <span class="text-xs text-muted-foreground font-medium block mb-0.5">Speed Delta</span>
               <span
-                class="text-sm font-mono font-bold"
+                class="text-base sm:text-lg font-mono font-bold"
                 :class="seaTrialStats.speedLoss < 0 ? 'text-rose-500' : 'text-emerald-500'"
               >
                 {{ seaTrialStats.speedLoss > 0 ? '+' : '' }}{{ seaTrialStats.speedLoss }} kts
               </span>
             </div>
-            <div class="p-2 rounded bg-muted/40 border border-border/60">
-              <span class="text-[10px] text-muted-foreground block">Avg Slip</span>
+            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60">
+              <span class="text-xs text-muted-foreground font-medium block mb-0.5">Avg Slip</span>
               <span
-                class="text-sm font-mono font-bold"
+                class="text-base sm:text-lg font-mono font-bold"
                 :class="seaTrialStats.avgSlip > 20 ? 'text-amber-500' : 'text-foreground'"
               >
                 {{ seaTrialStats.avgSlip }}%
@@ -1119,20 +1132,20 @@ const activeFuelTypes = computed(() => {
         </div>
 
         <!-- Full-Width Interactive EChart -->
-        <div class="p-3 rounded-lg border border-border/80 bg-card space-y-2 shadow-2xs">
+        <div class="p-3.5 rounded-xl border border-border/80 bg-card space-y-2.5 shadow-2xs">
           <div class="flex items-center justify-between">
             <div class="space-y-0.5">
-              <div class="text-xs font-bold text-foreground flex items-center gap-1.5">
-                <Activity class="w-3.5 h-3.5 text-sky-500" />
+              <div class="text-sm font-bold text-foreground flex items-center gap-2">
+                <Activity class="w-4 h-4 text-sky-500" />
                 <span>Speed vs. Shaft Power Curve</span>
               </div>
-              <p class="text-[10px] text-muted-foreground">Click dot to inspect noon report</p>
+              <p class="text-xs text-muted-foreground">Click dot to inspect noon report</p>
             </div>
-            <Badge variant="outline" class="text-[10px] font-mono">
+            <Badge variant="outline" class="text-xs font-mono">
               {{ dailyNoons.length }} Noons
             </Badge>
           </div>
-          <div class="w-full h-[280px]">
+          <div class="w-full h-[300px]">
             <ClientOnly>
               <VChart
                 v-if="seaTrialChartOption"
@@ -1149,31 +1162,31 @@ const activeFuelTypes = computed(() => {
         </div>
 
         <!-- Superintendent Hydrodynamic Interpretation Insights -->
-        <div class="p-3 rounded-lg bg-muted/30 border border-border/60 space-y-2 text-xs">
-          <div class="font-semibold text-foreground flex items-center gap-1.5 text-[11px]">
-            <Compass class="w-3.5 h-3.5 text-primary" />
+        <div class="p-3.5 rounded-xl bg-muted/30 border border-border/60 space-y-2 text-xs sm:text-sm">
+          <div class="font-semibold text-foreground flex items-center gap-2 text-xs sm:text-sm">
+            <Compass class="w-4 h-4 text-primary" />
             <span>Hydrodynamic Interpretation</span>
           </div>
-          <p class="text-[11px] text-muted-foreground leading-relaxed">
+          <p class="text-xs sm:text-sm text-muted-foreground leading-relaxed">
             Points positioned <strong>above the cyan baseline</strong> represent increased hull resistance, biofouling, or heavy weather requiring elevated power. Points <strong>close to baseline</strong> reflect clean hull performance under calm water.
           </p>
-          <div class="pt-1 flex items-center justify-between">
+          <div class="pt-1.5 flex items-center justify-between">
             <Button
               variant="outline"
               size="sm"
-              class="h-7 text-[11px] gap-1.5 cursor-pointer"
+              class="h-8 text-xs font-medium gap-1.5 px-3 cursor-pointer"
               @click="activeTab = 'noon'"
             >
-              <ArrowRight class="w-3 h-3" />
+              <ArrowRight class="w-3.5 h-3.5" />
               <span>Inspect D{{ currentNoon?.dayNumber || 1 }}</span>
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              class="h-7 text-[11px] gap-1 text-primary hover:bg-primary/10 cursor-pointer"
+              class="h-8 text-xs font-medium gap-1.5 text-primary hover:bg-primary/10 px-3 cursor-pointer"
               @click="emit('ask-copilot', `Analyze hydrodynamic sea trial performance for vessel ${currentVoyage}: Speed vs Power curve shows ${seaTrialStats?.speedLoss} kts speed delta and ${seaTrialStats?.avgSlip}% propeller slip.`)"
             >
-              <Sliders class="w-3 h-3" />
+              <Sliders class="w-3.5 h-3.5" />
               <span>Audit with Copilot</span>
             </Button>
           </div>
@@ -1181,42 +1194,42 @@ const activeFuelTypes = computed(() => {
       </div>
 
       <!-- TAB 3: SHOP TRIAL (SFOC VS LOAD BENCHMARK) -->
-      <div v-else-if="activeTab === 'shop-trial'" class="h-full overflow-y-auto p-3.5 space-y-3.5">
+      <div v-else-if="activeTab === 'shop-trial'" class="h-full overflow-y-auto p-4 space-y-4">
         <!-- Benchmark Summary Card -->
-        <div class="p-3 rounded-lg border border-border/80 bg-card space-y-2.5 shadow-2xs">
+        <div class="p-3.5 rounded-xl border border-border/80 bg-card space-y-3 shadow-2xs">
           <div class="flex items-center justify-between gap-2 flex-wrap">
-            <div class="flex items-center gap-2">
-              <div class="w-7 h-7 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center">
                 <Fuel class="w-4 h-4" />
               </div>
               <div>
-                <h4 class="text-xs font-bold text-foreground">Shop Trial SFOC Benchmark</h4>
-                <p class="text-[10px] text-muted-foreground">Engine testbed factory SFOC baseline</p>
+                <h4 class="text-sm font-bold text-foreground">Shop Trial SFOC Benchmark</h4>
+                <p class="text-xs text-muted-foreground">Engine testbed factory SFOC baseline</p>
               </div>
             </div>
-            <Badge variant="outline" class="text-[10px] font-mono border-amber-500/30 text-amber-600 dark:text-amber-400">
+            <Badge variant="outline" class="text-xs font-mono border-amber-500/30 text-amber-600 dark:text-amber-400">
               165 g/kWh @ 85% MCR
             </Badge>
           </div>
 
           <!-- Quick Benchmark KPI Row -->
-          <div v-if="shopTrialStats" class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-            <div class="p-2 rounded bg-muted/40 border border-border/60">
-              <span class="text-[10px] text-muted-foreground block">Voyage Avg SFOC</span>
-              <span class="text-sm font-mono font-bold text-foreground">{{ shopTrialStats.avgSfoc }} g/kWh</span>
+          <div v-if="shopTrialStats" class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60">
+              <span class="text-xs text-muted-foreground font-medium block mb-0.5">Voyage Avg SFOC</span>
+              <span class="text-base sm:text-lg font-mono font-bold text-foreground">{{ shopTrialStats.avgSfoc }} g/kWh</span>
             </div>
-            <div class="p-2 rounded bg-muted/40 border border-border/60">
-              <span class="text-[10px] text-muted-foreground block">Avg Engine Load</span>
-              <span class="text-sm font-mono font-bold text-foreground">{{ shopTrialStats.avgLoad }}% MCR</span>
+            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60">
+              <span class="text-xs text-muted-foreground font-medium block mb-0.5">Avg Engine Load</span>
+              <span class="text-base sm:text-lg font-mono font-bold text-foreground">{{ shopTrialStats.avgLoad }}% MCR</span>
             </div>
-            <div class="p-2 rounded bg-muted/40 border border-border/60">
-              <span class="text-[10px] text-muted-foreground block">Testbed Baseline</span>
-              <span class="text-sm font-mono font-bold text-foreground">{{ shopTrialStats.baselineSfoc }} g/kWh</span>
+            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60">
+              <span class="text-xs text-muted-foreground font-medium block mb-0.5">Testbed Baseline</span>
+              <span class="text-base sm:text-lg font-mono font-bold text-foreground">{{ shopTrialStats.baselineSfoc }} g/kWh</span>
             </div>
-            <div class="p-2 rounded bg-muted/40 border border-border/60">
-              <span class="text-[10px] text-muted-foreground block">Efficiency Delta</span>
+            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60">
+              <span class="text-xs text-muted-foreground font-medium block mb-0.5">Efficiency Delta</span>
               <span
-                class="text-sm font-mono font-bold"
+                class="text-base sm:text-lg font-mono font-bold"
                 :class="shopTrialStats.deltaPct > 5 ? 'text-rose-500' : shopTrialStats.deltaPct > 0 ? 'text-amber-500' : 'text-emerald-500'"
               >
                 {{ shopTrialStats.deltaPct > 0 ? '+' : '' }}{{ shopTrialStats.deltaPct }}%
@@ -1226,20 +1239,20 @@ const activeFuelTypes = computed(() => {
         </div>
 
         <!-- Full-Width Interactive EChart -->
-        <div class="p-3 rounded-lg border border-border/80 bg-card space-y-2 shadow-2xs">
+        <div class="p-3.5 rounded-xl border border-border/80 bg-card space-y-2.5 shadow-2xs">
           <div class="flex items-center justify-between">
             <div class="space-y-0.5">
-              <div class="text-xs font-bold text-foreground flex items-center gap-1.5">
-                <TrendingUp class="w-3.5 h-3.5 text-amber-500" />
+              <div class="text-sm font-bold text-foreground flex items-center gap-2">
+                <TrendingUp class="w-4 h-4 text-amber-500" />
                 <span>SFOC vs. Engine Load (% MCR)</span>
               </div>
-              <p class="text-[10px] text-muted-foreground">Click dot to inspect noon report</p>
+              <p class="text-xs text-muted-foreground">Click dot to inspect noon report</p>
             </div>
-            <Badge variant="outline" class="text-[10px] font-mono">
+            <Badge variant="outline" class="text-xs font-mono">
               {{ dailyNoons.length }} Noons
             </Badge>
           </div>
-          <div class="w-full h-[280px]">
+          <div class="w-full h-[300px]">
             <ClientOnly>
               <VChart
                 v-if="shopTrialChartOption"
@@ -1256,31 +1269,31 @@ const activeFuelTypes = computed(() => {
         </div>
 
         <!-- Combustion Diagnostic Insights -->
-        <div class="p-3 rounded-lg bg-muted/30 border border-border/60 space-y-2 text-xs">
-          <div class="font-semibold text-foreground flex items-center gap-1.5 text-[11px]">
-            <Zap class="w-3.5 h-3.5 text-amber-500" />
+        <div class="p-3.5 rounded-xl bg-muted/30 border border-border/60 space-y-2 text-xs sm:text-sm">
+          <div class="font-semibold text-foreground flex items-center gap-2 text-xs sm:text-sm">
+            <Zap class="w-4 h-4 text-amber-500" />
             <span>Combustion & Thermal Diagnostics</span>
           </div>
-          <p class="text-[11px] text-muted-foreground leading-relaxed">
+          <p class="text-xs sm:text-sm text-muted-foreground leading-relaxed">
             SFOC points significantly above testbed baseline indicate thermal degradation, fuel injection wear, elevated scavenging temperatures, or suboptimal air fuel ratios.
           </p>
-          <div class="pt-1 flex items-center justify-between">
+          <div class="pt-1.5 flex items-center justify-between">
             <Button
               variant="outline"
               size="sm"
-              class="h-7 text-[11px] gap-1.5 cursor-pointer"
+              class="h-8 text-xs font-medium gap-1.5 px-3 cursor-pointer"
               @click="activeTab = 'noon'"
             >
-              <ArrowRight class="w-3 h-3" />
+              <ArrowRight class="w-3.5 h-3.5" />
               <span>Inspect D{{ currentNoon?.dayNumber || 1 }}</span>
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              class="h-7 text-[11px] gap-1 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 cursor-pointer"
+              class="h-8 text-xs font-medium gap-1.5 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 px-3 cursor-pointer"
               @click="emit('ask-copilot', `Analyze engine thermal efficiency and SFOC for vessel ${currentVoyage}: Average SFOC is ${shopTrialStats?.avgSfoc} g/kWh (${shopTrialStats?.deltaPct}% vs testbed baseline of 165 g/kWh).`)"
             >
-              <Sliders class="w-3 h-3" />
+              <Sliders class="w-3.5 h-3.5" />
               <span>Audit SFOC</span>
             </Button>
           </div>
@@ -1288,40 +1301,40 @@ const activeFuelTypes = computed(() => {
       </div>
 
       <!-- TAB 4: ROUTE STRATEGIES & ADVISORIES -->
-      <div v-else-if="activeTab === 'strategies'" class="h-full overflow-y-auto p-3.5 space-y-3.5">
+      <div v-else-if="activeTab === 'strategies'" class="h-full overflow-y-auto p-4 space-y-4">
         <!-- Route Alternatives Comparison -->
-        <div class="space-y-2">
+        <div class="space-y-2.5">
           <div class="space-y-1">
-            <div class="text-xs font-semibold text-foreground flex items-center justify-between">
-              <span class="flex items-center gap-1.5">
-                <Layers class="w-3.5 h-3.5 text-primary" />
+            <div class="text-sm font-semibold text-foreground flex items-center justify-between">
+              <span class="flex items-center gap-2">
+                <Layers class="w-4 h-4 text-primary" />
                 Route Strategies Comparison
               </span>
-              <span class="text-[10px] text-muted-foreground">Select to simulate</span>
+              <span class="text-xs text-muted-foreground">Select to simulate</span>
             </div>
-            <div class="text-[10px] text-muted-foreground">
+            <div class="text-xs text-muted-foreground">
               "Current" reflects live voyage data; alternates are modeled estimates.
             </div>
           </div>
 
-          <div class="space-y-2">
+          <div class="space-y-2.5">
             <div
               v-for="strat in routeStrategies"
               :key="strat.id"
-              class="p-2.5 rounded-lg border transition-all cursor-pointer"
+              class="p-3 rounded-xl border transition-all cursor-pointer"
               :class="activeStrategy === strat.id ? 'bg-primary/5 border-primary shadow-xs ring-1 ring-primary/30' : 'bg-card border-border hover:border-border/80'"
               @click="setStrategy(strat.id)"
             >
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
                   <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: strat.colorHex }"></span>
-                  <span class="text-xs font-bold text-foreground">{{ strat.name }}</span>
+                  <span class="text-sm font-bold text-foreground">{{ strat.name }}</span>
                 </div>
                 <div class="flex items-center gap-1.5">
-                  <span v-if="strat.basis === 'modeled-estimate'" class="text-[9px] uppercase font-bold text-muted-foreground/70">Est.</span>
+                  <span v-if="strat.basis === 'modeled-estimate'" class="text-[10px] uppercase font-bold text-muted-foreground/70">Est.</span>
                   <Badge
                     variant="outline"
-                    class="font-mono text-[10px] font-bold"
+                    class="font-mono text-xs font-bold"
                     :class="strat.fuelSavingsMt > 0 ? 'text-emerald-600 border-emerald-500/40 bg-emerald-500/10' : 'text-muted-foreground'"
                   >
                     {{ strat.fuelSavingsMt > 0 ? `-${strat.fuelSavingsMt} MT Fuel` : `${strat.totalFuelMt} MT` }}
@@ -1329,19 +1342,19 @@ const activeFuelTypes = computed(() => {
                 </div>
               </div>
 
-              <p class="text-[11px] text-muted-foreground mt-1">{{ strat.description }}</p>
+              <p class="text-xs sm:text-[13px] text-muted-foreground mt-1.5 leading-relaxed">{{ strat.description }}</p>
 
-              <div class="grid grid-cols-3 gap-2 mt-2 pt-2 border-t border-border/50 text-[10px]">
+              <div class="grid grid-cols-3 gap-2.5 mt-2.5 pt-2 border-t border-border/50 text-xs">
                 <div>
-                  <span class="text-muted-foreground block">Speed / Dist</span>
+                  <span class="text-muted-foreground block text-[11px] mb-0.5">Speed / Dist</span>
                   <span class="font-semibold text-foreground font-mono">{{ strat.avgSpeedKts }} kts · {{ strat.distanceNm }} NM</span>
                 </div>
                 <div>
-                  <span class="text-muted-foreground block">Projected CII</span>
+                  <span class="text-muted-foreground block text-[11px] mb-0.5">Projected CII</span>
                   <span class="font-bold text-foreground font-mono">Band {{ strat.projectedRating }} ({{ strat.projectedCii }})</span>
                 </div>
                 <div>
-                  <span class="text-muted-foreground block">Arrival</span>
+                  <span class="text-muted-foreground block text-[11px] mb-0.5">Arrival</span>
                   <span class="font-semibold text-foreground truncate block">{{ strat.etaFormatted.slice(5, 16) }}</span>
                 </div>
               </div>
@@ -1350,36 +1363,36 @@ const activeFuelTypes = computed(() => {
         </div>
 
         <!-- Actionable Dispatch Advisories -->
-        <div class="space-y-2 pt-2 border-t border-border/60">
-          <div class="text-xs font-semibold text-foreground flex items-center justify-between">
-            <span class="flex items-center gap-1.5">
-              <Sparkles class="w-3.5 h-3.5 text-amber-500" />
+        <div class="space-y-2.5 pt-2.5 border-t border-border/60">
+          <div class="text-sm font-semibold text-foreground flex items-center justify-between">
+            <span class="flex items-center gap-2">
+              <Sparkles class="w-4 h-4 text-amber-500" />
               Actionable Dispatch Advisories
             </span>
-            <span class="text-[10px] text-muted-foreground font-mono">{{ advisories.length }} Active</span>
+            <span class="text-xs text-muted-foreground font-mono">{{ advisories.length }} Active</span>
           </div>
 
-          <div class="space-y-2.5">
+          <div class="space-y-3">
             <div
               v-for="adv in advisories"
               :key="adv.id"
-              class="p-3 rounded-lg border bg-card space-y-2 text-xs"
+              class="p-3.5 rounded-xl border bg-card space-y-2.5 text-xs sm:text-sm"
               :class="adv.applied ? 'opacity-70 border-emerald-500/30' : 'border-border'"
             >
               <div class="flex items-start justify-between gap-2">
-                <div class="font-semibold text-foreground leading-tight">
+                <div class="font-semibold text-foreground leading-snug">
                   {{ adv.title }}
                 </div>
                 <Badge
                   variant="outline"
-                  class="text-[9px] uppercase font-bold shrink-0"
+                  class="text-xs uppercase font-bold shrink-0 px-2 py-0.5"
                   :class="adv.priority === 'critical' ? 'text-rose-600 border-rose-500/30' : adv.priority === 'warning' ? 'text-amber-600 border-amber-500/30' : 'text-blue-600 border-blue-500/30'"
                 >
                   {{ adv.priority }}
                 </Badge>
               </div>
 
-              <p class="text-[11px] text-muted-foreground leading-relaxed">
+              <p class="text-xs sm:text-[13px] text-muted-foreground leading-relaxed">
                 {{ adv.description }}
               </p>
 
@@ -1387,11 +1400,11 @@ const activeFuelTypes = computed(() => {
                 <Button
                   size="sm"
                   variant="outline"
-                  class="h-7 text-[11px] gap-1.5 cursor-pointer"
+                  class="h-8 text-xs font-medium gap-1.5 px-3 cursor-pointer"
                   :disabled="adv.applied"
                   @click="applyAdvisory(adv.id)"
                 >
-                  <CheckCircle2 v-if="adv.applied" class="w-3 h-3 text-emerald-500" />
+                  <CheckCircle2 v-if="adv.applied" class="w-3.5 h-3.5 text-emerald-500" />
                   <span>{{ adv.applied ? 'Applied to Plan' : adv.actionLabel }}</span>
                 </Button>
               </div>
