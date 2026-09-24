@@ -10,6 +10,7 @@ import {
   calculateRouteStrategies,
   deriveVoyageAdvisories,
   analyzeCiiRatingDrivers,
+  parseBeaufortForce,
   type CiiDateRangeRecord,
 } from '../../app/lib/voyage-optimization.ts'
 
@@ -256,5 +257,17 @@ describe('Voyage Optimization Domain Engine', () => {
     assert.equal(diag.factors.every((f) => f.severity === 'favorable'), true)
     const totalScore = diag.factors.reduce((sum, f) => sum + f.scorePercent, 0)
     assert.equal(totalScore, 100)
+  })
+
+  test('parseBeaufortForce guards against wind directions (e.g. 180) and converts knots', () => {
+    assert.equal(parseBeaufortForce(5, 18), 5)
+    assert.equal(parseBeaufortForce(0, 0), 0)
+    assert.equal(parseBeaufortForce(12, 65), 12)
+    // Wind direction in degrees (e.g. 180° southerly) should NOT be parsed as Beaufort
+    assert.equal(parseBeaufortForce(180, 0), 0)
+    // If direction degree was in Wind_Force but Wind_Speed has 26 kts, convert to BF 6
+    assert.equal(parseBeaufortForce(180, 26), 6)
+    // If knots (e.g. 26 kts) was mistakenly put into Wind_Force
+    assert.equal(parseBeaufortForce(26, 0), 6)
   })
 })

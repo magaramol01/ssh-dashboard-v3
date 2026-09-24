@@ -223,6 +223,46 @@ export function roundTo2(value: number | string | null | undefined): number {
 }
 
 /**
+ * Parses and validates Beaufort force (0 to 12).
+ * Guards against raw wind directions in degrees (e.g. 180) or speeds mistakenly
+ * entered into Wind_Force column.
+ */
+export function parseBeaufortForce(rawForce: unknown, rawSpeed: unknown): number {
+  const force = typeof rawForce === 'number' ? rawForce : parseFloat(String(rawForce || ''))
+  const speed = typeof rawSpeed === 'number' ? rawSpeed : parseFloat(String(rawSpeed || ''))
+
+  // 1. If wind speed in knots is reported (> 0), convert via WMO / IMO standard Beaufort scale
+  if (Number.isFinite(speed) && speed > 0) {
+    if (speed < 1) return 0
+    if (speed <= 3) return 1
+    if (speed <= 6) return 2
+    if (speed <= 10) return 3
+    if (speed <= 16) return 4
+    if (speed <= 21) return 5
+    if (speed <= 27) return 6
+    if (speed <= 33) return 7
+    if (speed <= 40) return 8
+    if (speed <= 47) return 9
+    if (speed <= 55) return 10
+    if (speed <= 63) return 11
+    return 12
+  }
+
+  // 2. Valid Beaufort scale number directly reported (0 to 12)
+  if (Number.isFinite(force) && force >= 0 && force <= 12) {
+    return Math.round(force)
+  }
+
+  // 3. If force was mistakenly logged as knots (13 to 65 kts)
+  if (Number.isFinite(force) && force > 12 && force <= 65) {
+    return parseBeaufortForce(null, force)
+  }
+
+  // Otherwise > 65 is wind direction in degrees (e.g. 180°), NOT Beaufort!
+  return 0
+}
+
+/**
  * Builds the noon-report weather summary from structured fields only.
  * `Remarks` varies wildly per vessel/reporting-app — sometimes a real
  * free-text note ("Ship clock 1 HR retard"), sometimes a raw data dump
@@ -231,9 +271,13 @@ export function roundTo2(value: number | string | null | undefined): number {
  * fields is reliable across every vessel's data.
  */
 function buildNoonWeather(noon: CiiDateRangeRecord['noonreportdata']): DailyNoonReport['weather'] {
-  const beaufort = roundTo2(noon?.Wind_Force || 0)
   const windSpeedKts = roundTo2(noon?.Wind_Speed || 0)
-  const windDirectionDeg = roundTo2(Number(noon?.Wind_Direction) || 0)
+  const beaufort = parseBeaufortForce(noon?.Wind_Force, windSpeedKts)
+  let windDirectionDeg = roundTo2(Number(noon?.Wind_Direction) || 0)
+  const rawForce = Number(noon?.Wind_Force)
+  if (rawForce > 65 && windDirectionDeg === 0) {
+    windDirectionDeg = rawForce
+  }
   const waveHeightM = roundTo2(noon?.Wave_Height || 0)
   const swellDirection = String(noon?.Swell_Direction ?? '')
 

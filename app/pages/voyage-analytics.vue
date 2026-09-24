@@ -38,6 +38,7 @@ const {
   currentVoyage,
   currentVoyageInfo,
   mrvData,
+  kpiSummary,
 } = useVoyageOptimization()
 
 // Map-first: drawer starts closed so the passage map is the clear hero on load
@@ -97,25 +98,25 @@ function handleKeydown(e: KeyboardEvent) {
 const heuristicDirectives = computed<QuickDirective[]>(() => {
   const vesselName = selectedVessel.value?.name || 'this vessel'
   const noons = dailyNoons.value || []
-  const voyNum = selectedVoyage.value || mrvData.value?.voyage || 'active voyage'
+  const kpi = kpiSummary.value
   const directives: QuickDirective[] = []
 
-  // 1. Contextual Day Selection (Highest priority if user explicitly clicked a day in the timeline/drawer)
+  // 1. Contextual Day Selection (Highest priority if user explicitly clicked a day in the timeline/drawer/map)
   if (selectedDay.value) {
     const day = selectedDay.value
     const dayRating = day.rating || 'C'
     const isDegraded = dayRating === 'D' || dayRating === 'E'
+    const bf = Math.min(12, day.weather?.beaufort || 0)
     directives.push({
-      label: `Audit Day ${day.dayNumber} (${isDegraded ? `Degraded ` : ''}Grade ${dayRating})`,
-      query: `Analyze Day ${day.dayNumber} performance on ${vesselName}. Why is attained CII ${day.attainedCii} (Grade ${dayRating}) with ${day.sog} kts SOG and ${day.slipPct}% slip in BF ${day.weather?.beaufort || 0} conditions?`,
+      label: `Audit Day ${day.dayNumber} (${isDegraded ? 'Degraded ' : ''}Grade ${dayRating})`,
+      query: `Analyze Day ${day.dayNumber} performance on ${vesselName}. Why is attained CII ${day.attainedCii} (Grade ${dayRating}) with ${day.sog} kts SOG and ${day.slipPct}% slip in BF ${bf} conditions?`,
       icon: isDegraded ? AlertTriangle : Compass,
     })
   }
 
-  // 2. Suspicious / Degraded Days (Grade D or E)
+  // 2. Real Degraded Days from the current active passage (Grade D or E)
   const degradedDays = noons.filter((d) => d.rating === 'D' || d.rating === 'E')
   if (degradedDays.length > 0) {
-    // Pick the most critical day (Grade E prioritized, or highest attained CII)
     const worstDay = degradedDays.reduce((worst, d) => {
       if (d.rating === 'E' && worst.rating !== 'E') return d
       if (d.rating === worst.rating && d.attainedCii > worst.attainedCii) return d
@@ -131,66 +132,76 @@ const heuristicDirectives = computed<QuickDirective[]>(() => {
     }
   }
 
-  // 3. Suspicious / Heavy Weather Days (Beaufort 6+ or Wave >= 2.5m)
-  const heavyWeatherDays = noons.filter((d) => (d.weather?.beaufort || 0) >= 6 || (d.weather?.waveHeightM || 0) >= 2.5)
-  if (heavyWeatherDays.length > 0) {
-    const peakWeather = heavyWeatherDays.reduce((max, d) => {
-      return (d.weather?.beaufort || 0) > (max.weather?.beaufort || 0) ? d : max
-    }, heavyWeatherDays[0]!)
-
+  // 3. Screen HUD Weather Alert or Heavy Weather Encounters
+  if (kpi?.weatherAlertHeadline && kpi.weatherAlertHeadline !== 'Favorable passage weather') {
     directives.push({
-      label: `Weather penalty (Day ${peakWeather.dayNumber}: BF ${peakWeather.weather?.beaufort || 6})`,
-      query: `Evaluate the added weather fuel penalty and speed loss from BF ${peakWeather.weather?.beaufort || 6} heavy weather on Day ${peakWeather.dayNumber} and across this voyage for ${vesselName}.`,
+      label: `Weather Ahead (${kpi.weatherAlertSubtext?.slice(0, 22) || 'Adverse Sea State'})`,
+      query: `Evaluate the operational impact and added fuel penalty of ${kpi.weatherAlertHeadline} (${kpi.weatherAlertSubtext || ''}) on ${vesselName}.`,
       icon: Wind,
     })
   } else {
-    directives.push({
-      label: 'Weather vs Fuel Trend',
-      query: `Evaluate the added fuel consumption and carbon penalty caused by MetOcean weather conditions along this route for ${vesselName}.`,
-      icon: Wind,
-    })
+    const heavyWeatherDays = noons.filter((d) => (d.weather?.beaufort || 0) >= 6 || (d.weather?.waveHeightM || 0) >= 2.5)
+    if (heavyWeatherDays.length > 0) {
+      const peakWeather = heavyWeatherDays.reduce((max, d) => {
+        return (d.weather?.beaufort || 0) > (max.weather?.beaufort || 0) ? d : max
+      }, heavyWeatherDays[0]!)
+      const bf = Math.min(12, peakWeather.weather?.beaufort || 6)
+
+      directives.push({
+        label: `Weather penalty (Day ${peakWeather.dayNumber}: BF ${bf})`,
+        query: `Evaluate the added weather fuel penalty and speed loss from BF ${bf} conditions on Day ${peakWeather.dayNumber} and across this voyage for ${vesselName}.`,
+        icon: Wind,
+      })
+    } else {
+      directives.push({
+        label: 'Weather vs Fuel Trend',
+        query: `Evaluate the added fuel consumption and carbon penalty caused by MetOcean weather conditions along this route for ${vesselName}.`,
+        icon: Wind,
+      })
+    }
   }
 
-  // 4. Suspicious / High Propeller Slip (Apparent slip >= 12%)
-  const highSlipDays = noons.filter((d) => d.slipPct >= 12)
-  if (highSlipDays.length > 0) {
-    const peakSlip = highSlipDays.reduce((max, d) => (d.slipPct > max.slipPct ? d : max), highSlipDays[0]!)
+  // 4. Screen HUD Speed Advisory & Laycan Buffer
+  if (kpi?.recommendedSpeedKts != null && kpi.laycanBufferHours != null) {
     directives.push({
-      label: `Investigate ${peakSlip.slipPct.toFixed(1)}% slip on Day ${peakSlip.dayNumber}`,
-      query: `Investigate the elevated propeller slip of ${peakSlip.slipPct.toFixed(1)}% on Day ${peakSlip.dayNumber} for ${vesselName}. Was it hull/propeller resistance, shallow water effect, or adverse currents?`,
-      icon: Gauge,
+      label: `Speed ${kpi.recommendedSpeedKts} kts vs Laycan (+${kpi.laycanBufferHours}h)`,
+      query: `Evaluate whether cruising speed of ${kpi.recommendedSpeedKts} kts on ${vesselName} can be optimized while preserving the +${kpi.laycanBufferHours}h charter laycan arrival window.`,
+      icon: TrendingUp,
     })
   } else {
-    directives.push({
-      label: 'Propulsion & Slip Analysis',
-      query: `Analyze apparent propeller slip and engine RPM trends for ${vesselName} to verify propulsion efficiency.`,
-      icon: Gauge,
-    })
+    const highSlipDays = noons.filter((d) => d.slipPct >= 12)
+    if (highSlipDays.length > 0) {
+      const peakSlip = highSlipDays.reduce((max, d) => (d.slipPct > max.slipPct ? d : max), highSlipDays[0]!)
+      directives.push({
+        label: `Investigate ${peakSlip.slipPct.toFixed(1)}% slip on Day ${peakSlip.dayNumber}`,
+        query: `Investigate the elevated propeller slip of ${peakSlip.slipPct.toFixed(1)}% on Day ${peakSlip.dayNumber} for ${vesselName}.`,
+        icon: Gauge,
+      })
+    } else {
+      directives.push({
+        label: 'Propulsion & Slip Analysis',
+        query: `Analyze apparent propeller slip and engine RPM trends for ${vesselName} to verify propulsion efficiency.`,
+        icon: Gauge,
+      })
+    }
   }
 
-  // 5. Recovery Plan vs Speed Optimization
-  if (degradedDays.length > 0 || (noons.length > 0 && noons[noons.length - 1]?.rating !== 'A' && noons[noons.length - 1]?.rating !== 'B')) {
+  // 5. Screen HUD CII Trajectory Target Recovery / Optimization
+  if (kpi?.attainedCii != null && kpi.requiredCii != null) {
+    const margin = kpi.ciiMarginPct != null ? `${kpi.ciiMarginPct > 0 ? '+' : ''}${kpi.ciiMarginPct}%` : ''
+    directives.push({
+      label: `Maintain Band B (${kpi.attainedCii} vs ${kpi.requiredCii} Req)`,
+      query: `What adjustments to steaming speed and engine RPM are recommended to maintain compliant IMO Band B trajectory (${kpi.attainedCii} attained vs ${kpi.requiredCii} required, ${margin} margin) on ${vesselName}?`,
+      icon: TrendingUp,
+    })
+  } else if (degradedDays.length > 0) {
     directives.push({
       label: 'How to recover Band B?',
       query: `What speed reduction or RPM adjustment is required to recover IMO Band B trajectory for the remainder of this passage on ${vesselName}?`,
       icon: TrendingUp,
     })
-  } else {
-    directives.push({
-      label: 'Optimize speed & laycan',
-      query: `What is the recommended steaming speed and engine RPM to maintain compliant CII while arriving within the scheduled laycan window for ${vesselName}?`,
-      icon: TrendingUp,
-    })
   }
 
-  // 6. Chief Engineer Noon Validation Audit
-  directives.push({
-    label: 'Audit Noon Reports QA',
-    query: `Run a Chief Engineer audit on the daily noon reports for ${vesselName} on voyage ${voyNum}. Identify any steaming hour discrepancies, GC distance gaps, or reported fuel balance issues.`,
-    icon: ClipboardCheck,
-  })
-
-  // Return the top 4 most actionable and suspicious directives
   return directives.slice(0, 4)
 })
 
@@ -214,6 +225,7 @@ async function fetchAiQuestions(_force = false) {
   const vessel = selectedVessel.value
   const noons = dailyNoons.value || []
   const voyNum = selectedVoyage.value || mrvData.value?.voyage || 'active voyage'
+  const kpi = kpiSummary.value
 
   const degradedDays = noons
     .filter((d) => d.rating === 'D' || d.rating === 'E')
@@ -224,14 +236,19 @@ async function fetchAiQuestions(_force = false) {
       requiredCii: d.requiredCii,
       sog: d.sog,
       slipPct: d.slipPct,
-      weather: d.weather,
+      weather: d.weather
+        ? {
+            beaufort: Math.min(12, d.weather.beaufort || 0),
+            waveHeightM: d.weather.waveHeightM,
+          }
+        : undefined,
     }))
 
   const heavyWeatherDays = noons
     .filter((d) => (d.weather?.beaufort || 0) >= 6 || (d.weather?.waveHeightM || 0) >= 2.5)
     .map((d) => ({
       dayNumber: d.dayNumber,
-      beaufort: d.weather?.beaufort,
+      beaufort: Math.min(12, d.weather?.beaufort || 6),
       waveHeightM: d.weather?.waveHeightM,
     }))
 
@@ -245,13 +262,34 @@ async function fetchAiQuestions(_force = false) {
   const selected = selectedDay.value
     ? {
         dayNumber: selectedDay.value.dayNumber,
-        date: selectedDay.value.date,
+        date: selectedDay.value.dateIso,
         rating: selectedDay.value.rating,
         attainedCii: selectedDay.value.attainedCii,
         requiredCii: selectedDay.value.requiredCii,
         sog: selectedDay.value.sog,
         slipPct: selectedDay.value.slipPct,
-        weather: selectedDay.value.weather,
+        weather: selectedDay.value.weather
+          ? {
+              beaufort: Math.min(12, selectedDay.value.weather.beaufort || 0),
+              waveHeightM: selectedDay.value.weather.waveHeightM,
+              windSpeedKts: selectedDay.value.weather.windSpeedKts,
+            }
+          : undefined,
+      }
+    : undefined
+
+  const hudData = kpi
+    ? {
+        attainedCii: kpi.attainedCii,
+        requiredCii: kpi.requiredCii,
+        rating: kpi.attainedRating,
+        ciiMarginPct: kpi.ciiMarginPct,
+        speedKts: kpi.recommendedSpeedKts,
+        weatherAlertHeadline: kpi.weatherAlertHeadline,
+        weatherAlertSubtext: kpi.weatherAlertSubtext,
+        weatherRiskLevel: kpi.weatherRiskLevel,
+        laycanBufferHours: kpi.laycanBufferHours,
+        carbonSavingsEur: kpi.carbonSavingsEur,
       }
     : undefined
 
@@ -265,6 +303,9 @@ async function fetchAiQuestions(_force = false) {
           vesselId: vessel?.id,
           vesselName: vessel?.name,
           voyage: voyNum,
+          originPort: currentVoyageInfo.value?.startPort || mrvData.value?.scr,
+          destinationPort: currentVoyageInfo.value?.destinationPort || mrvData.value?.destination,
+          hud: hudData,
           selectedDay: selected,
           degradedDays,
           heavyWeatherDays,
@@ -300,7 +341,7 @@ async function fetchAiQuestions(_force = false) {
 }
 
 watch(
-  [() => selectedVessel.value?.id, () => selectedVoyage.value, () => selectedDay.value?.dayNumber],
+  [() => selectedVessel.value?.id, () => selectedVoyage.value, () => selectedDay.value?.dayNumber, () => dailyNoons.value.length],
   () => {
     aiDirectives.value = []
     fetchAiQuestions()
@@ -310,14 +351,15 @@ watch(
 const voyageCopilotInitialMessage = computed(() => {
   const name = selectedVessel.value?.name || 'this vessel'
   const noons = dailyNoons.value || []
-  const degradedCount = noons.filter((d) => d.rating === 'D' || d.rating === 'E').length
-  const heavyWeatherCount = noons.filter((d) => (d.weather?.beaufort || 0) >= 6).length
+  const kpi = kpiSummary.value
+  const degradedDays = noons.filter((d) => d.rating === 'D' || d.rating === 'E')
 
-  if (degradedCount > 0) {
-    return `Voyage Analytics Copilot ready for ${name}. Detected ${degradedCount} degraded passage day${degradedCount > 1 ? 's' : ''} (Band D/E) on the current voyage. Select a suspicious finding below or ask any question.`
+  if (degradedDays.length > 0) {
+    const worst = degradedDays[0]!
+    return `Voyage Analytics Copilot ready for ${name}. Detected Day ${worst.dayNumber} (Grade ${worst.rating}) on the active passage. Select a directive below or ask any question to inspect performance.`
   }
-  if (heavyWeatherCount > 0) {
-    return `Voyage Analytics Copilot ready for ${name}. Identified ${heavyWeatherCount} heavy weather day${heavyWeatherCount > 1 ? 's' : ''} (Beaufort 6+) along the passage. Select a directive below to review operational impact.`
+  if (kpi?.weatherRiskLevel === 'high') {
+    return `Voyage Analytics Copilot ready for ${name}. ${kpi.weatherAlertHeadline} (${kpi.weatherAlertSubtext || ''}) identified along route. Select a directive below to review operational impact.`
   }
   return `Voyage Analytics Copilot ready for ${name}. Live voyage telemetry, noon reports, and CII trajectory loaded. Select a directive below or ask any operational question.`
 })

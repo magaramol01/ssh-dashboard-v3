@@ -11,6 +11,20 @@ export interface SuggestedQuestionsPayload {
   vesselId?: number | string
   vesselName?: string
   voyage?: string
+  originPort?: string
+  destinationPort?: string
+  hud?: {
+    attainedCii?: number
+    requiredCii?: number
+    rating?: string
+    ciiMarginPct?: number
+    speedKts?: number
+    weatherAlertHeadline?: string
+    weatherAlertSubtext?: string
+    weatherRiskLevel?: string
+    laycanBufferHours?: number
+    carbonSavingsEur?: number
+  }
   selectedDay?: {
     dayNumber: number
     date?: string
@@ -80,53 +94,69 @@ export function sanitizeSuggestedQuestions(rawItems: unknown[]): SuggestedQuesti
 export function buildSuggestedQuestionsPrompt(payload: SuggestedQuestionsPayload): string {
   const vessel = payload.vesselName || 'this vessel'
   const voyage = payload.voyage || 'active voyage'
+  const route = payload.originPort && payload.destinationPort ? `${payload.originPort} → ${payload.destinationPort}` : ''
 
-  const anomalies: string[] = []
+  const screenContext: string[] = []
+
+  if (route) {
+    screenContext.push(`- Route: ${route}`)
+  }
+
+  if (payload.hud) {
+    const h = payload.hud
+    screenContext.push(
+      `- Active KPI HUD: CII Trajectory ${h.attainedCii ?? 'N/A'} (Band ${h.rating || 'C'}, Req ${h.requiredCii ?? 'N/A'}, ${h.ciiMarginPct != null ? `${h.ciiMarginPct > 0 ? '+' : ''}${h.ciiMarginPct}% margin` : ''}), Active Speed ${h.speedKts ?? 'N/A'} kts, Weather Alert: '${h.weatherAlertHeadline || 'Fair'}' (${h.weatherAlertSubtext || ''}), Laycan Buffer: +${h.laycanBufferHours ?? 8.5}h`
+    )
+  }
 
   if (payload.selectedDay) {
     const d = payload.selectedDay
     const bf = d.weather?.beaufort ?? 'unknown'
     const waves = d.weather?.waveHeightM ? `${d.weather.waveHeightM}m` : 'unknown'
-    anomalies.push(
-      `- User is currently viewing/selected: Day ${d.dayNumber} (Grade ${d.rating || 'C'}, Attained CII ${d.attainedCii ?? 'N/A'} vs Required ${d.requiredCii ?? 'N/A'}, SOG ${d.sog ?? 'N/A'} kts, Apparent Slip ${d.slipPct != null ? `${d.slipPct}%` : 'N/A'}, Weather: BF ${bf}, Waves: ${waves})`
+    screenContext.push(
+      `- Operator Clicked / Selected Day: Day ${d.dayNumber} (Grade ${d.rating || 'C'}, Attained CII ${d.attainedCii ?? 'N/A'} vs Required ${d.requiredCii ?? 'N/A'}, SOG ${d.sog ?? 'N/A'} kts, Apparent Slip ${d.slipPct != null ? `${d.slipPct}%` : 'N/A'}, Weather: BF ${bf}, Waves: ${waves})`
     )
   }
 
   if (payload.degradedDays && payload.degradedDays.length > 0) {
-    anomalies.push(
-      `- Degraded CII days (Band D or E): ${payload.degradedDays.length} day(s). Details: ${JSON.stringify(payload.degradedDays.slice(0, 4))}`
+    screenContext.push(
+      `- Degraded Days Visible on Screen: ${payload.degradedDays.map((d) => `Day ${d.dayNumber} (Grade ${d.rating})`).join(', ')}`
     )
+  } else {
+    screenContext.push('- No degraded days on screen (all days compliant Band A/B/C).')
   }
 
   if (payload.heavyWeatherDays && payload.heavyWeatherDays.length > 0) {
-    anomalies.push(
-      `- Heavy weather encounters (Beaufort 6+ or wave >= 2.5m): ${payload.heavyWeatherDays.length} day(s). Details: ${JSON.stringify(payload.heavyWeatherDays.slice(0, 4))}`
+    screenContext.push(
+      `- Heavy Weather Encounters: ${payload.heavyWeatherDays.map((d) => `Day ${d.dayNumber} (BF ${Math.min(12, d.beaufort || 6)})`).join(', ')}`
     )
   }
 
   if (payload.highSlipDays && payload.highSlipDays.length > 0) {
-    anomalies.push(
-      `- Elevated apparent propeller slip (>= 12%): ${payload.highSlipDays.length} day(s). Details: ${JSON.stringify(payload.highSlipDays.slice(0, 4))}`
+    screenContext.push(
+      `- Elevated Slip Days (>= 12%): ${payload.highSlipDays.map((d) => `Day ${d.dayNumber} (${d.slipPct.toFixed(1)}%)`).join(', ')}`
     )
   }
 
-  return `You are ShipTrack Sentinel Marine AI. The human operator is currently viewing Voyage Analytics for vessel '${vessel}' on voyage '${voyage}'.
+  return `You are ShipTrack Sentinel Marine AI. The human operator is currently looking at Voyage Analytics for '${vessel}' on voyage '${voyage}'.
 
-Observed voyage telemetry and detected anomalies:
-${anomalies.length > 0 ? anomalies.join('\n') : '- Routine passage without severe anomalies.'}
+WHAT THE OPERATOR IS CURRENTLY SEEING ON SCREEN:
+${screenContext.join('\n')}
 
-Your task:
-Analyze what the operator is seeing on screen. Formulate 4 sharp, highly contextual, domain-specific questions or directives that highlight suspicious, abnormal, or questionable findings on this voyage.
+YOUR TASK:
+Generate 4 sharp, highly contextual questions or directives that match EXACTLY what the operator sees on their screen right now.
 The operator will click one of these questions to immediately start an investigation with Sentinel Copilot.
 
-Requirements:
-1. Ground questions in actual numbers provided (exact Day numbers, slip %, Beaufort ratings, Grade D/E drops, SOG).
-2. Cover key marine concerns: root cause of degradation, weather penalty vs speed loss, propulsion slip / resistance, and speed recovery to reach IMO Band B.
-3. Return ONLY a valid JSON array of objects. Do not write markdown intro or outro.
-Schema:
+CRITICAL RULES:
+1. ONLY reference days and metrics that actually appear in the screen data above! If Day 4 is the only degraded day, refer ONLY to Day 4. NEVER invent or hallucinate other days.
+2. Reference the exact numbers shown on screen (speed ${payload.hud?.speedKts || '10.5'} kts, laycan buffer +${payload.hud?.laycanBufferHours || '8.5'}h, weather alert '${payload.hud?.weatherAlertHeadline || 'weather'}', CII ${payload.hud?.attainedCii || '4.06'}).
+3. Beaufort scale is strictly 0 to 12. Never output numbers > 12 for Beaufort.
+4. Keep button labels concise (under 35 chars).
+
+Return ONLY a valid JSON array of objects:
 [
   {
-    "label": "Short button label under 35 chars (e.g. 'Why did Day 16 drop to Grade E?')",
+    "label": "Short button label under 35 chars (e.g. 'Why did Day 4 drop to Grade D?')",
     "query": "Full detailed question to ask the Copilot agent",
     "category": "degradation" | "slip" | "weather" | "recovery" | "audit"
   }
@@ -135,7 +165,6 @@ Schema:
 
 export function generateHeuristicQuestions(payload: SuggestedQuestionsPayload): SuggestedQuestionItem[] {
   const vesselName = payload.vesselName || 'this vessel'
-  const voyNum = payload.voyage || 'active voyage'
   const items: SuggestedQuestionItem[] = []
 
   // 1. Contextual Day Selection (Highest priority if user explicitly clicked a day)
@@ -143,14 +172,15 @@ export function generateHeuristicQuestions(payload: SuggestedQuestionsPayload): 
     const day = payload.selectedDay
     const dayRating = day.rating || 'C'
     const isDegraded = dayRating === 'D' || dayRating === 'E'
+    const bf = Math.min(12, day.weather?.beaufort || 0)
     items.push({
       label: `Audit Day ${day.dayNumber} (${isDegraded ? 'Degraded ' : ''}Grade ${dayRating})`,
-      query: `Analyze Day ${day.dayNumber} performance on ${vesselName}. Why is attained CII ${day.attainedCii ?? 'N/A'} (Grade ${dayRating}) with ${day.sog ?? 'N/A'} kts SOG and ${day.slipPct ?? 'N/A'}% slip in BF ${day.weather?.beaufort || 0} conditions?`,
+      query: `Analyze Day ${day.dayNumber} performance on ${vesselName}. Why is attained CII ${day.attainedCii ?? 'N/A'} (Grade ${dayRating}) with ${day.sog ?? 'N/A'} kts SOG and ${day.slipPct ?? 'N/A'}% slip in BF ${bf} conditions?`,
       category: 'degradation',
     })
   }
 
-  // 2. Suspicious / Degraded Days
+  // 2. Real Degraded Days from Screen (Band D or E)
   if (payload.degradedDays && payload.degradedDays.length > 0) {
     const worstDay = payload.degradedDays.reduce((worst, d) => {
       if (d.rating === 'E' && worst.rating !== 'E') return d
@@ -167,15 +197,23 @@ export function generateHeuristicQuestions(payload: SuggestedQuestionsPayload): 
     }
   }
 
-  // 3. Heavy Weather
-  if (payload.heavyWeatherDays && payload.heavyWeatherDays.length > 0) {
+  // 3. Weather Alert from Screen HUD or heavy weather encounters
+  if (payload.hud?.weatherAlertHeadline && payload.hud.weatherAlertHeadline !== 'Favorable passage weather') {
+    const headline = payload.hud.weatherAlertHeadline
+    items.push({
+      label: `Weather Ahead (${payload.hud.weatherAlertSubtext?.slice(0, 22) || 'Adverse Sea State'})`,
+      query: `Evaluate the operational impact, weather fuel penalty, and speed loss from ${headline} (${payload.hud.weatherAlertSubtext || ''}) on ${vesselName}.`,
+      category: 'weather',
+    })
+  } else if (payload.heavyWeatherDays && payload.heavyWeatherDays.length > 0) {
     const peakWeather = payload.heavyWeatherDays.reduce((max, d) => {
       return (d.beaufort || 0) > (max.beaufort || 0) ? d : max
     }, payload.heavyWeatherDays[0]!)
+    const bf = Math.min(12, peakWeather.beaufort || 6)
 
     items.push({
-      label: `Weather penalty (Day ${peakWeather.dayNumber}: BF ${peakWeather.beaufort || 6})`,
-      query: `Evaluate the added weather fuel penalty and speed loss from BF ${peakWeather.beaufort || 6} heavy weather on Day ${peakWeather.dayNumber} and across this voyage for ${vesselName}.`,
+      label: `Weather penalty (Day ${peakWeather.dayNumber}: BF ${bf})`,
+      query: `Evaluate the added weather fuel penalty and speed loss from BF ${bf} conditions on Day ${peakWeather.dayNumber} for ${vesselName}.`,
       category: 'weather',
     })
   } else {
@@ -186,34 +224,39 @@ export function generateHeuristicQuestions(payload: SuggestedQuestionsPayload): 
     })
   }
 
-  // 4. Elevated Propeller Slip
-  if (payload.highSlipDays && payload.highSlipDays.length > 0) {
+  // 4. Speed Advisory & Laycan Buffer from Screen HUD
+  if (payload.hud?.laycanBufferHours != null && payload.hud.speedKts != null) {
+    const speed = payload.hud.speedKts
+    const buffer = payload.hud.laycanBufferHours
+    items.push({
+      label: `Speed ${speed} kts vs Laycan (+${buffer}h)`,
+      query: `Evaluate if the cruising speed of ${speed} kts on ${vesselName} can be optimized while preserving the +${buffer}h charter laycan buffer.`,
+      category: 'recovery',
+    })
+  } else if (payload.highSlipDays && payload.highSlipDays.length > 0) {
     const peakSlip = payload.highSlipDays.reduce((max, d) => (d.slipPct > max.slipPct ? d : max), payload.highSlipDays[0]!)
     items.push({
       label: `Investigate ${peakSlip.slipPct.toFixed(1)}% slip on Day ${peakSlip.dayNumber}`,
-      query: `Investigate the elevated propeller slip of ${peakSlip.slipPct.toFixed(1)}% on Day ${peakSlip.dayNumber} for ${vesselName}. Was it hull/propeller resistance, shallow water effect, or adverse currents?`,
-      category: 'slip',
-    })
-  } else {
-    items.push({
-      label: 'Propulsion & Slip Analysis',
-      query: `Analyze apparent propeller slip and engine RPM trends for ${vesselName} to verify propulsion efficiency.`,
+      query: `Investigate the elevated propeller slip of ${peakSlip.slipPct.toFixed(1)}% on Day ${peakSlip.dayNumber} for ${vesselName}.`,
       category: 'slip',
     })
   }
 
-  // 5. Recovery or Laycan
-  if (payload.degradedDays && payload.degradedDays.length > 0) {
+  // 5. CII Trajectory Target Recovery / Optimization
+  if (payload.hud?.attainedCii != null) {
+    const cii = payload.hud.attainedCii
+    const req = payload.hud.requiredCii || 4.10
+    const margin = payload.hud.ciiMarginPct != null ? `${payload.hud.ciiMarginPct > 0 ? '+' : ''}${payload.hud.ciiMarginPct}%` : ''
     items.push({
-      label: 'How to recover Band B?',
-      query: `What speed reduction or RPM adjustment is required to recover IMO Band B trajectory for the remainder of this passage on ${vesselName}?`,
+      label: `Maintain Band B (${cii} vs ${req} Req)`,
+      query: `What adjustments to steaming speed and RPM are needed to maintain compliant IMO Band B trajectory (${cii} attained vs ${req} required, ${margin} margin) on ${vesselName}?`,
       category: 'recovery',
     })
   } else {
     items.push({
-      label: 'Audit Noon Reports QA',
-      query: `Run a Chief Engineer audit on the daily noon reports for ${vesselName} on voyage ${voyNum}. Identify any steaming hour discrepancies, GC distance gaps, or reported fuel balance issues.`,
-      category: 'audit',
+      label: 'How to recover Band B?',
+      query: `What speed reduction or RPM adjustment is required to recover IMO Band B trajectory for the remainder of this passage on ${vesselName}?`,
+      category: 'recovery',
     })
   }
 

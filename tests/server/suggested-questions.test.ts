@@ -92,6 +92,39 @@ test('generateHeuristicQuestions returns 4 contextual questions matching detecte
   assert.ok(questions.some((q) => q.category === 'recovery'))
 })
 
+test('generateHeuristicQuestions matches on-screen HUD and active map telemetry for Canada Express', () => {
+  const payload: SuggestedQuestionsPayload = {
+    vesselName: 'CANADA EXPRESS',
+    voyage: 'V2603L2',
+    originPort: 'BRSTM',
+    destinationPort: 'CNCAN',
+    hud: {
+      attainedCii: 4.06,
+      requiredCii: 4.10,
+      rating: 'C',
+      ciiMarginPct: 1,
+      speedKts: 10.5,
+      weatherAlertHeadline: 'Adverse swell 1.5m ahead',
+      weatherAlertSubtext: '26kt wind, 1.5m seas, 130° swell',
+      weatherRiskLevel: 'high',
+      laycanBufferHours: 8.5,
+    },
+    degradedDays: [{ dayNumber: 4, rating: 'D', attainedCii: 5.12, requiredCii: 4.10 }],
+    heavyWeatherDays: [{ dayNumber: 5, beaufort: 6, waveHeightM: 1.5 }],
+  }
+
+  const questions = generateHeuristicQuestions(payload)
+  assert.equal(questions.length, 4)
+  // Must match Day 4 Grade D, NOT a non-existent Day 8 Grade E
+  assert.ok(questions.some((q) => q.label.includes('Day 4')))
+  assert.ok(!questions.some((q) => q.label.includes('Day 8')))
+  // Must match Weather Ahead from HUD, NOT BF 180
+  assert.ok(questions.some((q) => q.label.includes('Weather Ahead') || q.label.includes('BF 6')))
+  assert.ok(!questions.some((q) => q.label.includes('180')))
+  // Must match Speed 10.5 kts vs Laycan +8.5h
+  assert.ok(questions.some((q) => q.label.includes('10.5') && q.label.includes('8.5')))
+})
+
 test('generateAiSuggestedQuestions returns fallback heuristic questions when offline or empty', async () => {
   const res = await generateAiSuggestedQuestions({
     vesselName: 'PACIFIC CARRIER',
