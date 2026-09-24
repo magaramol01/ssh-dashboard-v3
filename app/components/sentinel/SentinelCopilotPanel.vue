@@ -38,6 +38,7 @@ interface Props {
   subtitle?: string
   badgeText?: string
   quickDirectives?: QuickDirective[]
+  loadingDirectives?: boolean
   activeContext?: Record<string, any>
   placeholder?: string
   initialMessage?: string
@@ -50,6 +51,7 @@ const props = withDefaults(defineProps<Props>(), {
   subtitle: 'AI Marine Intelligence',
   badgeText: 'AI Marine',
   quickDirectives: () => [],
+  loadingDirectives: false,
   activeContext: () => ({}),
   placeholder: 'Ask a question, query telemetry, or simulate scenarios...',
   initialMessage: 'Fleet Operations Copilot ready. Ask questions, evaluate performance, or select a directive below.',
@@ -59,6 +61,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   'update:fullscreen': [value: boolean]
   'applyAction': [action: SentinelAction]
+  'refreshDirectives': []
 }>()
 
 const internalFullscreen = ref(false)
@@ -242,11 +245,29 @@ function close() {
         </div>
 
         <!-- Quick Directives Chips -->
-        <div v-if="quickDirectives?.length" class="py-2.5 px-3.5 border-b border-border/60 bg-muted/10 shrink-0">
-          <div class="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1.5">
-            Quick Directives
+        <div v-if="quickDirectives?.length || loadingDirectives" class="py-2 px-3.5 border-b border-border/60 bg-muted/10 shrink-0">
+          <div class="flex items-center justify-between mb-1.5">
+            <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+              <Sparkles class="size-3 text-primary" :class="{ 'animate-pulse': loadingDirectives }" />
+              <span>AI Suggested Directives</span>
+            </div>
+            <button
+              type="button"
+              class="text-[10px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1 transition-colors cursor-pointer px-1 py-0.5 rounded hover:bg-muted/50"
+              :disabled="loadingDirectives"
+              title="Regenerate questions using Sentinel AI"
+              @click="emit('refreshDirectives')"
+            >
+              <RefreshCw class="size-2.5" :class="{ 'animate-spin': loadingDirectives }" />
+              <span>{{ loadingDirectives ? 'Analyzing...' : 'Refresh AI' }}</span>
+            </button>
           </div>
-          <div class="flex flex-wrap gap-1.5">
+          <div v-if="loadingDirectives && (!quickDirectives || quickDirectives.length === 0)" class="flex flex-wrap gap-1.5 animate-pulse">
+            <div class="h-6 w-32 bg-muted/60 rounded border border-border/40" />
+            <div class="h-6 w-40 bg-muted/60 rounded border border-border/40" />
+            <div class="h-6 w-36 bg-muted/60 rounded border border-border/40" />
+          </div>
+          <div v-else class="flex flex-wrap gap-1.5">
             <button
               v-for="chip in quickDirectives"
               :key="chip.label"

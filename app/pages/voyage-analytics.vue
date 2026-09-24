@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,6 +12,7 @@ import {
   ClipboardCheck,
   TrendingUp,
   Compass,
+  Sparkles,
 } from 'lucide-vue-next'
 import VoyageOptimizationHeaderBar from '~/components/voyage/VoyageOptimizationHeaderBar.vue'
 import VoyageOptimizationKpiHud from '~/components/voyage/VoyageOptimizationKpiHud.vue'
@@ -93,7 +94,7 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
-const voyageQuickDirectives = computed<QuickDirective[]>(() => {
+const heuristicDirectives = computed<QuickDirective[]>(() => {
   const vesselName = selectedVessel.value?.name || 'this vessel'
   const noons = dailyNoons.value || []
   const voyNum = selectedVoyage.value || mrvData.value?.voyage || 'active voyage'
@@ -193,6 +194,119 @@ const voyageQuickDirectives = computed<QuickDirective[]>(() => {
   return directives.slice(0, 4)
 })
 
+const aiDirectives = ref<QuickDirective[]>([])
+const loadingAiDirectives = ref(false)
+let directivesAbortController: AbortController | null = null
+
+const voyageQuickDirectives = computed<QuickDirective[]>(() => {
+  if (aiDirectives.value.length > 0) {
+    return aiDirectives.value
+  }
+  return heuristicDirectives.value
+})
+
+async function fetchAiQuestions(_force = false) {
+  if (directivesAbortController) {
+    directivesAbortController.abort()
+  }
+  directivesAbortController = new AbortController()
+
+  const vessel = selectedVessel.value
+  const noons = dailyNoons.value || []
+  const voyNum = selectedVoyage.value || mrvData.value?.voyage || 'active voyage'
+
+  const degradedDays = noons
+    .filter((d) => d.rating === 'D' || d.rating === 'E')
+    .map((d) => ({
+      dayNumber: d.dayNumber,
+      rating: d.rating,
+      attainedCii: d.attainedCii,
+      requiredCii: d.requiredCii,
+      sog: d.sog,
+      slipPct: d.slipPct,
+      weather: d.weather,
+    }))
+
+  const heavyWeatherDays = noons
+    .filter((d) => (d.weather?.beaufort || 0) >= 6 || (d.weather?.waveHeightM || 0) >= 2.5)
+    .map((d) => ({
+      dayNumber: d.dayNumber,
+      beaufort: d.weather?.beaufort,
+      waveHeightM: d.weather?.waveHeightM,
+    }))
+
+  const highSlipDays = noons
+    .filter((d) => d.slipPct >= 12)
+    .map((d) => ({
+      dayNumber: d.dayNumber,
+      slipPct: d.slipPct,
+    }))
+
+  const selected = selectedDay.value
+    ? {
+        dayNumber: selectedDay.value.dayNumber,
+        date: selectedDay.value.date,
+        rating: selectedDay.value.rating,
+        attainedCii: selectedDay.value.attainedCii,
+        requiredCii: selectedDay.value.requiredCii,
+        sog: selectedDay.value.sog,
+        slipPct: selectedDay.value.slipPct,
+        weather: selectedDay.value.weather,
+      }
+    : undefined
+
+  loadingAiDirectives.value = true
+  try {
+    const res = await $fetch<{ questions: Array<{ label: string; query: string; category?: string }>; source: string }>(
+      '/api/sentinel/suggested-questions',
+      {
+        method: 'POST',
+        body: {
+          vesselId: vessel?.id,
+          vesselName: vessel?.name,
+          voyage: voyNum,
+          selectedDay: selected,
+          degradedDays,
+          heavyWeatherDays,
+          highSlipDays,
+          totalDays: noons.length,
+        },
+        signal: directivesAbortController.signal,
+      }
+    )
+
+    if (res?.questions?.length) {
+      aiDirectives.value = res.questions.map((q) => {
+        let icon: any = Sparkles
+        if (q.category === 'degradation') icon = AlertTriangle
+        else if (q.category === 'weather') icon = Wind
+        else if (q.category === 'slip') icon = Gauge
+        else if (q.category === 'recovery') icon = TrendingUp
+        else if (q.category === 'audit') icon = ClipboardCheck
+        return {
+          label: q.label,
+          query: q.query,
+          icon,
+        }
+      })
+    }
+  } catch (err: any) {
+    if (err.name !== 'AbortError') {
+      console.warn('Could not fetch AI questions, using heuristic directives:', err)
+    }
+  } finally {
+    loadingAiDirectives.value = false
+  }
+}
+
+watch(
+  [() => selectedVessel.value?.id, () => selectedVoyage.value, () => selectedDay.value?.dayNumber],
+  () => {
+    aiDirectives.value = []
+    fetchAiQuestions()
+  }
+)
+
 const voyageCopilotInitialMessage = computed(() => {
   const name = selectedVessel.value?.name || 'this vessel'
   const noons = dailyNoons.value || []
@@ -217,6 +331,7 @@ onMounted(async () => {
     refreshAll(),
     fetchRouteWeather(),
   ])
+  fetchAiQuestions()
 })
 
 onBeforeUnmount(() => {
@@ -322,6 +437,8 @@ onBeforeUnmount(() => {
         subtitle="Voyage Performance, CII Trajectory & Speed Advisory"
         badge-text="Analytics"
         :quick-directives="voyageQuickDirectives"
+        :loading-directives="loadingAiDirectives"
+        @refresh-directives="() => fetchAiQuestions(true)"
         :initial-message="voyageCopilotInitialMessage"
         :active-context="{
           vesselId: Number(effectiveVesselId) || 1,

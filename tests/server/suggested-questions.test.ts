@@ -1,0 +1,103 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import {
+  extractJsonArray,
+  sanitizeSuggestedQuestions,
+  buildSuggestedQuestionsPrompt,
+  generateHeuristicQuestions,
+  generateAiSuggestedQuestions,
+  type SuggestedQuestionsPayload,
+} from '../../server/utils/sentinel/voyage/suggested-questions'
+
+test('extractJsonArray parses markdown json codeblocks and raw json arrays', () => {
+  const markdownInput = '```json\n[\n  {"label": "Weather penalty", "query": "Evaluate weather on fuel."}\n]\n```'
+  const parsed = extractJsonArray<any>(markdownInput)
+  assert.equal(parsed.length, 1)
+  assert.equal(parsed[0].label, 'Weather penalty')
+
+  const rawInput = '[{"label": "Slip spike", "query": "Why did slip reach 14%?"}]'
+  const parsedRaw = extractJsonArray<any>(rawInput)
+  assert.equal(parsedRaw.length, 1)
+  assert.equal(parsedRaw[0].label, 'Slip spike')
+
+  const invalidInput = 'I cannot process this request.'
+  const parsedInvalid = extractJsonArray(invalidInput)
+  assert.deepEqual(parsedInvalid, [])
+})
+
+test('sanitizeSuggestedQuestions filters invalid items and enforces character bounds', () => {
+  const dirty = [
+    null,
+    { label: '', query: 'empty label' },
+    { label: 'Valid Title That Is Relatively Long But Needs To Be Clamped Within Forty Five Characters Maximum', query: 'What is the speed loss?', category: 'slip' },
+    { label: 'Weather Impact', query: '   Analyze weather penalty.   ', category: 'unknown_cat' },
+  ]
+  const clean = sanitizeSuggestedQuestions(dirty)
+  assert.equal(clean.length, 2)
+  assert.ok(clean[0]!.label.length <= 45)
+  assert.equal(clean[0]!.category, 'slip')
+  assert.equal(clean[1]!.category, 'general')
+  assert.equal(clean[1]!.query, 'Analyze weather penalty.')
+})
+
+test('buildSuggestedQuestionsPrompt formats selected day and telemetry anomalies', () => {
+  const payload: SuggestedQuestionsPayload = {
+    vesselName: 'FUJIAN EXPRESS',
+    voyage: 'VOY-2024-04',
+    selectedDay: {
+      dayNumber: 16,
+      rating: 'E',
+      attainedCii: 7.82,
+      requiredCii: 4.85,
+      sog: 11.2,
+      slipPct: 14.2,
+      weather: { beaufort: 7, waveHeightM: 3.2 },
+    },
+    degradedDays: [{ dayNumber: 16, rating: 'E', attainedCii: 7.82, requiredCii: 4.85 }],
+    heavyWeatherDays: [{ dayNumber: 16, beaufort: 7, waveHeightM: 3.2 }],
+    highSlipDays: [{ dayNumber: 16, slipPct: 14.2 }],
+  }
+
+  const prompt = buildSuggestedQuestionsPrompt(payload)
+  assert.ok(prompt.includes('FUJIAN EXPRESS'))
+  assert.ok(prompt.includes('VOY-2024-04'))
+  assert.ok(prompt.includes('Day 16'))
+  assert.ok(prompt.includes('BF 7'))
+  assert.ok(prompt.includes('14.2%'))
+})
+
+test('generateHeuristicQuestions returns 4 contextual questions matching detected anomalies', () => {
+  const payload: SuggestedQuestionsPayload = {
+    vesselName: 'FUJIAN EXPRESS',
+    voyage: 'VOY-2024-04',
+    selectedDay: {
+      dayNumber: 16,
+      rating: 'E',
+      attainedCii: 7.82,
+      requiredCii: 4.85,
+      sog: 11.2,
+      slipPct: 14.2,
+      weather: { beaufort: 7 },
+    },
+    degradedDays: [{ dayNumber: 16, rating: 'E', attainedCii: 7.82, requiredCii: 4.85 }],
+    heavyWeatherDays: [{ dayNumber: 16, beaufort: 7 }],
+    highSlipDays: [{ dayNumber: 16, slipPct: 14.2 }],
+  }
+
+  const questions = generateHeuristicQuestions(payload)
+  assert.equal(questions.length, 4)
+  assert.ok(questions.some((q) => q.label.includes('Day 16')))
+  assert.ok(questions.some((q) => q.category === 'weather'))
+  assert.ok(questions.some((q) => q.category === 'slip'))
+  assert.ok(questions.some((q) => q.category === 'recovery'))
+})
+
+test('generateAiSuggestedQuestions returns fallback heuristic questions when offline or empty', async () => {
+  const res = await generateAiSuggestedQuestions({
+    vesselName: 'PACIFIC CARRIER',
+    voyage: 'VOY-2024-01',
+  })
+  assert.ok(Array.isArray(res.questions))
+  assert.ok(res.questions.length >= 2)
+  assert.ok(['ai', 'heuristic'].includes(res.source))
+})
