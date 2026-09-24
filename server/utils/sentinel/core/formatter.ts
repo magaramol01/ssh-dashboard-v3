@@ -24,10 +24,67 @@ function formatFinding(f: unknown): string {
   return String(f)
 }
 
+function extractGenericChartsFromPayload(value: Record<string, unknown>): SentinelBlock[] {
+  const chartBlocks: SentinelBlock[] = []
+
+  // Check array properties that hold series / records / trends / items
+  const candidateKeys = Object.keys(value).filter((k) => Array.isArray(value[k]))
+  for (const arrayKey of candidateKeys) {
+    const rawArray = value[arrayKey] as unknown[]
+    if (!Array.isArray(rawArray) || rawArray.length < 2) continue
+
+    const objects = rawArray.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+    if (objects.length < 2) continue
+
+    const keys = Object.keys(objects[0])
+    const labelKey = keys.find((k) => /^(day|date|time|timestamp|hour|period|label|name|vessel|key)/i.test(k)) || keys[0]
+    if (!labelKey) continue
+
+    // Find numeric candidate keys (excluding ids, years, timestamps)
+    const numericKeys = keys.filter((k) => {
+      if (k === labelKey) return false
+      if (/^(id|vesselid|imo|year|month)$/i.test(k)) return false
+      const numCount = objects.filter((o) => typeof o[k] === 'number' && Number.isFinite(o[k])).length
+      return numCount >= Math.ceil(objects.length * 0.5)
+    })
+
+    // For up to 2 numeric keys, produce a chart block
+    for (const numKey of numericKeys.slice(0, 2)) {
+      const points = objects
+        .map((o, idx) => {
+          const rawLabel = o[labelKey] ?? `Item ${idx + 1}`
+          const label = /day/i.test(labelKey) && typeof rawLabel === 'number' ? `Day ${rawLabel}` : String(rawLabel).slice(0, 80)
+          const val = Number(o[numKey])
+          return { label, value: val }
+        })
+        .filter((p) => Number.isFinite(p.value))
+
+      if (points.length >= 2) {
+        const formattedKey = numKey
+          .replace(/([A-Z])/g, ' $1')
+          .replace(/[_-]+/g, ' ')
+          .replace(/^\w/, (c) => c.toUpperCase())
+          .trim()
+          .slice(0, 100)
+
+        const isBar = /count|volume|frequency|distribution|total/i.test(numKey)
+        chartBlocks.push({
+          type: isBar ? 'bar-chart' : 'line-chart',
+          title: `${formattedKey} Trend`.slice(0, 120),
+          points: points.slice(0, 50),
+        })
+      }
+    }
+  }
+
+  return chartBlocks
+}
+
 function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
   const blocks: SentinelBlock[] = []
 
   for (const result of raw.toolResults) {
+    const blocksBefore = blocks.length
     let value: Record<string, unknown>
     try {
       value = JSON.parse(result.raw) as Record<string, unknown>
@@ -379,6 +436,33 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
           tone: 'warning',
         },
       )
+
+      const impacts = Array.isArray(value.dailyImpacts) ? (value.dailyImpacts as Array<Record<string, unknown>>) : []
+      const penaltyPoints = impacts
+        .filter((d) => typeof d.dayNumber === 'number' && typeof d.weatherFuelPenaltyMt === 'number' && Number.isFinite(d.weatherFuelPenaltyMt))
+        .map((d) => ({ label: `Day ${d.dayNumber}`, value: Number(d.weatherFuelPenaltyMt) }))
+        .slice(0, 30)
+
+      if (penaltyPoints.length > 0) {
+        blocks.push({
+          type: 'line-chart',
+          title: 'Daily Weather Fuel Penalty (MT)',
+          points: penaltyPoints,
+        })
+      }
+
+      const windPoints = impacts
+        .filter((d) => typeof d.dayNumber === 'number' && typeof d.windBf === 'number' && Number.isFinite(d.windBf))
+        .map((d) => ({ label: `Day ${d.dayNumber}`, value: Number(d.windBf) }))
+        .slice(0, 30)
+
+      if (windPoints.length > 0) {
+        blocks.push({
+          type: 'bar-chart',
+          title: 'Encountered Wind Force (Beaufort Scale)',
+          points: windPoints,
+        })
+      }
     }
 
     if (result.name === 'calculate_voyage_recovery_plan' && value.found !== false) {
@@ -473,6 +557,13 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
       .filter((point): point is { label: string; value: number } => Boolean(point && typeof point === 'object' && typeof point.label === 'string' && typeof point.value === 'number' && Number.isFinite(point.value)))
       .slice(0, 100) : []
     if (points.length) blocks.push({ type: 'line-chart', title: text(value.title, 'Telemetry trend'), points })
+
+    // Generic chart fallback: If this tool result has not emitted any chart, synthesize charts from any numeric series
+    const hasChart = blocks.slice(blocksBefore).some((b) => b.type === 'line-chart' || b.type === 'bar-chart')
+    if (!hasChart) {
+      const genericCharts = extractGenericChartsFromPayload(value)
+      blocks.push(...genericCharts)
+    }
   }
 
   return blocks.slice(0, 15)

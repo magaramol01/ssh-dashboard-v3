@@ -156,3 +156,38 @@ test('formatSentinelResponse formats noon report findings into human readable st
   const validated = sentinelResponseSchema.safeParse(response)
   assert.equal(validated.success, true)
 })
+
+test('formatSentinelResponse generically synthesizes line-chart from any numeric payload series', () => {
+  const raw = {
+    text: 'Generic telemetry series retrieved.',
+    toolResults: [
+      {
+        name: 'custom_telemetry_collector',
+        raw: JSON.stringify({
+          vesselId: 4,
+          timeline: [
+            { dayNumber: 1, fuelBurnRateMt: 18.2, shaftRpm: 72 },
+            { dayNumber: 2, fuelBurnRateMt: 19.5, shaftRpm: 74 },
+            { dayNumber: 3, fuelBurnRateMt: 22.1, shaftRpm: 78 },
+          ],
+        }),
+      },
+    ],
+    activity: [],
+    references: [],
+    actions: [],
+  }
+
+  const response = formatSentinelResponse(raw)
+  const charts = response.blocks.filter((b) => b.type === 'line-chart' || b.type === 'bar-chart')
+  assert.ok(charts.length >= 1, 'Should synthesize at least 1 chart block from timeline')
+
+  const lineChart = charts.find((c) => c.type === 'line-chart')
+  assert.ok(lineChart, 'Should have a line-chart block')
+  assert.equal(lineChart.points.length, 3)
+  assert.equal(lineChart.points[0].label, 'Day 1')
+  assert.equal(lineChart.points[0].value, 18.2)
+
+  const validated = sentinelResponseSchema.safeParse(response)
+  assert.equal(validated.success, true)
+})

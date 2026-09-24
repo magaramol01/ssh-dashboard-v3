@@ -101,7 +101,7 @@ test('Copilot tools initialize and bind to dynamic tenant context', async () => 
   const { createSentinelTools } = await import('../server/utils/sentinel/tools')
 
   const tools = createSentinelTools('asiaticlloyd')
-  assert.equal(tools.length, 9)
+  assert.equal(tools.length, 15)
 
   const toolNames = tools.map((t) => t.name)
   assert.ok(toolNames.includes('search_operational_alerts'))

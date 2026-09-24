@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { marked } from 'marked'
 import type { SentinelBlock } from '#shared/types/sentinel'
 import { cleanLatexMath } from '~/lib/utils'
+import InteractiveTableChart from './InteractiveTableChart.vue'
 
 type MarkdownBlockType = Extract<SentinelBlock, { type: 'markdown' }>
 
@@ -41,24 +42,89 @@ function applyMaritimeEnhancements(html: string): string {
   return enriched
 }
 
-const renderedHtml = computed(() => {
+interface HtmlChunk {
+  type: 'html'
+  html: string
+}
+
+interface TableChunk {
+  type: 'table'
+  columns: Array<{ key: string; label: string }>
+  rows: Array<Record<string, any>>
+}
+
+type ContentChunk = HtmlChunk | TableChunk
+
+const contentChunks = computed<ContentChunk[]>(() => {
   const content = props.text ?? props.block?.text ?? ''
-  if (!content.trim()) return ''
+  if (!content.trim()) return []
+
   try {
     const sanitized = cleanLatexMath(content)
-    const rawParsed = marked.parse(sanitized) as string
-    return applyMaritimeEnhancements(rawParsed)
+    const tokens = marked.lexer(sanitized)
+    const chunks: ContentChunk[] = []
+    let currentTokens: any[] = []
+
+    const flushHtml = () => {
+      if (currentTokens.length > 0) {
+        const rawHtml = marked.parser(currentTokens as any)
+        chunks.push({
+          type: 'html',
+          html: applyMaritimeEnhancements(rawHtml),
+        })
+        currentTokens = []
+      }
+    }
+
+    for (const token of tokens) {
+      if (token.type === 'table') {
+        flushHtml()
+
+        const header = (token as any).header || []
+        const columns = header.map((h: any, colIdx: number) => ({
+          key: `col_${colIdx}`,
+          label: (h.text || `Col ${colIdx + 1}`).replace(/^\*{1,2}(.*?)\*{1,2}$/, '$1').trim(),
+        }))
+
+        const rawRows = (token as any).rows || []
+        const rows = rawRows.map((row: any[]) => {
+          const rowObj: Record<string, any> = {}
+          row.forEach((cell: any, colIdx: number) => {
+            rowObj[`col_${colIdx}`] = (cell.text ?? '').replace(/^\*{1,2}(.*?)\*{1,2}$/, '$1').trim()
+          })
+          return rowObj
+        })
+
+        chunks.push({
+          type: 'table',
+          columns,
+          rows,
+        })
+      } else {
+        currentTokens.push(token)
+      }
+    }
+
+    flushHtml()
+    return chunks
   } catch {
-    return content
+    return [{ type: 'html', html: props.text ?? props.block?.text ?? '' }]
   }
 })
 </script>
 
 <template>
-  <div
-    class="sentinel-markdown-content text-xs text-foreground leading-relaxed space-y-2 select-text"
-    v-html="renderedHtml"
-  />
+  <div class="sentinel-markdown-content text-xs text-foreground leading-relaxed space-y-2 select-text">
+    <template v-for="(chunk, idx) in contentChunks" :key="idx">
+      <div v-if="chunk.type === 'html'" v-html="chunk.html" />
+      <InteractiveTableChart
+        v-else-if="chunk.type === 'table'"
+        :columns="chunk.columns"
+        :rows="chunk.rows"
+        initial-mode="auto"
+      />
+    </template>
+  </div>
 </template>
 
 <style scoped>

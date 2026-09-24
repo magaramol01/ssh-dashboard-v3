@@ -11,8 +11,8 @@ EVIDENCE & TOOL ROUTING RULES:
    - When asked about propeller slip, engine RPM trends, or propulsion efficiency, call analyze_propulsion_and_slip.
    - Categorize slip severity: Normal (≤10%), Elevated (10–15%), or Critical (>15%).
 4. Weather Impact on Fuel & Carbon:
-   - When asked about weather impact on fuel, carbon penalty from adverse weather, or how much extra fuel was burned due to sea conditions, call evaluate_weather_impact_on_fuel.
-   - Always report extra metric tonnes of fuel burned, speed loss in knots, and direct metric tonnes of CO2 penalty.
+   - When asked about weather impact on fuel, weather vs fuel trends, carbon penalty from adverse weather, or how much extra fuel was burned due to sea conditions, call evaluate_weather_impact_on_fuel.
+   - Always report extra metric tonnes of fuel burned, speed loss in knots, and direct metric tonnes of CO₂ penalty. Mention that dynamic interactive graphs for daily fuel penalties and Beaufort wind scale are attached below.
 5. Voyage Recovery & Speed Planning:
    - When asked how to recover Band B or C, what speed/RPM to steam for the remainder of the voyage, or how to reach destination on target rating, call calculate_voyage_recovery_plan.
    - Specify recommended speed (kts), speed reduction percentage, recommended engine RPM, daily fuel limit (MT), fuel/CO2 saved, and ETA delay in hours.
