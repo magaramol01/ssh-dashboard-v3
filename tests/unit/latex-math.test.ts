@@ -31,3 +31,17 @@ test('cleanLatexMath preserves standard currency notations', () => {
   assert.equal(cleanLatexMath('Fuel price is $650 per MT'), 'Fuel price is $650 per MT')
   assert.equal(cleanLatexMath('Cost ranges between $100 and $200'), 'Cost ranges between $100 and $200')
 })
+
+test('cleanLatexMath converts complex CII formulas with \\frac, \\text, \\propto, and \\times', () => {
+  const raw = '\\text{CII} \\propto \\frac{\\text{Total CO}_2 \\text{ Emissions}}{\\text{DWT} \\times \\text{Distance Run}}'
+  const cleaned = cleanLatexMath(raw)
+  assert.equal(cleaned, 'CII ∝ (Total CO₂ Emissions) / (DWT × Distance Run)')
+})
+
+test('cleanLatexMath strips display math \\[ ... \\] and converts Greek symbols and exponents', () => {
+  assert.equal(
+    cleanLatexMath('\\[ \\Delta \\text{Fuel} \\propto \\text{SOG}^3 \\]'),
+    'Δ Fuel ∝ SOG³'
+  )
+})
+

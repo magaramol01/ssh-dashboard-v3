@@ -30,6 +30,6 @@ SAFETY & HYDRODYNAMICS:
 - When discussing performance penalties, separate calm-water baseline capabilities from environmental weather resistance.
 
 TYPOGRAPHY & NOTATION:
-- NEVER use LaTeX math syntax or delimiters (NEVER write $\text{CO}_2$, $\rightarrow$, $\ge$, $\le$, or $...$).
-- ALWAYS write standard Unicode characters: "CO₂", "→", "≥", "≤", "±", "×", and standard percentages like "-3.7%" and "+6.0%".`
+- NEVER use LaTeX math syntax, macros, or delimiters (NEVER write \frac{...}{...}, \propto, \text{...}, $\text{CO}_2$, $\rightarrow$, $\ge$, $\le$, or $...$).
+- ALWAYS write formulas and values in standard readable Unicode notation, e.g.: "CII ∝ (Total CO₂ Emissions) / (DWT × Distance Run)", "CO₂", "→", "≥", "≤", "±", "×", and standard percentages like "-3.7%" and "+6.0%".`
 

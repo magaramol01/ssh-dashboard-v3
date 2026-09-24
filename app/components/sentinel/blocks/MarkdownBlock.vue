@@ -39,6 +39,12 @@ function applyMaritimeEnhancements(html: string): string {
   // Currency formats
   enriched = enriched.replace(/([€$]\s*[\d,]+(?:\.\d+)?)/g, '<span class="font-semibold tabular-nums text-foreground font-mono">$1</span>')
 
+  // Mathematical formula callouts (e.g. CII ∝ (Total CO₂ Emissions) / (DWT × Distance Run))
+  enriched = enriched.replace(
+    /\b(CII\s*[∝=]\s*(?:\([^)]+\)|[A-Za-z0-9_₂\s]+)\s*\/\s*(?:\([^)]+\)|[A-Za-z0-9_₂\s×*]+))/g,
+    '<code class="inline-block px-2 py-0.5 my-1 text-[11px] font-mono font-medium rounded bg-muted/80 text-foreground border border-border/60">$1</code>'
+  )
+
   return enriched
 }
 
