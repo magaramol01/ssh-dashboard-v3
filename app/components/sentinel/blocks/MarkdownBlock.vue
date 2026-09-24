@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { marked } from 'marked'
 import type { SentinelBlock } from '#shared/types/sentinel'
+import { cleanLatexMath } from '~/lib/utils'
 
 type MarkdownBlockType = Extract<SentinelBlock, { type: 'markdown' }>
 
@@ -44,7 +45,8 @@ const renderedHtml = computed(() => {
   const content = props.text ?? props.block?.text ?? ''
   if (!content.trim()) return ''
   try {
-    const rawParsed = marked.parse(content) as string
+    const sanitized = cleanLatexMath(content)
+    const rawParsed = marked.parse(sanitized) as string
     return applyMaritimeEnhancements(rawParsed)
   } catch {
     return content

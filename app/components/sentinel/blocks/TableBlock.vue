@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { SentinelBlock } from '#shared/types/sentinel'
 import { Table as TableIcon } from 'lucide-vue-next'
+import { cleanLatexMath } from '~/lib/utils'
 
 type TableBlock = Extract<SentinelBlock, { type: 'table' }>
 defineProps<{ block: TableBlock }>()
@@ -9,11 +10,11 @@ function formatCell(val: unknown): string {
   if (val === null || val === undefined || val === '') return '—'
   if (typeof val === 'object') {
     if (Array.isArray(val)) {
-      return val.map((item) => (typeof item === 'object' ? JSON.stringify(item) : String(item))).join('; ')
+      return cleanLatexMath(val.map((item) => (typeof item === 'object' ? JSON.stringify(item) : String(item))).join('; '))
     }
-    return JSON.stringify(val)
+    return cleanLatexMath(JSON.stringify(val))
   }
-  return String(val)
+  return cleanLatexMath(String(val))
 }
 </script>
 
@@ -22,7 +23,7 @@ function formatCell(val: unknown): string {
     <div class="flex items-center justify-between border-b border-border/60 bg-muted/30 px-3.5 py-2.5">
       <div class="flex items-center gap-2 min-w-0">
         <TableIcon class="size-3.5 text-primary shrink-0" />
-        <p class="text-[11px] font-bold uppercase tracking-wider text-foreground truncate">{{ block.title }}</p>
+        <p class="text-[11px] font-bold uppercase tracking-wider text-foreground truncate">{{ cleanLatexMath(block.title) }}</p>
       </div>
       <span class="text-[10px] font-medium text-muted-foreground font-mono shrink-0">
         {{ block.rows.length }} {{ block.rows.length === 1 ? 'row' : 'rows' }}
@@ -37,7 +38,7 @@ function formatCell(val: unknown): string {
               :key="column.key"
               class="whitespace-nowrap px-3 py-2 font-semibold border-b border-border/60 text-[10px] uppercase tracking-wider"
             >
-              {{ column.label }}
+              {{ cleanLatexMath(column.label) }}
             </th>
           </tr>
         </thead>
