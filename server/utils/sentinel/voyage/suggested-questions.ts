@@ -200,8 +200,14 @@ export function generateHeuristicQuestions(payload: SuggestedQuestionsPayload): 
   // 3. Weather Alert from Screen HUD or heavy weather encounters
   if (payload.hud?.weatherAlertHeadline && payload.hud.weatherAlertHeadline !== 'Favorable passage weather') {
     const headline = payload.hud.weatherAlertHeadline
+    const sub = payload.hud.weatherAlertSubtext || ''
+    const parts = sub.split(',').map((p) => p.trim()).filter(Boolean)
+    const weatherPillText = parts.length >= 2
+      ? `${parts[0]}, ${parts[1]}`
+      : (sub.replace(/,\s*$/, '').trim().slice(0, 22).replace(/,\s*$/, '').trim() || 'Adverse Sea State')
+
     items.push({
-      label: `Weather Ahead (${payload.hud.weatherAlertSubtext?.slice(0, 22) || 'Adverse Sea State'})`,
+      label: `Weather Ahead (${weatherPillText})`,
       query: `Evaluate the operational impact, weather fuel penalty, and speed loss from ${headline} (${payload.hud.weatherAlertSubtext || ''}) on ${vesselName}.`,
       category: 'weather',
     })

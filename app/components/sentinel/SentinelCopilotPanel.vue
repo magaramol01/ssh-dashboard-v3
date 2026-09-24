@@ -196,10 +196,14 @@ function close() {
         :aria-label="title"
       >
         <!-- Copilot Header -->
-        <div class="flex h-[52px] shrink-0 items-center justify-between border-b border-border px-4 bg-muted/20">
+        <div class="flex h-[52px] shrink-0 items-center justify-between border-b border-border px-4 bg-muted/20 backdrop-blur-xs">
           <div class="flex items-center gap-2.5 min-w-0">
-            <div class="size-7 rounded-md bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
+            <div class="relative size-7 rounded-md bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
               <Sparkles class="size-4 text-primary" />
+              <span class="absolute -top-0.5 -right-0.5 flex size-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span class="relative inline-flex rounded-full size-2 bg-emerald-500" />
+              </span>
             </div>
             <div class="min-w-0">
               <div class="flex items-center gap-2 leading-none">
@@ -245,15 +249,15 @@ function close() {
         </div>
 
         <!-- Quick Directives Chips -->
-        <div v-if="quickDirectives?.length || loadingDirectives" class="py-2 px-3.5 border-b border-border/60 bg-muted/10 shrink-0">
-          <div class="flex items-center justify-between mb-1.5">
+        <div v-if="quickDirectives?.length || loadingDirectives" class="py-2.5 px-3.5 border-b border-border/60 bg-muted/10 shrink-0">
+          <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
               <Sparkles class="size-3 text-primary" :class="{ 'animate-pulse': loadingDirectives }" />
               <span>AI Suggested Directives</span>
             </div>
             <button
               type="button"
-              class="text-[10px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1 transition-colors cursor-pointer px-1 py-0.5 rounded hover:bg-muted/50"
+              class="text-[10px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1 transition-colors cursor-pointer px-1.5 py-0.5 rounded hover:bg-muted/50"
               :disabled="loadingDirectives"
               title="Regenerate questions using Sentinel AI"
               @click="emit('refreshDirectives')"
@@ -272,7 +276,7 @@ function close() {
               v-for="chip in quickDirectives"
               :key="chip.label"
               type="button"
-              class="inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-1 rounded border border-border/80 bg-background hover:border-primary/50 hover:bg-primary/5 text-foreground transition-all cursor-pointer"
+              class="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md border border-border/80 bg-background/90 hover:border-primary/60 hover:bg-primary/5 hover:text-primary text-foreground transition-all cursor-pointer shadow-2xs active:scale-[0.98]"
               @click="handleSend(chip.query)"
             >
               <component :is="chip.icon" v-if="chip.icon" class="size-3 text-primary shrink-0" />
@@ -287,15 +291,26 @@ function close() {
             <div v-for="msg in messages" :key="msg.id" class="space-y-2">
               <!-- User Message Bubble -->
               <div v-if="msg.role === 'user'" class="flex justify-end">
-                <div class="rounded-lg bg-primary text-primary-foreground px-3 py-2 text-xs font-medium shadow-xs max-w-[85%]">
+                <div class="rounded-lg bg-primary text-primary-foreground px-3.5 py-2 text-xs font-medium shadow-xs max-w-[85%] leading-relaxed">
                   {{ msg.content }}
                 </div>
               </div>
 
               <!-- Copilot Structured Response -->
-              <div v-else class="rounded-lg border border-border/80 bg-background/90 p-3 space-y-2.5 shadow-xs">
+              <div v-else class="rounded-lg border border-border/80 border-l-[3px] border-l-primary/70 bg-background/95 p-3.5 space-y-3 shadow-xs">
+                <!-- Response Sub-header -->
+                <div class="flex items-center justify-between pb-1.5 border-b border-border/40 text-[10px] text-muted-foreground font-mono">
+                  <span class="flex items-center gap-1.5">
+                    <Sparkles class="size-3 text-primary shrink-0" />
+                    <span class="font-medium text-foreground">Sentinel Copilot</span>
+                  </span>
+                  <span class="text-[9px] uppercase tracking-wider px-1.5 py-0.2 rounded bg-muted/70 text-muted-foreground border border-border/40">
+                    Passage Intelligence
+                  </span>
+                </div>
+
                 <!-- Thinking & Tool Invocations Inspector -->
-                <div v-if="msg.thought || msg.tools?.length" class="pb-1">
+                <div v-if="msg.thought || msg.tools?.length" class="pb-0.5">
                   <details class="group text-[11px] rounded-md border border-border/60 bg-muted/20 overflow-hidden">
                     <summary class="flex items-center justify-between cursor-pointer px-2.5 py-1.5 hover:bg-muted/40 select-none transition-colors">
                       <div class="inline-flex items-center gap-1.5 text-muted-foreground font-medium text-[11px]">
@@ -303,7 +318,12 @@ function close() {
                         <Wrench v-else class="size-3.5 text-emerald-500 shrink-0" />
                         <span>{{ traceSummaryLabel(msg) }}</span>
                       </div>
-                      <ChevronDown class="size-3.5 text-muted-foreground transition-transform group-open:rotate-180" />
+                      <div class="flex items-center gap-1.5">
+                        <span v-if="msg.tools?.length" class="text-[9px] font-mono px-1 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-semibold">
+                          {{ msg.tools.length }} tools
+                        </span>
+                        <ChevronDown class="size-3.5 text-muted-foreground transition-transform group-open:rotate-180" />
+                      </div>
                     </summary>
 
                     <div class="p-2.5 space-y-2.5 border-t border-border/40 bg-background/50">
@@ -313,7 +333,7 @@ function close() {
                           <Brain class="size-3 text-primary shrink-0" />
                           <span>Chain-of-Thought &amp; Diagnosis</span>
                         </div>
-                        <div class="p-2 rounded bg-muted/30 border border-border/50 text-[11px] text-muted-foreground leading-relaxed whitespace-pre-line font-mono">
+                        <div class="p-2 rounded bg-muted/30 border border-border/50 text-[11px] text-muted-foreground leading-relaxed whitespace-pre-line font-mono max-h-64 overflow-y-auto">
                           {{ msg.thought }}
                         </div>
                       </div>
@@ -366,13 +386,13 @@ function close() {
                 />
 
                 <!-- Interactive Actions -->
-                <div v-if="msg.actions?.length" class="pt-1.5 border-t border-border/40 flex flex-wrap gap-1.5">
+                <div v-if="msg.actions?.length" class="pt-2 border-t border-border/40 flex flex-wrap gap-1.5">
                   <Button
                     v-for="act in msg.actions"
                     :key="act.label"
                     variant="outline"
                     size="sm"
-                    class="h-6 text-[11px] font-medium px-2 py-0 border-primary/40 hover:bg-primary/10 text-foreground cursor-pointer gap-1 transition-colors"
+                    class="h-6.5 text-[11px] font-medium px-2.5 py-0 border-primary/40 hover:bg-primary/10 text-foreground cursor-pointer gap-1 transition-colors shadow-2xs"
                     @click="handleAction(act.action)"
                   >
                     <ArrowUpRight class="size-2.5 text-primary shrink-0" />

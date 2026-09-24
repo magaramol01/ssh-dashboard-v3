@@ -1,11 +1,27 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { SentinelBlock } from '#shared/types/sentinel'
 
 type KpiBlock = Extract<SentinelBlock, { type: 'kpi' }>
-defineProps<{
+const props = defineProps<{
   block: KpiBlock
   isHighlight?: boolean
 }>()
+
+const scopeBadge = computed(() => {
+  const lbl = props.block.label.toLowerCase()
+  const dtl = String(props.block.detail || '').toLowerCase()
+  if (lbl.includes('passage') || lbl.includes('voyage') || dtl.includes('cumulative') || dtl.includes('across')) {
+    return 'Passage Scope'
+  }
+  if (lbl.includes('fleet') || lbl.includes('network')) {
+    return 'Fleet Scope'
+  }
+  if (lbl.includes('audit') || lbl.includes('verdict')) {
+    return 'Audit Verdict'
+  }
+  return null
+})
 </script>
 
 <template>
@@ -24,9 +40,17 @@ defineProps<{
   >
     <div>
       <div class="flex items-center justify-between gap-1.5">
-        <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">
-          {{ block.label }}
-        </p>
+        <div class="flex items-center gap-1.5 truncate">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">
+            {{ block.label }}
+          </p>
+          <span
+            v-if="scopeBadge"
+            class="text-[8.5px] font-semibold tracking-wider uppercase px-1 py-0.2 rounded bg-muted/70 text-muted-foreground border border-border/50 shrink-0 font-mono"
+          >
+            {{ scopeBadge }}
+          </span>
+        </div>
         <span
           v-if="block.tone && block.tone !== 'default'"
           class="size-1.5 rounded-full shrink-0"

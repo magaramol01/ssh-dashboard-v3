@@ -21,20 +21,20 @@ marked.setOptions({
 function applyMaritimeEnhancements(html: string): string {
   let enriched = html
 
-  // IMO Grade Badges
-  enriched = enriched.replace(/\b(Grade\s+A)\b/gi, '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-bold text-[10px] bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30">$1</span>')
-  enriched = enriched.replace(/\b(Grade\s+B)\b/gi, '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-bold text-[10px] bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">$1</span>')
-  enriched = enriched.replace(/\b(Grade\s+C)\b/gi, '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-bold text-[10px] bg-lime-500/15 text-lime-700 dark:text-lime-400 border border-lime-500/30">$1</span>')
-  enriched = enriched.replace(/\b(Grade\s+D)\b/gi, '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-bold text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">$1</span>')
-  enriched = enriched.replace(/\b(Grade\s+E)\b/gi, '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-bold text-[10px] bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">$1</span>')
+  // IMO Grade / Band Badges (Grade A-E or Band A-E)
+  enriched = enriched.replace(/\b((?:Grade|Band)\s+A)\b/gi, '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-bold text-[10px] bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30 font-mono">$1</span>')
+  enriched = enriched.replace(/\b((?:Grade|Band)\s+B)\b/gi, '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-bold text-[10px] bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-mono">$1</span>')
+  enriched = enriched.replace(/\b((?:Grade|Band)\s+C)\b/gi, '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-bold text-[10px] bg-lime-500/15 text-lime-700 dark:text-lime-400 border border-lime-500/30 font-mono">$1</span>')
+  enriched = enriched.replace(/\b((?:Grade|Band)\s+D)\b/gi, '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-bold text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 font-mono">$1</span>')
+  enriched = enriched.replace(/\b((?:Grade|Band)\s+E)\b/gi, '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-bold text-[10px] bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 font-mono">$1</span>')
 
   // Validation Severities in tables / lists
-  enriched = enriched.replace(/\b(CRITICAL)\b/g, '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-bold text-[9px] bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 uppercase tracking-wide">CRITICAL</span>')
-  enriched = enriched.replace(/\b(WARNING)\b/g, '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-bold text-[9px] bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30 uppercase tracking-wide">WARNING</span>')
-  enriched = enriched.replace(/\b(PASSED|PASS|APPROVE\b)/g, '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-bold text-[9px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 uppercase tracking-wide">$1</span>')
+  enriched = enriched.replace(/\b(CRITICAL)\b/g, '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-bold text-[9px] bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 uppercase tracking-wide font-mono">CRITICAL</span>')
+  enriched = enriched.replace(/\b(WARNING)\b/g, '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-bold text-[9px] bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30 uppercase tracking-wide font-mono">WARNING</span>')
+  enriched = enriched.replace(/\b(PASSED|PASS|APPROVE\b)/g, '<span class="inline-flex items-center px-1.5 py-0.2 rounded font-bold text-[9px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 uppercase tracking-wide font-mono">$1</span>')
 
   // Marine units and telemetry chips
-  enriched = enriched.replace(/\b(\d[\d,]*(?:\.\d+)?\s*(?:rpm|RPM|knots|kts|kt|nm|NM|bar|°C|kW|hours|hrs|UTC|DWT|DWT-nm|dwt-nm|gCO[2₂]\/(?:dwt-nm|tnm|MT·NM)|MT\s*CO[2₂]?|MT))\b/g, '<span class="tabular-nums text-[10.5px] font-semibold text-foreground bg-muted/60 px-1 py-0.5 rounded border border-border/40 font-mono">$1</span>')
+  enriched = enriched.replace(/\b(\d[\d,]*(?:\.\d+)?\s*(?:rpm|RPM|knots|kts|kt|nm|NM|bar|°C|kW|hours|hrs|UTC|DWT|DWT-nm|dwt-nm|g\s*CO[2₂]?\s*\/\s*(?:\(\s*DWT\s*[×*]\s*NM\s*\)|dwt-nm|tnm|MT·NM)|MT\s*CO[2₂]?|MT))(?:\b|(?<=\)))/g, '<span class="tabular-nums text-[10.5px] font-semibold text-foreground bg-muted/60 px-1 py-0.5 rounded border border-border/40 font-mono">$1</span>')
 
   // Currency formats
   enriched = enriched.replace(/([€$]\s*[\d,]+(?:\.\d+)?)/g, '<span class="font-semibold tabular-nums text-foreground font-mono">$1</span>')

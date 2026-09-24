@@ -134,8 +134,16 @@ const heuristicDirectives = computed<QuickDirective[]>(() => {
 
   // 3. Screen HUD Weather Alert or Heavy Weather Encounters
   if (kpi?.weatherAlertHeadline && kpi.weatherAlertHeadline !== 'Favorable passage weather') {
+    const weatherPillText = (() => {
+      const sub = kpi.weatherAlertSubtext || ''
+      const parts = sub.split(',').map((p) => p.trim()).filter(Boolean)
+      if (parts.length >= 2) return `${parts[0]}, ${parts[1]}`
+      const clean = sub.replace(/,\s*$/, '').trim()
+      return clean.length > 24 ? `${clean.slice(0, 20).replace(/,\s*$/, '').trim()}…` : (clean || 'Adverse Sea State')
+    })()
+
     directives.push({
-      label: `Weather Ahead (${kpi.weatherAlertSubtext?.slice(0, 22) || 'Adverse Sea State'})`,
+      label: `Weather Ahead (${weatherPillText})`,
       query: `Evaluate the operational impact and added fuel penalty of ${kpi.weatherAlertHeadline} (${kpi.weatherAlertSubtext || ''}) on ${vesselName}.`,
       icon: Wind,
     })

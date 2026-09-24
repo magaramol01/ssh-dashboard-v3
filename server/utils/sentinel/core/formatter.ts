@@ -379,7 +379,7 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
       }
       blocks.push({
         type: 'kpi',
-        label: 'Degraded Days',
+        label: 'Degraded Days (Passage)',
         value: `${text(value.degradedDayCount, '0')} of ${text(value.totalVoyageDays, '0')} days`,
         detail: text(value.overallDiagnosis, 'Performance assessment complete').slice(0, 200),
         tone: Number(value.degradedDayCount) > 0 ? 'warning' : 'success',
@@ -405,7 +405,7 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
       const maxDay = value.maxSlipDay as Record<string, unknown> | undefined
       blocks.push({
         type: 'kpi',
-        label: 'Average Propeller Slip',
+        label: 'Passage Avg Propeller Slip',
         value: `${text(value.averageSlipPercent, '0')}%`,
         detail: maxDay ? `Peak ${text(maxDay.slipPercent)}% on Day ${text(maxDay.dayNumber)} (Bf ${text(maxDay.windBf)})` : undefined,
         tone: status === 'critical' ? 'destructive' : status === 'elevated' ? 'warning' : 'success',
@@ -413,26 +413,31 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
     }
 
     if (result.name === 'evaluate_weather_impact_on_fuel' && value.found !== false && value.weatherFuelPenaltyMt !== undefined) {
+      const totalDays = Array.isArray(value.dailyImpacts) ? value.dailyImpacts.length : 0
+      const daysCountText = totalDays > 0 ? `across ${totalDays} days` : 'passage total'
+      const worstDay = value.worstWeatherDay as Record<string, unknown> | undefined
+      const peakDayText = worstDay ? ` · Peak Day ${worstDay.dayNumber} (-${worstDay.speedLossKts} kts)` : ''
+
       blocks.push(
         {
           type: 'kpi',
-          label: 'Weather Fuel Penalty',
+          label: 'Passage Weather Penalty',
           value: `+${text(value.weatherFuelPenaltyMt, '0')} MT`,
-          detail: `+${text(value.weatherFuelPenaltyPercent, '0')}% over calm baseline (${text(value.baselineCalmWaterFuelMt, '0')} MT)`,
+          detail: `Cumulative ${daysCountText} · +${text(value.weatherFuelPenaltyPercent, '0')}% over calm baseline (${text(value.baselineCalmWaterFuelMt, '0')} MT)`,
           tone: Number(value.weatherFuelPenaltyMt) > 0 ? 'warning' : 'success',
         },
         {
           type: 'kpi',
-          label: 'Weather Speed Loss',
+          label: 'Passage Avg Speed Loss',
           value: `-${text(value.averageSpeedLossKnots, '0')} kts`,
-          detail: `${text(value.heavyWeatherDaysCount, '0')} heavy weather days (Beaufort 6+)`,
+          detail: `${text(value.heavyWeatherDaysCount, '0')} heavy weather days (Beaufort 6+)${peakDayText}`,
           tone: Number(value.averageSpeedLossKnots) > 1.0 ? 'warning' : 'default',
         },
         {
           type: 'kpi',
-          label: 'Weather CO₂ Impact',
+          label: 'Passage Weather CO₂',
           value: `+${text(value.weatherCo2PenaltyMt, '0')} MT CO₂`,
-          detail: 'Added emissions from wind and wave resistance',
+          detail: `Cumulative emissions from wind and wave resistance (${daysCountText})`,
           tone: 'warning',
         },
       )
