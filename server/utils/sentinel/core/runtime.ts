@@ -232,7 +232,7 @@ export async function runSentinelConversation(
   let rawMessages: Array<Record<string, any>> = []
   if (onStreamEvent) {
     try {
-      const eventStream = graph.streamEvents({ messages }, { version: 'v2', recursionLimit: 20 })
+      const eventStream = graph.streamEvents({ messages }, { version: 'v2', recursionLimit: 50 })
       for await (const ev of eventStream) {
         if (ev.event === 'on_tool_start') {
           await onStreamEvent({
@@ -269,20 +269,22 @@ export async function runSentinelConversation(
         }
       }
     } catch (err: unknown) {
-      const stateMessages = (err as any)?.state?.messages
+      const stateMessages = (err as any)?.state?.messages || (err as any)?.state?.values?.messages || (err as any)?.messages
       if (Array.isArray(stateMessages) && stateMessages.length) {
         console.warn('Sentinel reached recursion limit in stream; recovering partial results')
         rawMessages = stateMessages as Array<Record<string, any>>
+      } else if (rawMessages.length > 0) {
+        console.warn('Sentinel stream interrupted; using accumulated stream messages')
       } else {
         throw err
       }
     }
   } else {
     try {
-      const result = await graph.invoke({ messages }, { recursionLimit: 20 })
+      const result = await graph.invoke({ messages }, { recursionLimit: 50 })
       rawMessages = Array.isArray(result.messages) ? (result.messages as Array<Record<string, any>>) : []
     } catch (err: unknown) {
-      const stateMessages = (err as any)?.state?.messages
+      const stateMessages = (err as any)?.state?.messages || (err as any)?.state?.values?.messages || (err as any)?.messages
       if (Array.isArray(stateMessages) && stateMessages.length) {
         console.warn('Sentinel reached recursion limit; recovering partial tool results')
         rawMessages = stateMessages as Array<Record<string, any>>
