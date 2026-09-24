@@ -1,8 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
-import { SlidersHorizontal, Activity, Calendar } from 'lucide-vue-next'
+import {
+  SlidersHorizontal,
+  Activity,
+  Calendar,
+  AlertTriangle,
+  Wind,
+  Gauge,
+  ClipboardCheck,
+  TrendingUp,
+  Compass,
+} from 'lucide-vue-next'
 import VoyageOptimizationHeaderBar from '~/components/voyage/VoyageOptimizationHeaderBar.vue'
 import VoyageOptimizationKpiHud from '~/components/voyage/VoyageOptimizationKpiHud.vue'
 import VoyageOptimizationMap from '~/components/voyage/VoyageOptimizationMap.vue'
@@ -23,6 +33,9 @@ const {
   selectDay,
   selectedVessel,
   effectiveVesselId,
+  selectedVoyage,
+  currentVoyage,
+  currentVoyageInfo,
   mrvData,
 } = useVoyageOptimization()
 
@@ -80,24 +93,120 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
-const voyageQuickDirectives: QuickDirective[] = [
-  {
-    label: 'Why did rating drop to D/E?',
-    query: 'Analyze the primary factors (heavy weather, propeller slip, speed loss) causing recent CII rating degradation on this voyage.',
-  },
-  {
-    label: 'How to recover Band B?',
-    query: 'What speed reduction or RPM adjustment is required to recover IMO Band B trajectory for the remainder of this passage?',
-  },
-  {
-    label: 'Weather Impact on Fuel',
-    query: 'Evaluate the added fuel consumption and carbon penalty caused by adverse MetOcean conditions along this route.',
-  },
-  {
-    label: 'Simulate -10% Speed Cut',
-    query: 'Simulate a 10% speed reduction and calculate projected CII rating and fuel savings.',
-  },
-]
+const voyageQuickDirectives = computed<QuickDirective[]>(() => {
+  const vesselName = selectedVessel.value?.name || 'this vessel'
+  const noons = dailyNoons.value || []
+  const voyNum = selectedVoyage.value || mrvData.value?.voyage || 'active voyage'
+  const directives: QuickDirective[] = []
+
+  // 1. Contextual Day Selection (Highest priority if user explicitly clicked a day in the timeline/drawer)
+  if (selectedDay.value) {
+    const day = selectedDay.value
+    const dayRating = day.rating || 'C'
+    const isDegraded = dayRating === 'D' || dayRating === 'E'
+    directives.push({
+      label: `Audit Day ${day.dayNumber} (${isDegraded ? `Degraded ` : ''}Grade ${dayRating})`,
+      query: `Analyze Day ${day.dayNumber} performance on ${vesselName}. Why is attained CII ${day.attainedCii} (Grade ${dayRating}) with ${day.sog} kts SOG and ${day.slipPct}% slip in BF ${day.weather?.beaufort || 0} conditions?`,
+      icon: isDegraded ? AlertTriangle : Compass,
+    })
+  }
+
+  // 2. Suspicious / Degraded Days (Grade D or E)
+  const degradedDays = noons.filter((d) => d.rating === 'D' || d.rating === 'E')
+  if (degradedDays.length > 0) {
+    // Pick the most critical day (Grade E prioritized, or highest attained CII)
+    const worstDay = degradedDays.reduce((worst, d) => {
+      if (d.rating === 'E' && worst.rating !== 'E') return d
+      if (d.rating === worst.rating && d.attainedCii > worst.attainedCii) return d
+      return worst
+    }, degradedDays[0]!)
+
+    if (!selectedDay.value || selectedDay.value.dayNumber !== worstDay.dayNumber) {
+      directives.push({
+        label: `Why did Day ${worstDay.dayNumber} drop to Grade ${worstDay.rating}?`,
+        query: `Analyze why Day ${worstDay.dayNumber} degraded to Grade ${worstDay.rating} on ${vesselName} (attained CII ${worstDay.attainedCii} vs required ${worstDay.requiredCii}). What was the primary root cause?`,
+        icon: AlertTriangle,
+      })
+    }
+  }
+
+  // 3. Suspicious / Heavy Weather Days (Beaufort 6+ or Wave >= 2.5m)
+  const heavyWeatherDays = noons.filter((d) => (d.weather?.beaufort || 0) >= 6 || (d.weather?.waveHeightM || 0) >= 2.5)
+  if (heavyWeatherDays.length > 0) {
+    const peakWeather = heavyWeatherDays.reduce((max, d) => {
+      return (d.weather?.beaufort || 0) > (max.weather?.beaufort || 0) ? d : max
+    }, heavyWeatherDays[0]!)
+
+    directives.push({
+      label: `Weather penalty (Day ${peakWeather.dayNumber}: BF ${peakWeather.weather?.beaufort || 6})`,
+      query: `Evaluate the added weather fuel penalty and speed loss from BF ${peakWeather.weather?.beaufort || 6} heavy weather on Day ${peakWeather.dayNumber} and across this voyage for ${vesselName}.`,
+      icon: Wind,
+    })
+  } else {
+    directives.push({
+      label: 'Weather vs Fuel Trend',
+      query: `Evaluate the added fuel consumption and carbon penalty caused by MetOcean weather conditions along this route for ${vesselName}.`,
+      icon: Wind,
+    })
+  }
+
+  // 4. Suspicious / High Propeller Slip (Apparent slip >= 12%)
+  const highSlipDays = noons.filter((d) => d.slipPct >= 12)
+  if (highSlipDays.length > 0) {
+    const peakSlip = highSlipDays.reduce((max, d) => (d.slipPct > max.slipPct ? d : max), highSlipDays[0]!)
+    directives.push({
+      label: `Investigate ${peakSlip.slipPct.toFixed(1)}% slip on Day ${peakSlip.dayNumber}`,
+      query: `Investigate the elevated propeller slip of ${peakSlip.slipPct.toFixed(1)}% on Day ${peakSlip.dayNumber} for ${vesselName}. Was it hull/propeller resistance, shallow water effect, or adverse currents?`,
+      icon: Gauge,
+    })
+  } else {
+    directives.push({
+      label: 'Propulsion & Slip Analysis',
+      query: `Analyze apparent propeller slip and engine RPM trends for ${vesselName} to verify propulsion efficiency.`,
+      icon: Gauge,
+    })
+  }
+
+  // 5. Recovery Plan vs Speed Optimization
+  if (degradedDays.length > 0 || (noons.length > 0 && noons[noons.length - 1]?.rating !== 'A' && noons[noons.length - 1]?.rating !== 'B')) {
+    directives.push({
+      label: 'How to recover Band B?',
+      query: `What speed reduction or RPM adjustment is required to recover IMO Band B trajectory for the remainder of this passage on ${vesselName}?`,
+      icon: TrendingUp,
+    })
+  } else {
+    directives.push({
+      label: 'Optimize speed & laycan',
+      query: `What is the recommended steaming speed and engine RPM to maintain compliant CII while arriving within the scheduled laycan window for ${vesselName}?`,
+      icon: TrendingUp,
+    })
+  }
+
+  // 6. Chief Engineer Noon Validation Audit
+  directives.push({
+    label: 'Audit Noon Reports QA',
+    query: `Run a Chief Engineer audit on the daily noon reports for ${vesselName} on voyage ${voyNum}. Identify any steaming hour discrepancies, GC distance gaps, or reported fuel balance issues.`,
+    icon: ClipboardCheck,
+  })
+
+  // Return the top 4 most actionable and suspicious directives
+  return directives.slice(0, 4)
+})
+
+const voyageCopilotInitialMessage = computed(() => {
+  const name = selectedVessel.value?.name || 'this vessel'
+  const noons = dailyNoons.value || []
+  const degradedCount = noons.filter((d) => d.rating === 'D' || d.rating === 'E').length
+  const heavyWeatherCount = noons.filter((d) => (d.weather?.beaufort || 0) >= 6).length
+
+  if (degradedCount > 0) {
+    return `Voyage Analytics Copilot ready for ${name}. Detected ${degradedCount} degraded passage day${degradedCount > 1 ? 's' : ''} (Band D/E) on the current voyage. Select a suspicious finding below or ask any question.`
+  }
+  if (heavyWeatherCount > 0) {
+    return `Voyage Analytics Copilot ready for ${name}. Identified ${heavyWeatherCount} heavy weather day${heavyWeatherCount > 1 ? 's' : ''} (Beaufort 6+) along the passage. Select a directive below to review operational impact.`
+  }
+  return `Voyage Analytics Copilot ready for ${name}. Live voyage telemetry, noon reports, and CII trajectory loaded. Select a directive below or ask any operational question.`
+})
 
 onMounted(async () => {
   if (typeof window !== 'undefined') {
@@ -213,10 +322,12 @@ onBeforeUnmount(() => {
         subtitle="Voyage Performance, CII Trajectory & Speed Advisory"
         badge-text="Analytics"
         :quick-directives="voyageQuickDirectives"
+        :initial-message="voyageCopilotInitialMessage"
         :active-context="{
           vesselId: Number(effectiveVesselId) || 1,
           vesselName: selectedVessel?.name || 'Vessel',
-          voyage: mrvData?.voyage,
+          voyage: selectedVoyage || mrvData?.voyage,
+          selectedDayNumber: selectedDay?.dayNumber,
         }"
       />
     </div>

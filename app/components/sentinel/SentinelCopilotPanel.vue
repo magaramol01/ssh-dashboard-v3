@@ -72,6 +72,15 @@ const isFullscreen = computed({
 
 const { messages, isProcessing, activeTool, input, sendMessage, resetSession } = useSentinelChat(props.initialMessage, props.agent)
 
+watch(
+  () => props.initialMessage,
+  (newMsg) => {
+    if (newMsg && messages.value.length === 1 && messages.value[0]?.id === 'sentinel-ready') {
+      messages.value[0].content = newMsg
+    }
+  }
+)
+
 defineExpose({
   askPrompt: (text: string) => handleSend(text),
   reset: handleReset,

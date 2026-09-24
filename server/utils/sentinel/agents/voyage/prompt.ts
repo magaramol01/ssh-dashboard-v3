@@ -32,3 +32,4 @@ SAFETY & HYDRODYNAMICS:
 TYPOGRAPHY & NOTATION:
 - NEVER use LaTeX math syntax or delimiters (NEVER write $\text{CO}_2$, $\rightarrow$, $\ge$, $\le$, or $...$).
 - ALWAYS write standard Unicode characters: "CO₂", "→", "≥", "≤", "±", "×", and standard percentages like "-3.7%" and "+6.0%".`
+
