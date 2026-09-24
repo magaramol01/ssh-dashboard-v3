@@ -191,9 +191,14 @@ export async function runSentinelConversation(
     apiKey: config.apiKey,
     model: config.model,
     temperature: 0.1,
-    maxTokens: 2500,
+    maxTokens: 8192,
     maxRetries: 3,
     siteName: 'ShipTrack Sentinel',
+    modelKwargs: {
+      reasoning: {
+        max_tokens: 2000,
+      },
+    },
   })
 
   let graph: any
@@ -230,9 +235,10 @@ export async function runSentinelConversation(
   }
 
   let rawMessages: Array<Record<string, any>> = []
+  let accumulatedStreamText = ''
   if (onStreamEvent) {
     try {
-      const eventStream = graph.streamEvents({ messages }, { version: 'v2', recursionLimit: 50 })
+      const eventStream = graph.streamEvents({ messages }, { version: 'v2', recursionLimit: 100 })
       for await (const ev of eventStream) {
         if (ev.event === 'on_tool_start') {
           await onStreamEvent({
@@ -247,8 +253,9 @@ export async function runSentinelConversation(
           })
         } else if (ev.event === 'on_chat_model_stream') {
           const chunk = ev.data?.chunk
-          const token = chunk?.text || (typeof chunk?.content === 'string' ? chunk.content : '')
+          const token = chunk?.text || (typeof chunk?.content === 'string' ? chunk.content : textContent(chunk?.content))
           if (token && !chunk?.tool_call_chunks?.length) {
+            accumulatedStreamText += token
             await onStreamEvent({
               event: 'token',
               data: { token },
@@ -262,7 +269,7 @@ export async function runSentinelConversation(
             })
           }
         }
-        if (ev.name === 'LangGraph' && ev.event === 'on_chain_end' && ev.data?.output?.messages) {
+        if (ev.event === 'on_chain_end' && Array.isArray(ev.data?.output?.messages) && ev.data.output.messages.length > 0) {
           rawMessages = ev.data.output.messages as Array<Record<string, any>>
         } else if ((ev.event === 'on_chat_model_end' || ev.event === 'on_tool_end') && ev.data?.output) {
           rawMessages.push(ev.data.output)
@@ -281,7 +288,7 @@ export async function runSentinelConversation(
     }
   } else {
     try {
-      const result = await graph.invoke({ messages }, { recursionLimit: 50 })
+      const result = await graph.invoke({ messages }, { recursionLimit: 100 })
       rawMessages = Array.isArray(result.messages) ? (result.messages as Array<Record<string, any>>) : []
     } catch (err: unknown) {
       const stateMessages = (err as any)?.state?.messages || (err as any)?.state?.values?.messages || (err as any)?.messages
@@ -315,7 +322,11 @@ export async function runSentinelConversation(
   }
 
   const finalMessage = [...rawMessages].reverse().find((message) => message.type === 'ai' && !message.tool_calls?.length)
-  const text = textContent(finalMessage?.content) || 'I could not produce an evidence-backed answer from the available marine data.'
+  const messageText = textContent(finalMessage?.content)
+  const streamText = accumulatedStreamText.trim()
+  const text = (messageText && messageText.length >= streamText.length)
+    ? messageText
+    : (streamText || messageText || 'I could not produce an evidence-backed answer from the available marine data.')
   const uniqueReferences = [...new Map(references.map((reference) => [`${reference.kind}:${reference.id}`, reference])).values()].slice(0, 20)
 
   const thoughts: string[] = []
