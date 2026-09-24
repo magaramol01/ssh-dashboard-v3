@@ -109,6 +109,34 @@ const activeMetricColumn = computed(() => {
   return numericColumns.value.find((c) => c.key === selectedMetricKey.value) || numericColumns.value[0]
 })
 
+const activeChartMeta = computed(() => {
+  if (!activeMetricColumn.value) {
+    return { seriesName: 'Value', unit: '', xName: 'Timeline', yName: 'Value' }
+  }
+  const label = activeMetricColumn.value.label || 'Metric'
+  const unitMatch = label.match(/\(([^)]+)\)/)
+  const rawUnit = unitMatch ? unitMatch[1].trim() : ''
+  const cleanLabel = label.replace(/\([^)]+\)/g, '').trim()
+
+  const xColLabel = props.columns[0]?.label || 'Timeline'
+  const isDays = /day/i.test(xColLabel)
+  const xName = isDays ? 'Voyage Day' : cleanLatexMath(xColLabel)
+
+  let unit = rawUnit
+  if (/beaufort|bf/i.test(rawUnit)) unit = 'Bf'
+  else if (/metric\s*ton|tonne|mt/i.test(rawUnit)) unit = 'MT'
+  else if (/%|percent/i.test(rawUnit)) unit = '%'
+  else if (/knot|kts/i.test(rawUnit)) unit = 'kts'
+  else if (/rpm/i.test(rawUnit)) unit = 'RPM'
+
+  return {
+    seriesName: cleanLatexMath(cleanLabel),
+    unit,
+    xName,
+    yName: unit ? `${unit}` : cleanLatexMath(cleanLabel),
+  }
+})
+
 function cleanDisplayText(val: unknown): string {
   if (val === null || val === undefined || val === '') return '—'
   const str = typeof val === 'object'
@@ -257,17 +285,27 @@ function formatCell(val: unknown): string {
           :data="chartPoints"
           x-field="x"
           y-field="y"
-          height="210"
+          :series-name="activeChartMeta.seriesName"
+          :unit="activeChartMeta.unit"
+          :x-axis-name="activeChartMeta.xName"
+          :y-axis-name="activeChartMeta.yName"
+          :show-legend="true"
+          height="220"
         />
         <BarChart
           v-else
           :data="chartPoints"
           x-field="x"
           y-field="y"
-          height="210"
+          :series-name="activeChartMeta.seriesName"
+          :unit="activeChartMeta.unit"
+          :x-axis-name="activeChartMeta.xName"
+          :y-axis-name="activeChartMeta.yName"
+          :show-legend="true"
+          height="220"
         />
         <template #fallback>
-          <div class="h-[210px] animate-pulse rounded-md bg-muted/40" />
+          <div class="h-[220px] animate-pulse rounded-md bg-muted/40" />
         </template>
       </ClientOnly>
     </div>
