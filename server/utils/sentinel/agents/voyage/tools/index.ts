@@ -8,6 +8,7 @@ import { propulsionSlipTool } from './propulsion-slip'
 import { weatherFuelPenaltyTool } from './weather-fuel-penalty'
 import { voyageRecoveryTool } from './voyage-recovery'
 import { validateNoonReportsTool } from './validate-noon-reports'
+import { queryNoonReportsSqlTool } from './query-noon-report-sql'
 
 export function getVoyageTools(tenant?: string, event?: H3Event) {
   return [
@@ -20,5 +21,6 @@ export function getVoyageTools(tenant?: string, event?: H3Event) {
     weatherFuelPenaltyTool(tenant, event),
     voyageRecoveryTool(tenant, event),
     validateNoonReportsTool(tenant, event),
+    queryNoonReportsSqlTool(tenant),
   ]
 }

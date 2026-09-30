@@ -908,6 +908,13 @@ const activeFuelTypes = computed(() => {
                     <Gauge class="w-3.5 h-3.5" />
                     SOG {{ format2(currentNoon.sog) }} kts
                   </span>
+                  <span
+                    v-if="currentNoon.cpSpeedKts"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30"
+                  >
+                    <Compass class="w-3.5 h-3.5" />
+                    CP Speed {{ format2(currentNoon.cpSpeedKts) }} kts
+                  </span>
                 </div>
 
                 <!-- 24h Distance, Speed, & Propulsion Telemetry -->
@@ -921,7 +928,7 @@ const activeFuelTypes = computed(() => {
                     <span class="text-muted-foreground text-xs font-medium block mb-0.5">Average 24h SOG</span>
                     <span class="font-bold text-foreground font-mono text-base">{{ format2(currentNoon.sog) }} kts</span>
                     <span class="text-xs text-muted-foreground block mt-0.5 truncate">
-                      {{ currentNoon.slipPct !== undefined && currentNoon.slipPct > 0 ? `Slip: ${format2(currentNoon.slipPct)}%` : `Draft: ${format2(currentNoon.draftFwdM)}m / ${format2(currentNoon.draftAftM)}m` }}
+                      {{ currentNoon.cpSpeedKts ? `CP Target: ${format2(currentNoon.cpSpeedKts)} kts` : (currentNoon.slipPct !== undefined && currentNoon.slipPct > 0 ? `Slip: ${format2(currentNoon.slipPct)}%` : `Draft: ${format2(currentNoon.draftFwdM)}m / ${format2(currentNoon.draftAftM)}m`) }}
                     </span>
                   </div>
                 </div>

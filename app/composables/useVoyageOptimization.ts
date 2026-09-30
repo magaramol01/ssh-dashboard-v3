@@ -5,6 +5,7 @@ import {
   calculateRouteStrategies,
   deriveVoyageAdvisories,
   resolveVesselDeadweightMt,
+  roundTo2,
   EU_ETS_CARBON_PRICE_EUR_PER_TON,
   DEFAULT_LAYCAN_BUFFER_HOURS,
   CII_LOOKBACK_DAYS,
@@ -34,6 +35,9 @@ export interface VoyageOptimizationKpiSummary {
   weatherAlertSubtext: string
   weatherRiskLevel: 'low' | 'moderate' | 'high'
   laycanBufferHours: number
+  isLaycanEstimated?: boolean
+  laycanStatusText?: string
+  cpSpeedKts?: number | null
   carbonSavingsEur: number
   projectedVoyageFuelMt: number
 }
@@ -226,7 +230,11 @@ export function useVoyageOptimization() {
     const baseFuel = Math.round(fuelBurnRateMtPerNm * baseDist * 10) / 10
     const dwt = resolveVesselDeadweightMt(ciiRecords.value)
 
-    return calculateRouteStrategies(baseDist, baseFuel, avgSpeed, dwt, coords)
+    // Base planned speed on agreed charter speed if reported, otherwise recorded avgSpeed
+    const latestCpSpeed = [...dailyNoons.value].reverse().find((d) => d.cpSpeedKts && d.cpSpeedKts > 0)?.cpSpeedKts
+    const plannedSpeed = latestCpSpeed || avgSpeed
+
+    return calculateRouteStrategies(baseDist, baseFuel, plannedSpeed, dwt, coords)
   })
 
   const activeStrategyOption = computed<RouteStrategyOption | null>(() => {
@@ -245,7 +253,9 @@ export function useVoyageOptimization() {
         waveHeightM: latestNoon?.weather.waveHeightM || 0,
       }
       const slipObserved = latestNoon?.slipPct || 0
-      advisoriesList.value = deriveVoyageAdvisories(currentRating, 'B', weatherAhead, slipObserved)
+      const cpSpeed = latestNoon?.cpSpeedKts || null
+      const currentSog = latestNoon?.sog || null
+      advisoriesList.value = deriveVoyageAdvisories(currentRating, 'B', weatherAhead, slipObserved, cpSpeed, currentSog)
     },
     { immediate: true }
   )
@@ -270,6 +280,33 @@ export function useVoyageOptimization() {
     const weatherLevel: 'low' | 'moderate' | 'high' =
       (latestNoon?.weather.beaufort || 3) >= 6 ? 'high' : (latestNoon?.weather.beaufort || 3) >= 5 ? 'moderate' : 'low'
 
+    const cpSpeed = [...dailyNoons.value].reverse().find((d) => d.cpSpeedKts && d.cpSpeedKts > 0)?.cpSpeedKts || null
+    const distToGo = parseFloat(String(mrvData.value?.disttogo || '').replace(/,/g, ''))
+    const currentSog = latestNoon?.sog || parsedVessel.value.sog || 0
+
+    let laycanBufferHours = DEFAULT_LAYCAN_BUFFER_HOURS
+    let isLaycanEstimated = true
+    let laycanStatusText = 'Modeled — no live charter-party feed connected'
+
+    if (cpSpeed && cpSpeed > 0) {
+      isLaycanEstimated = false
+      if (Number.isFinite(distToGo) && distToGo > 0 && currentSog > 0) {
+        // Delta hours between transit at CP speed and transit at current SOG
+        const hoursAtCp = distToGo / cpSpeed
+        const hoursAtSog = distToGo / currentSog
+        laycanBufferHours = Math.round((hoursAtCp - hoursAtSog) * 10) / 10
+        const diff = roundTo2(currentSog - cpSpeed)
+        const sign = diff >= 0 ? `+${diff}` : `${diff}`
+        laycanStatusText = `CP Order: ${cpSpeed} kts (SOG var: ${sign} kts)`
+      } else if (currentSog > 0) {
+        const diff = roundTo2(currentSog - cpSpeed)
+        const sign = diff >= 0 ? `+${diff}` : `${diff}`
+        laycanStatusText = `CP Order: ${cpSpeed} kts (SOG var: ${sign} kts)`
+      } else {
+        laycanStatusText = `CP Order: ${cpSpeed} kts active`
+      }
+    }
+
     return {
       attainedCii: currentCii,
       attainedRating: currentRating,
@@ -287,7 +324,10 @@ export function useVoyageOptimization() {
           : 'Favorable passage weather',
       weatherAlertSubtext: latestNoon?.weather.shortForecast || 'Nominal resistance',
       weatherRiskLevel: weatherLevel,
-      laycanBufferHours: DEFAULT_LAYCAN_BUFFER_HOURS,
+      laycanBufferHours,
+      isLaycanEstimated,
+      laycanStatusText,
+      cpSpeedKts: cpSpeed,
       carbonSavingsEur: activeOpt && activeOpt.carbonSavingsEur > 0 ? activeOpt.carbonSavingsEur : 0,
       projectedVoyageFuelMt: activeOpt?.totalFuelMt || 0,
     }

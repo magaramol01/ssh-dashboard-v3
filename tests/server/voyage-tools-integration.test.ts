@@ -3,11 +3,11 @@ import test from 'node:test'
 import { getVoyageTools } from '../../server/utils/sentinel/agents/voyage/tools'
 import { voyagePrompt } from '../../server/utils/sentinel/agents/voyage/prompt'
 
-test('getVoyageTools bundles all 9 operational voyage tools', () => {
+test('getVoyageTools bundles all 10 operational voyage tools', () => {
   const tools = getVoyageTools()
   const names = tools.map((t) => t.name)
 
-  assert.equal(tools.length, 9, 'should contain 9 tools')
+  assert.equal(tools.length, 10, 'should contain 10 tools')
   assert.ok(names.includes('get_voyage_overview_and_progress'), 'overview tool present')
   assert.ok(names.includes('diagnose_voyage_degradation'), 'degradation diagnostic tool present')
   assert.ok(names.includes('analyze_propulsion_and_slip'), 'propulsion & slip tool present')
@@ -17,6 +17,7 @@ test('getVoyageTools bundles all 9 operational voyage tools', () => {
   assert.ok(names.includes('get_vessel_daily_positions'), 'daily positions tool present')
   assert.ok(names.includes('get_fleet_voyages'), 'fleet voyages tool present')
   assert.ok(names.includes('simulate_vessel_speed_reduction'), 'speed simulation tool present')
+  assert.ok(names.includes('query_noon_reports_sql'), 'sql query tool present')
 })
 
 test('voyagePrompt includes evidence rules for all operational tools', () => {
@@ -28,4 +29,5 @@ test('voyagePrompt includes evidence rules for all operational tools', () => {
   assert.ok(voyagePrompt.includes('validate_vessel_noon_reports'))
   assert.ok(voyagePrompt.includes('get_vessel_daily_positions'))
   assert.ok(voyagePrompt.includes('get_fleet_voyages'))
+  assert.ok(voyagePrompt.includes('query_noon_reports_sql'))
 })

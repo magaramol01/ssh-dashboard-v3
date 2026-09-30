@@ -64,6 +64,7 @@ describe('Voyage Optimization Domain Engine', () => {
     const day1 = noons[0]!
     assert.equal(day1.distanceRunNm, 288)
     assert.equal(day1.sog, 12, 'string avgSpeed "12.00" must be coerced to a number')
+    assert.equal(day1.cpSpeedKts, 12, 'SPEED_AS_PER_CP_IN_KN from noonreportdata must be parsed to cpSpeedKts')
     assert.ok(Math.abs(day1.coords[0] - 7.255) < 0.0001, 'numeric latitude passes through unchanged')
     assert.ok(Math.abs(day1.coords[1] - -82.576833) < 0.0001, 'numeric longitude passes through unchanged')
 
@@ -158,6 +159,16 @@ describe('Voyage Optimization Domain Engine', () => {
     const speedAdv = advisories.find((a) => a.type === 'speed')
     assert.ok(speedAdv)
     assert.equal(speedAdv.applied, false)
+    const laycanFallback = advisories.find((a) => a.type === 'laycan')
+    assert.ok(laycanFallback)
+    assert.equal(laycanFallback.title, 'Port Arrival Buffer: Modeled Charter Party Window')
+
+    // Test with live CP speed provided
+    const cpAdvisories = deriveVoyageAdvisories('B', 'B', { beaufort: 4, waveHeightM: 1.5 }, 0, 12.5, 11.2)
+    const cpAdv = cpAdvisories.find((a) => a.type === 'laycan')
+    assert.ok(cpAdv)
+    assert.equal(cpAdv.title, 'Charter Party Target Speed: 12.5 kts')
+    assert.ok(cpAdv.description.includes('running 1.3 kts below CP order'))
   })
 
   test('analyzeCiiRatingDrivers identifies weather and slip as primary drivers for a Band E degraded day', () => {

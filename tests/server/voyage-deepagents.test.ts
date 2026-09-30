@@ -13,7 +13,7 @@ test('resolveAgentConfig configures deepagent skills for voyage-analytics', () =
   assert.equal(resolved.domain, 'voyage-analytics')
   assert.ok(Array.isArray(resolved.skills), 'skills array should be defined')
   assert.ok(resolved.skills?.includes('server/utils/sentinel/agents/voyage/skills/'))
-  assert.equal(resolved.tools.length, 9, 'should include all 9 voyage operational tools')
+  assert.equal(resolved.tools.length, 10, 'should include all 10 voyage operational tools')
 })
 
 test('createDeepAgent compiles with voyage tools and discovers noon-report-validation skill', () => {

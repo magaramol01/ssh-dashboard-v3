@@ -90,6 +90,8 @@ export interface CiiDateRangeRecord {
     Wave_Height?: number
     Swell_Direction?: string | number
     Remarks?: string
+    SPEED_AS_PER_CP_IN_KN?: number | string | null
+    Instruction_CP_Speed?: number | string | null
   }
 }
 
@@ -126,6 +128,7 @@ export interface DailyNoonReport {
     source: 'cii-api'
   }
   // Hydrodynamic & Engine Telemetry
+  cpSpeedKts?: number | null
   slipPct?: number
   meRpm?: number
   shaftPowerKw?: number
@@ -396,6 +399,14 @@ export function mapCiiRecordsToDailyNoons(records: CiiDateRangeRecord[]): DailyN
     const rawPower = record.noonreportdata?.ME_SHAFT_POWER_IN_KW
     const shaftPowerKw = typeof rawPower === 'number' ? rawPower : parseFloat(String(rawPower || ''))
 
+    const rawCpSpeed = record.noonreportdata?.SPEED_AS_PER_CP_IN_KN ?? record.noonreportdata?.Instruction_CP_Speed
+    const cpSpeedNum = typeof rawCpSpeed === 'number'
+      ? rawCpSpeed
+      : rawCpSpeed
+        ? parseFloat(String(rawCpSpeed))
+        : null
+    const cpSpeedKts = Number.isFinite(cpSpeedNum) && (cpSpeedNum as number) > 0 ? roundTo2(cpSpeedNum as number) : null
+
     const noonItem: DailyNoonReport = {
       dayNumber: index + 1,
       dateIso: record.reportDateTime,
@@ -431,6 +442,7 @@ export function mapCiiRecordsToDailyNoons(records: CiiDateRangeRecord[]): DailyN
         return 'unknown'
       })(),
       weather: buildNoonWeather(record.noonreportdata),
+      cpSpeedKts,
       slipPct: Number.isFinite(slipPct) ? roundTo2(slipPct) : 0,
       meRpm: Number.isFinite(meRpm) ? roundTo2(meRpm) : 0,
       shaftPowerKw: Number.isFinite(shaftPowerKw) ? Math.round(shaftPowerKw) : 0,
@@ -774,7 +786,9 @@ export function deriveVoyageAdvisories(
   currentCiiRating: CIIRating,
   targetCiiRating: CIIRating = 'B',
   weatherAhead = { beaufort: 5, waveHeightM: 2.6 },
-  speedDeltaKts = 1.2
+  speedDeltaKts = 1.2,
+  cpSpeedKts?: number | null,
+  currentSogKts?: number | null
 ): VoyageAdvisory[] {
   const advisories: VoyageAdvisory[] = []
 
@@ -811,14 +825,36 @@ export function deriveVoyageAdvisories(
     })
   }
 
-  advisories.push({
-    id: 'adv-laycan',
-    type: 'laycan',
-    priority: 'info',
-    title: `Port Arrival Buffer: Modeled Charter Party Window`,
-    description: `Laycan buffer is a modeled estimate (${DEFAULT_LAYCAN_BUFFER_HOURS}h) — no live charter-party feed is wired up yet.`,
-    applied: false,
-  })
+  if (cpSpeedKts && cpSpeedKts > 0) {
+    const sogDiff = currentSogKts && currentSogKts > 0 ? roundTo2(currentSogKts - cpSpeedKts) : null
+    let varianceText = ''
+    if (sogDiff !== null) {
+      if (Math.abs(sogDiff) < 0.2) {
+        varianceText = ` Current SOG (${currentSogKts} kts) matches CP instruction within 0.2 kts.`
+      } else if (sogDiff > 0) {
+        varianceText = ` Current SOG (${currentSogKts} kts) is running +${sogDiff} kts above CP order.`
+      } else {
+        varianceText = ` Current SOG (${currentSogKts} kts) is running ${Math.abs(sogDiff)} kts below CP order.`
+      }
+    }
+    advisories.push({
+      id: 'adv-laycan',
+      type: 'laycan',
+      priority: 'info',
+      title: `Charter Party Target Speed: ${roundTo2(cpSpeedKts)} kts`,
+      description: `Live CP speed instruction active from noon report data.${varianceText}`,
+      applied: false,
+    })
+  } else {
+    advisories.push({
+      id: 'adv-laycan',
+      type: 'laycan',
+      priority: 'info',
+      title: `Port Arrival Buffer: Modeled Charter Party Window`,
+      description: `Laycan buffer is a modeled estimate (${DEFAULT_LAYCAN_BUFFER_HOURS}h) — no live charter-party feed is wired up yet.`,
+      applied: false,
+    })
+  }
 
   return advisories
 }

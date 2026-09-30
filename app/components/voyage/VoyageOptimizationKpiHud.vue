@@ -148,20 +148,23 @@ function ciiRatingColor(rating: string): string {
             <Clock class="w-3.5 h-3.5 text-blue-500" />
             Charter Laycan
           </span>
-          <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-            Estimated
+          <span
+            class="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+            :class="kpiSummary.isLaycanEstimated === false ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30' : 'bg-muted text-muted-foreground'"
+          >
+            {{ kpiSummary.isLaycanEstimated === false ? 'Live CP' : 'Estimated' }}
           </span>
         </div>
         <div class="mt-2 flex items-baseline justify-between">
           <span class="text-base sm:text-lg font-bold font-mono tracking-tight text-foreground">
-            +{{ kpiSummary.laycanBufferHours }}h
+            {{ kpiSummary.laycanBufferHours > 0 ? `+${kpiSummary.laycanBufferHours}h` : `${kpiSummary.laycanBufferHours}h` }}
           </span>
           <span class="text-[10px] text-muted-foreground">
-            Window Buffer
+            {{ kpiSummary.isLaycanEstimated === false ? 'CP Speed Buffer' : 'Window Buffer' }}
           </span>
         </div>
-        <div class="mt-1 text-[10px] text-muted-foreground truncate">
-          Modeled — no live charter-party feed connected
+        <div class="mt-1 text-[10px] text-muted-foreground truncate" :title="kpiSummary.laycanStatusText">
+          {{ kpiSummary.laycanStatusText || 'Modeled — no live charter-party feed connected' }}
         </div>
       </div>
 
