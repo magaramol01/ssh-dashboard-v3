@@ -67,7 +67,8 @@ const paletteGroups = computed<CommandPaletteGroup[]>(() =>
 
     <CommandPalette :groups="paletteGroups" trigger-label="Search…" placeholder="Jump to…" />
 
-    <!-- Exceptions bell with count badge. Routes to the filtered ledger. -->
+    <!-- Exceptions bell hidden as requested -->
+    <!--
     <div class="relative">
       <Button variant="ghost" size="icon" class="size-9" as-child>
         <NuxtLink :to="tenantPath('/shipments?status=exception')" aria-label="Open exceptions">
@@ -81,6 +82,7 @@ const paletteGroups = computed<CommandPaletteGroup[]>(() =>
         {{ exceptionCount > 9 ? '9+' : exceptionCount }}
       </span>
     </div>
+    -->
 
     <!-- Theme toggle: cycles light → dark → system -->
     <Button
