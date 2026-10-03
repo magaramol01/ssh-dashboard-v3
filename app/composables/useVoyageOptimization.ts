@@ -64,6 +64,7 @@ const isWeatherLoading = ref(false)
 const ciiRecords = shallowRef<CiiDateRangeRecord[]>([])
 const isCiiLoading = ref(false)
 const ciiLoadError = ref(false)
+const isVesselChanging = ref(false)
 
 export function useVoyageOptimization() {
   const {
@@ -385,25 +386,28 @@ export function useVoyageOptimization() {
     }
   }
 
-  // Auto-fetch voyage fixture telemetry, available voyages, map geojson, CII data, and weather
-  // when the selected vessel changes.
   watch(
     () => effectiveVesselId.value,
     async (vId) => {
       if (!vId) return
       selectedDay.value = null
       selectedVoyage.value = ''
-      // 1. Fetch voyage fixture (MRV), map corridor/position, and available voyages list
-      await Promise.allSettled([
-        fetchVoyageData(vId),
-        fetchWindyMap(vId),
-        fetchVesselVoyages(vId),
-      ])
-      // 2. Fetch CII records for the selected running voyage and route weather
-      await Promise.allSettled([
-        fetchCiiDateRange(),
-        fetchRouteWeather(),
-      ])
+      isVesselChanging.value = true
+      try {
+        // 1. Fetch voyage fixture (MRV), map corridor/position, and available voyages list
+        await Promise.allSettled([
+          fetchVoyageData(vId),
+          fetchWindyMap(vId),
+          fetchVesselVoyages(vId),
+        ])
+        // 2. Fetch CII records for the selected running voyage and route weather
+        await Promise.allSettled([
+          fetchCiiDateRange(),
+          fetchRouteWeather(),
+        ])
+      } finally {
+        isVesselChanging.value = false
+      }
     },
     { immediate: true }
   )
@@ -467,5 +471,13 @@ export function useVoyageOptimization() {
     fetchCiiDateRange,
     fetchVesselsList,
     refreshAll,
+    isVesselChanging,
+    isRefreshing: computed(() =>
+      isVesselChanging.value ||
+      isVoyagesLoading.value ||
+      isWeatherLoading.value ||
+      isCiiLoading.value ||
+      isMapLoading.value
+    ),
   }
 }

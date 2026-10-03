@@ -312,8 +312,8 @@ export function useVesselDashboard() {
     isAlarmsMuted.value = !isAlarmsMuted.value
   }
 
-  const isLoading = ref<boolean>(false)
-  const isMapLoading = ref<boolean>(false)
+  const isLoading = useState<boolean>('vessel_dashboard_loading', () => false)
+  const isMapLoading = useState<boolean>('vessel_dashboard_map_loading', () => false)
 
   const sisterGroups = computed(() => deriveSisterGroups(vesselsList.value))
 

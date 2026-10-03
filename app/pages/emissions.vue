@@ -27,6 +27,7 @@ import {
   Sparkles,
   Table2,
   Layers,
+  Loader2,
 } from 'lucide-vue-next'
 import SentinelCopilotPanel from '@/components/sentinel/SentinelCopilotPanel.vue'
 import CiiImprovementPlanCard from '@/components/emissions/CiiImprovementPlanCard.vue'
@@ -924,8 +925,11 @@ const fuelDonutOption = computed(() => ({
           <!-- Vessel Selector (Required: always one vessel selected) -->
           <div class="w-[190px]">
             <Select v-model="selectedVesselId">
-              <SelectTrigger class="h-8 text-xs font-medium">
-                <SelectValue placeholder="Select Vessel" />
+              <SelectTrigger class="h-8 text-xs font-medium" :disabled="isLoading">
+                <div class="flex items-center gap-1.5 truncate">
+                  <Loader2 v-if="isLoading" class="size-3 animate-spin text-primary shrink-0" />
+                  <SelectValue placeholder="Select Vessel" />
+                </div>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem
@@ -1036,9 +1040,22 @@ const fuelDonutOption = computed(() => ({
       </div>
     </div>
 
-    <div v-else-if="ciiData" class="space-y-6">
-      <!-- Vessel Fleet Ranking & Context Strip -->
-      <div class="bg-card/70 border rounded-xl p-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-3 shadow-xs">
+    <div v-else-if="ciiData" class="space-y-6 relative">
+      <!-- In-flight vessel update banner -->
+      <div
+        v-if="isLoading"
+        class="sticky top-2 z-30 flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-primary/10 border border-primary/25 backdrop-blur-md text-xs text-primary font-medium shadow-sm transition-all animate-in fade-in"
+      >
+        <div class="flex items-center gap-2.5">
+          <Loader2 class="size-4 animate-spin shrink-0" />
+          <span>Updating CII telemetry & voyage analytics for <strong>{{ selectedVessel?.name || 'selected vessel' }}</strong>...</span>
+        </div>
+        <span class="text-[11px] font-mono opacity-80 hidden sm:inline">Processing live records</span>
+      </div>
+
+      <div :class="{ 'opacity-50 pointer-events-none transition-opacity duration-200': isLoading }" class="space-y-6">
+        <!-- Vessel Fleet Ranking & Context Strip -->
+        <div class="bg-card/70 border rounded-xl p-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-3 shadow-xs">
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex items-center gap-2">
             <span class="font-bold text-sm text-foreground">{{ ciiData.vessel.vesselName }}</span>
@@ -1869,6 +1886,7 @@ const fuelDonutOption = computed(() => ({
           </div>
         </CardContent>
       </Card>
+    </div>
     </div>
     </div>
 

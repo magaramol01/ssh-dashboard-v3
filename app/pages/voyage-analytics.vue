@@ -13,6 +13,7 @@ import {
   TrendingUp,
   Compass,
   Sparkles,
+  Loader2,
 } from 'lucide-vue-next'
 import VoyageOptimizationHeaderBar from '~/components/voyage/VoyageOptimizationHeaderBar.vue'
 import VoyageOptimizationKpiHud from '~/components/voyage/VoyageOptimizationKpiHud.vue'
@@ -39,6 +40,7 @@ const {
   currentVoyageInfo,
   mrvData,
   kpiSummary,
+  isRefreshing,
 } = useVoyageOptimization()
 
 // Map-first: drawer starts closed so the passage map is the clear hero on load
@@ -430,8 +432,18 @@ onBeforeUnmount(() => {
           :class="isDrawerOpen ? 'sm:right-[515px] xl:right-[575px]' : 'right-0'"
         >
           <!-- Top: 5-Tile Advisory KPI HUD -->
-          <div class="w-full pointer-events-none">
-            <VoyageOptimizationKpiHud />
+          <div class="w-full pointer-events-none flex flex-col items-center">
+            <!-- In-Flight Vessel Telemetry Updating Pill -->
+            <div
+              v-if="isRefreshing"
+              class="pointer-events-auto mb-2 px-3.5 py-1.5 rounded-full bg-background/95 dark:bg-card/95 border border-primary/30 text-xs text-primary font-medium shadow-md backdrop-blur-md flex items-center gap-2 animate-in fade-in"
+            >
+              <Loader2 class="size-3.5 animate-spin text-primary shrink-0" />
+              <span>Updating voyage data for <strong>{{ selectedVessel?.name || 'selected vessel' }}</strong>...</span>
+            </div>
+            <div class="w-full" :class="{ 'opacity-65 transition-opacity duration-200': isRefreshing }">
+              <VoyageOptimizationKpiHud />
+            </div>
           </div>
 
           <!-- Bottom: Passage Timeline Scrubber -->

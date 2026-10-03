@@ -6,7 +6,7 @@
  * layout so the centred card owns the viewport.
  */
 import { ref } from 'vue'
-import { Mail, Lock, ArrowRight } from 'lucide-vue-next'
+import { Mail, Lock, ArrowRight, Loader2 } from 'lucide-vue-next'
 import Logo from '@/components/ui/Logo.vue'
 
 import { Card, CardContent } from '@/components/ui/card'
@@ -32,6 +32,7 @@ const email = ref('')
 const password = ref('')
 const remember = ref(true)
 const isLoading = ref(false)
+const isRedirecting = ref(false)
 const errorMessage = ref('')
 
 async function handleSubmit() {
@@ -59,18 +60,23 @@ async function handleSubmit() {
     })
 
     if (res.success) {
+      isRedirecting.value = true
       toast.success(res.message || `Signed in as ${res.user?.firstName || res.user?.userName || email.value}`)
       setPersona('admin')
       await navigateTo(targetDashboard())
     } else {
       toast.error(res.message || 'Login failed')
+      isLoading.value = false
     }
   } catch (err: any) {
     const msg = err?.data?.statusMessage || err?.data?.message || err?.message || 'Login failed. Please check credentials.'
     errorMessage.value = msg
     toast.error(msg)
-  } finally {
     isLoading.value = false
+  } finally {
+    if (!isRedirecting.value) {
+      isLoading.value = false
+    }
   }
 }
 async function continueWithSso(provider: 'Google' | 'Microsoft') {
@@ -123,23 +129,23 @@ const personas: Array<{ key: Persona; label: string; tagline: string }> = [
               <Label for="email" class="text-sm font-medium">Work email</Label>
               <div class="relative">
                 <Mail class="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
-                <Input id="email" v-model="email" type="email" name="email" autocomplete="username" placeholder="you@company.com" class="pl-9" />
+                <Input id="email" v-model="email" type="email" name="email" autocomplete="username" placeholder="you@company.com" class="pl-9" :disabled="isLoading || isRedirecting" />
               </div>
             </div>
 
             <div class="space-y-1.5">
               <div class="flex items-center justify-between">
                 <Label for="password" class="text-sm font-medium">Password</Label>
-                <Button type="button" variant="ghost" size="sm" class="h-auto px-1 text-xs font-medium" @click="fakeForgot">Forgot password?</Button>
+                <Button type="button" variant="ghost" size="sm" class="h-auto px-1 text-xs font-medium" :disabled="isLoading || isRedirecting" @click="fakeForgot">Forgot password?</Button>
               </div>
               <div class="relative">
                 <Lock class="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
-                <Input id="password" v-model="password" type="password" name="password" autocomplete="current-password" show-password-toggle placeholder="••••••••" class="pl-9" />
+                <Input id="password" v-model="password" type="password" name="password" autocomplete="current-password" show-password-toggle placeholder="••••••••" class="pl-9" :disabled="isLoading || isRedirecting" />
               </div>
             </div>
 
             <label class="flex cursor-pointer items-center gap-2">
-              <Checkbox id="remember" v-model="remember" />
+              <Checkbox id="remember" v-model="remember" :disabled="isLoading || isRedirecting" />
               <span class="text-muted-foreground text-sm">Remember me on this device</span>
             </label>
 
@@ -147,8 +153,18 @@ const personas: Array<{ key: Persona; label: string; tagline: string }> = [
               {{ errorMessage }}
             </div>
 
-            <Button type="submit" class="w-full" :disabled="isLoading">
-              <span v-if="isLoading" class="flex items-center gap-2">
+            <div v-if="isRedirecting" class="rounded-lg bg-primary/10 border border-primary/20 p-2.5 text-xs text-primary flex items-center gap-2">
+              <Loader2 class="size-4 animate-spin shrink-0" />
+              <span>Authentication verified. Opening Control Tower...</span>
+            </div>
+
+            <Button type="submit" class="w-full cursor-pointer" :disabled="isLoading || isRedirecting">
+              <span v-if="isRedirecting" class="flex items-center gap-2">
+                <Loader2 class="size-4 animate-spin" />
+                Redirecting...
+              </span>
+              <span v-else-if="isLoading" class="flex items-center gap-2">
+                <Loader2 class="size-4 animate-spin" />
                 Signing in...
               </span>
               <span v-else class="inline-flex items-center">

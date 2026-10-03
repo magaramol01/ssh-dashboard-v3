@@ -9,6 +9,7 @@ import {
   Layers,
   ChevronDown,
   Sparkles,
+  Loader2,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -80,7 +81,7 @@ const voyageDetails = computed(() => {
   }
 })
 
-const isRefreshing = computed(() => isMapLoading.value || isWeatherLoading.value || isCiiLoading.value)
+const isRefreshing = computed(() => isMapLoading.value || isWeatherLoading.value || isCiiLoading.value || isVoyagesLoading.value)
 
 async function handleRefresh() {
   await Promise.allSettled([refreshAll(), fetchRouteWeather(), fetchCiiDateRange()])
@@ -98,8 +99,11 @@ async function handleRefresh() {
         </div>
         <div class="w-[200px] sm:w-[220px]">
           <Select v-model="selectedVesselId">
-            <SelectTrigger class="h-9 font-medium text-xs sm:text-sm bg-background/80">
-              <SelectValue placeholder="Select vessel" />
+            <SelectTrigger class="h-9 font-medium text-xs sm:text-sm bg-background/80" :disabled="isRefreshing">
+              <div class="flex items-center gap-1.5 truncate">
+                <Loader2 v-if="isRefreshing" class="size-3.5 animate-spin text-primary shrink-0" />
+                <SelectValue placeholder="Select vessel" />
+              </div>
             </SelectTrigger>
             <SelectContent>
               <SelectItem
@@ -120,8 +124,11 @@ async function handleRefresh() {
       <div class="flex items-center gap-1.5">
         <div class="w-[145px] sm:w-[175px]">
           <Select v-model="selectedVoyage">
-            <SelectTrigger class="h-9 font-medium text-xs sm:text-sm bg-background/80">
-              <SelectValue :placeholder="selectedVoyage ? `Voy. ${selectedVoyage}` : 'Select voyage'" />
+            <SelectTrigger class="h-9 font-medium text-xs sm:text-sm bg-background/80" :disabled="isVoyagesLoading || isCiiLoading">
+              <div class="flex items-center gap-1.5 truncate">
+                <Loader2 v-if="isVoyagesLoading || isCiiLoading" class="size-3.5 animate-spin text-primary shrink-0" />
+                <SelectValue :placeholder="selectedVoyage ? `Voy. ${selectedVoyage}` : 'Select voyage'" />
+              </div>
             </SelectTrigger>
             <SelectContent class="max-h-[300px]">
               <SelectItem

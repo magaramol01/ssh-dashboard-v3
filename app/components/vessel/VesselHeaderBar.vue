@@ -6,6 +6,7 @@ import {
   Bell,
   PanelRightClose,
   PanelRightOpen,
+  Loader2,
 } from 'lucide-vue-next'
 import {
   Select,
@@ -88,8 +89,11 @@ const {
       <!-- Vessel Select -->
       <div class="w-[180px]">
         <Select v-model="selectedVesselId">
-          <SelectTrigger class="h-8 text-xs font-medium">
-            <SelectValue placeholder="Select Vessel" />
+          <SelectTrigger class="h-8 text-xs font-medium" :disabled="isLoading">
+            <div class="flex items-center gap-1.5 truncate">
+              <Loader2 v-if="isLoading" class="size-3 animate-spin text-primary shrink-0" />
+              <SelectValue placeholder="Select Vessel" />
+            </div>
           </SelectTrigger>
           <SelectContent>
             <SelectItem
