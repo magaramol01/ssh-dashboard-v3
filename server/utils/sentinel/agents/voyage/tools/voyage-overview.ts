@@ -88,9 +88,31 @@ export const voyageOverviewTool = (tenant?: string, event?: H3Event, injectedRec
       let boilerFuelMt = 0
 
       for (const r of records) {
-        const me = parseFloat(r.meFuel || r.me_fuel || r.noonreportdata?.ME_Fuel_Oil_Cons || r.consumptionData?.me?.value) || 0
-        const ae = parseFloat(r.aeFuel || r.ae_fuel || r.noonreportdata?.DG_Fuel_Oil_Cons || r.consumptionData?.ae?.value) || 0
-        const blr = parseFloat(r.boilerFuel || r.boiler_fuel || r.noonreportdata?.Boiler_Fuel_Oil_Cons || r.consumptionData?.boiler?.value) || 0
+        let me = parseFloat(r.meFuel || r.me_fuel || r.noonreportdata?.ME_Fuel_Oil_Cons || r.noonreportdata?.Total_HFOME_Consumed_In_MT || r.consumptionData?.me?.value) || 0
+        let ae = parseFloat(r.aeFuel || r.ae_fuel || r.noonreportdata?.DG_Fuel_Oil_Cons || r.noonreportdata?.Total_HFOAE_Consumed_In_MT || r.consumptionData?.ae?.value) || 0
+        let blr = parseFloat(r.boilerFuel || r.boiler_fuel || r.noonreportdata?.Boiler_Fuel_Oil_Cons || r.noonreportdata?.Total_HFOBLR_Consumed_In_MT || r.consumptionData?.boiler?.value) || 0
+
+        let dayTotal = me + ae + blr
+        if (dayTotal === 0) {
+          if (r.consumptionData && typeof r.consumptionData === 'object') {
+            for (const val of Object.values(r.consumptionData)) {
+              const v = typeof val === 'object' && val !== null && 'value' in val ? parseFloat((val as any).value) || 0 : parseFloat(val as any) || 0
+              dayTotal += v
+            }
+          }
+          if (dayTotal === 0) {
+            dayTotal = parseFloat(r.totalConsumption || r.total_fuel || r.fuelConsumedMt?.total || r.noonreportdata?.Total_HFO_Consumed_In_MT) || 0
+          }
+          if (dayTotal === 0 && r.massOfCo2) {
+            dayTotal = (parseFloat(r.massOfCo2) || 0) / 3.114
+          }
+          if (dayTotal > 0) {
+            me = dayTotal * 0.85
+            ae = dayTotal * 0.12
+            blr = dayTotal * 0.03
+          }
+        }
+
         meFuelMt += me
         aeFuelMt += ae
         boilerFuelMt += blr

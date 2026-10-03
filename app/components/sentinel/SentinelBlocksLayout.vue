@@ -24,8 +24,21 @@ const kpiBlocks = computed(() => {
   return nonMarkdownBlocks.value.filter((b): b is KpiBlock => b.type === 'kpi')
 })
 
+function hasMeaningfulChartData(chart: LineChartBlock | BarChartBlock): boolean {
+  if (!chart.points || chart.points.length < 2) return false
+  const valid = chart.points.filter((p) => p && typeof p.value === 'number' && Number.isFinite(p.value))
+  if (valid.length < 2) return false
+  const hasNonZero = valid.some((p) => Math.abs(p.value) > 1e-4)
+  if (!hasNonZero) return false
+  const first = valid[0].value
+  return valid.some((p) => Math.abs(p.value - first) > 1e-4)
+}
+
 const chartBlocks = computed(() => {
-  return nonMarkdownBlocks.value.filter((b): b is LineChartBlock | BarChartBlock => b.type === 'line-chart' || b.type === 'bar-chart')
+  return nonMarkdownBlocks.value.filter(
+    (b): b is LineChartBlock | BarChartBlock =>
+      (b.type === 'line-chart' || b.type === 'bar-chart') && hasMeaningfulChartData(b)
+  )
 })
 
 const tableBlocks = computed(() => {

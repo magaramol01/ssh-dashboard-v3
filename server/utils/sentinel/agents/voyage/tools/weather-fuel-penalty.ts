@@ -71,10 +71,20 @@ export const weatherFuelPenaltyTool = (tenant?: string, event?: H3Event, injecte
       if (sorted.length > 0) {
         sorted.forEach((r, idx) => {
           const dayNumber = idx + 1
-          const sog = parseFloat(r.avgSpeed ?? r.noonreportdata?.Avg_Speed) || 0
-          const meFuel = parseFloat(r.meFuel ?? r.noonreportdata?.Total_HFOME_Consumed_In_MT ?? r.noonreportdata?.ME_Fuel_Oil_Cons) || 0
-          const windBf = parseFloat(r.noonreportdata?.Wind_Force) || 0
-          const waveHeightM = parseFloat(r.noonreportdata?.Wave_Height) || 0
+          const sog = parseFloat(r.avgSpeed ?? r.sog ?? r.speed ?? r.noonreportdata?.Avg_Speed) || 0
+          let meFuel = parseFloat(r.meFuel ?? r.me_fuel ?? r.noonreportdata?.Total_HFOME_Consumed_In_MT ?? r.noonreportdata?.ME_Fuel_Oil_Cons ?? r.fuelConsumedMt?.total ?? r.totalConsumption) || 0
+          if (meFuel === 0 && r.consumptionData && typeof r.consumptionData === 'object') {
+            for (const val of Object.values(r.consumptionData)) {
+              const v = typeof val === 'object' && val !== null && 'value' in val ? parseFloat((val as any).value) || 0 : parseFloat(val as any) || 0
+              meFuel += v
+            }
+          }
+          if (meFuel === 0 && r.massOfCo2) {
+            meFuel = ((parseFloat(r.massOfCo2) || 0) / 3.114) * 0.85
+          }
+
+          const windBf = parseFloat(r.windBf ?? r.windForce ?? r.weather?.beaufort ?? r.weather?.windBf ?? r.noonreportdata?.Wind_Force ?? r.noonreportdata?.Wind_Speed_BF) || 0
+          const waveHeightM = parseFloat(r.waveHeightM ?? r.waveHeight ?? r.weather?.waveHeightM ?? r.noonreportdata?.Wave_Height) || 0
 
           const penalty = calculateWeatherFuelPenalty(meFuel, sog, windBf, waveHeightM, sog)
 

@@ -444,17 +444,25 @@ const seaTrialChartOption = computed(() => {
       },
     },
     legend: {
-      data: ['Sea Trial Baseline', 'Actual Daily Fixes'],
+      data: [
+        { name: 'Sea Trial Baseline', itemStyle: { color: '#38bdf8' } },
+        { name: 'Actual Daily Fixes', itemStyle: { color: '#10b981' } },
+      ],
       textStyle: { color: chartTextColor.value, fontSize: 11 },
-      top: 0,
-      right: 10,
+      top: 2,
+      right: 8,
+      itemWidth: 14,
+      itemHeight: 8,
     },
-    grid: { left: 48, right: 20, top: 32, bottom: 28 },
+    grid: { left: 52, right: 28, top: 36, bottom: 36 },
     xAxis: {
       type: 'value',
       name: 'Speed (kts)',
+      nameLocation: 'middle',
+      nameGap: 22,
       min: 8,
       max: 18,
+      interval: 2,
       nameTextStyle: { color: chartTextColor.value, fontSize: 11 },
       axisLabel: { color: chartTextColor.value, fontSize: 11 },
       axisLine: { lineStyle: { color: chartAxisColor.value } },
@@ -463,10 +471,16 @@ const seaTrialChartOption = computed(() => {
     yAxis: {
       type: 'value',
       name: 'Power (kW)',
+      nameLocation: 'end',
+      nameTextStyle: { color: chartTextColor.value, fontSize: 11, align: 'left', padding: [0, 0, 4, -8] },
       min: 0,
-      max: 8500,
-      nameTextStyle: { color: chartTextColor.value, fontSize: 11 },
-      axisLabel: { color: chartTextColor.value, fontSize: 10 },
+      max: 8000,
+      interval: 2000,
+      axisLabel: {
+        color: chartTextColor.value,
+        fontSize: 10,
+        formatter: (val: number) => val.toLocaleString(),
+      },
       axisLine: { lineStyle: { color: chartAxisColor.value } },
       splitLine: { lineStyle: { color: chartSplitLineColor.value, type: 'dashed' } },
     },
@@ -477,12 +491,14 @@ const seaTrialChartOption = computed(() => {
         smooth: true,
         data: baseSpeedData,
         lineStyle: { color: '#38bdf8', width: 2 },
+        color: '#38bdf8',
         showSymbol: false,
       },
       {
         name: 'Actual Daily Fixes',
         type: 'scatter',
-        symbolSize: 10,
+        symbolSize: 9,
+        color: '#10b981',
         data: scatterData,
       },
     ],
@@ -515,7 +531,7 @@ const shopTrialChartOption = computed(() => {
         : '#10b981'
     return {
       name: `D${n.dayNumber}`,
-      value: [loadPct, Math.min(220, Math.max(150, sfoc))],
+      value: [loadPct, Math.min(220, Math.max(140, sfoc))],
       itemStyle: { color },
       noon: n,
       sfoc,
@@ -550,17 +566,25 @@ const shopTrialChartOption = computed(() => {
       },
     },
     legend: {
-      data: ['Shop Trial Baseline', 'Actual Daily SFOC'],
+      data: [
+        { name: 'Shop Trial Baseline', itemStyle: { color: '#f59e0b' } },
+        { name: 'Actual Daily SFOC', itemStyle: { color: '#f43f5e' } },
+      ],
       textStyle: { color: chartTextColor.value, fontSize: 11 },
-      top: 0,
-      right: 10,
+      top: 2,
+      right: 8,
+      itemWidth: 14,
+      itemHeight: 8,
     },
-    grid: { left: 48, right: 20, top: 32, bottom: 28 },
+    grid: { left: 48, right: 28, top: 36, bottom: 36 },
     xAxis: {
       type: 'value',
       name: 'Load (% MCR)',
+      nameLocation: 'middle',
+      nameGap: 22,
       min: 30,
-      max: 105,
+      max: 100,
+      interval: 10,
       nameTextStyle: { color: chartTextColor.value, fontSize: 11 },
       axisLabel: { color: chartTextColor.value, fontSize: 11 },
       axisLine: { lineStyle: { color: chartAxisColor.value } },
@@ -569,9 +593,11 @@ const shopTrialChartOption = computed(() => {
     yAxis: {
       type: 'value',
       name: 'SFOC (g/kWh)',
-      min: 150,
-      max: 215,
-      nameTextStyle: { color: chartTextColor.value, fontSize: 11 },
+      nameLocation: 'end',
+      nameTextStyle: { color: chartTextColor.value, fontSize: 11, align: 'left', padding: [0, 0, 4, -8] },
+      min: 140,
+      max: 220,
+      interval: 20,
       axisLabel: { color: chartTextColor.value, fontSize: 10 },
       axisLine: { lineStyle: { color: chartAxisColor.value } },
       splitLine: { lineStyle: { color: chartSplitLineColor.value, type: 'dashed' } },
@@ -583,13 +609,16 @@ const shopTrialChartOption = computed(() => {
         smooth: true,
         data: shopTrialBase,
         lineStyle: { color: '#f59e0b', width: 2, type: 'dashed' },
+        color: '#f59e0b',
         showSymbol: true,
         symbolSize: 6,
+        itemStyle: { color: '#f59e0b' },
       },
       {
         name: 'Actual Daily SFOC',
         type: 'scatter',
-        symbolSize: 10,
+        symbolSize: 9,
+        color: '#f43f5e',
         data: scatterData,
       },
     ],
@@ -714,7 +743,7 @@ const activeFuelTypes = computed(() => {
           size="icon"
           class="h-8 w-8 text-muted-foreground hover:text-primary cursor-pointer"
           title="Open Operations Copilot"
-          @click="emit('askCopilot', 'Analyze current voyage performance and provide optimization recommendations.')"
+          @click="emit('ask-copilot', 'Analyze current voyage performance and provide optimization recommendations.')"
         >
           <Sparkles class="w-4 h-4 text-primary" />
         </Button>
@@ -1119,48 +1148,60 @@ const activeFuelTypes = computed(() => {
       <div v-else-if="activeTab === 'sea-trial'" class="h-full overflow-y-auto p-4 space-y-4">
         <!-- Benchmark Summary Card -->
         <div class="p-3.5 rounded-xl border border-border/80 bg-card space-y-3 shadow-2xs">
-          <div class="flex items-center justify-between gap-2 flex-wrap">
-            <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-500 flex items-center justify-center">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-500 flex items-center justify-center shrink-0">
                 <Gauge class="w-4 h-4" />
               </div>
-              <div>
-                <h4 class="text-sm font-bold text-foreground">Sea Trial Speed-Power</h4>
-                <p class="text-xs text-muted-foreground">Shipyard cubic baseline (P ∝ V³) vs. noons</p>
+              <div class="min-w-0">
+                <h4 class="text-sm font-bold text-foreground truncate">Sea Trial Speed-Power</h4>
+                <p class="text-xs text-muted-foreground truncate">Shipyard cubic baseline (P ∝ V³) vs. noons</p>
               </div>
             </div>
-            <Badge variant="outline" class="text-xs font-mono border-sky-500/30 text-sky-600 dark:text-sky-400">
+            <Badge variant="outline" class="text-xs font-mono border-sky-500/30 text-sky-600 dark:text-sky-400 shrink-0 px-2 py-0.5">
               14.0 kts @ 4,200 kW
             </Badge>
           </div>
 
           <!-- Quick Benchmark KPI Row -->
-          <div v-if="seaTrialStats" class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
-            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60">
-              <span class="text-xs text-muted-foreground font-medium block mb-0.5">Voyage Avg SOG</span>
-              <span class="text-base sm:text-lg font-mono font-bold text-foreground">{{ format2(seaTrialStats.avgSog) }} kts</span>
+          <div v-if="seaTrialStats" class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60 flex flex-col justify-between">
+              <span class="text-[11px] text-muted-foreground font-medium block truncate" title="Voyage Avg SOG">Voyage Avg SOG</span>
+              <div class="flex items-baseline gap-1 mt-1 whitespace-nowrap">
+                <span class="text-base sm:text-lg font-mono font-bold text-foreground tabular-nums">{{ format2(seaTrialStats.avgSog) }}</span>
+                <span class="text-[11px] font-medium text-muted-foreground">kts</span>
+              </div>
             </div>
-            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60">
-              <span class="text-xs text-muted-foreground font-medium block mb-0.5">Avg Shaft Power</span>
-              <span class="text-base sm:text-lg font-mono font-bold text-foreground">{{ seaTrialStats.avgPower.toLocaleString() }} kW</span>
+            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60 flex flex-col justify-between">
+              <span class="text-[11px] text-muted-foreground font-medium block truncate" title="Avg Shaft Power">Avg Shaft Power</span>
+              <div class="flex items-baseline gap-1 mt-1 whitespace-nowrap">
+                <span class="text-base sm:text-lg font-mono font-bold text-foreground tabular-nums">{{ seaTrialStats.avgPower.toLocaleString() }}</span>
+                <span class="text-[11px] font-medium text-muted-foreground">kW</span>
+              </div>
             </div>
-            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60">
-              <span class="text-xs text-muted-foreground font-medium block mb-0.5">Speed Delta</span>
-              <span
-                class="text-base sm:text-lg font-mono font-bold"
-                :class="seaTrialStats.speedLoss < 0 ? 'text-rose-500' : 'text-emerald-500'"
-              >
-                {{ seaTrialStats.speedLoss > 0 ? '+' : '' }}{{ format2(seaTrialStats.speedLoss) }} kts
-              </span>
+            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60 flex flex-col justify-between">
+              <span class="text-[11px] text-muted-foreground font-medium block truncate" title="Speed Delta">Speed Delta</span>
+              <div class="flex items-baseline gap-1 mt-1 whitespace-nowrap">
+                <span
+                  class="text-base sm:text-lg font-mono font-bold tabular-nums"
+                  :class="seaTrialStats.speedLoss < 0 ? 'text-rose-500' : 'text-emerald-500'"
+                >
+                  {{ seaTrialStats.speedLoss > 0 ? '+' : '' }}{{ format2(seaTrialStats.speedLoss) }}
+                </span>
+                <span class="text-[11px] font-medium" :class="seaTrialStats.speedLoss < 0 ? 'text-rose-500/80' : 'text-emerald-500/80'">kts</span>
+              </div>
             </div>
-            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60">
-              <span class="text-xs text-muted-foreground font-medium block mb-0.5">Avg Slip</span>
-              <span
-                class="text-base sm:text-lg font-mono font-bold"
-                :class="seaTrialStats.avgSlip > 20 ? 'text-amber-500' : 'text-foreground'"
-              >
-                {{ format2(seaTrialStats.avgSlip) }}%
-              </span>
+            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60 flex flex-col justify-between">
+              <span class="text-[11px] text-muted-foreground font-medium block truncate" title="Avg Slip">Avg Slip</span>
+              <div class="flex items-baseline gap-1 mt-1 whitespace-nowrap">
+                <span
+                  class="text-base sm:text-lg font-mono font-bold tabular-nums"
+                  :class="seaTrialStats.avgSlip > 20 ? 'text-amber-500' : 'text-foreground'"
+                >
+                  {{ format2(seaTrialStats.avgSlip) }}
+                </span>
+                <span class="text-[11px] font-medium" :class="seaTrialStats.avgSlip > 20 ? 'text-amber-500/80' : 'text-muted-foreground'">%</span>
+              </div>
             </div>
           </div>
         </div>
@@ -1171,12 +1212,12 @@ const activeFuelTypes = computed(() => {
             <div class="flex items-center justify-between">
               <div class="space-y-0.5">
                 <div class="text-sm font-bold text-foreground flex items-center gap-2">
-                  <Activity class="w-4 h-4 text-sky-500" />
+                  <Activity class="w-4 h-4 text-sky-500 shrink-0" />
                   <span>Speed vs. Shaft Power Curve</span>
                 </div>
                 <p class="text-xs text-muted-foreground">Click dot to inspect noon report</p>
               </div>
-              <Badge variant="outline" class="text-xs font-mono">
+              <Badge variant="outline" class="text-xs font-mono shrink-0">
                 {{ dailyNoons.length }} Noons
               </Badge>
             </div>
@@ -1197,28 +1238,28 @@ const activeFuelTypes = computed(() => {
           </div>
 
           <!-- Superintendent Hydrodynamic Interpretation Insights -->
-          <div class="p-3.5 rounded-xl bg-muted/30 border border-border/60 space-y-2 text-xs sm:text-sm" :class="isExpanded ? 'xl:col-span-1' : ''">
+          <div class="p-3.5 rounded-xl bg-muted/30 border border-border/60 space-y-2.5 text-xs sm:text-sm" :class="isExpanded ? 'xl:col-span-1' : ''">
             <div class="font-semibold text-foreground flex items-center gap-2 text-xs sm:text-sm">
-              <Compass class="w-4 h-4 text-primary" />
+              <Compass class="w-4 h-4 text-primary shrink-0" />
               <span>Hydrodynamic Interpretation</span>
             </div>
             <p class="text-xs sm:text-sm text-muted-foreground leading-relaxed">
               Points positioned <strong>above the cyan baseline</strong> represent increased hull resistance, biofouling, or heavy weather requiring elevated power. Points <strong>close to baseline</strong> reflect clean hull performance under calm water.
             </p>
-            <div class="pt-1.5 flex items-center justify-between">
+            <div class="pt-2 border-t border-border/40 flex items-center justify-between gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                class="h-8 text-xs font-medium gap-1.5 px-3 cursor-pointer"
+                class="h-8 text-xs font-medium gap-1.5 px-3 cursor-pointer shadow-2xs hover:bg-muted"
                 @click="activeTab = 'noon'"
               >
                 <ArrowRight class="w-3.5 h-3.5" />
                 <span>Inspect D{{ currentNoon?.dayNumber || 1 }}</span>
               </Button>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                class="h-8 text-xs font-medium gap-1.5 text-primary hover:bg-primary/10 px-3 cursor-pointer"
+                class="h-8 text-xs font-medium gap-1.5 px-3 cursor-pointer text-primary border-primary/30 hover:bg-primary/10 hover:border-primary/50 shadow-2xs"
                 @click="emit('ask-copilot', `Analyze hydrodynamic sea trial performance for vessel ${currentVoyage}: Speed vs Power curve shows ${seaTrialStats?.speedLoss} kts speed delta and ${seaTrialStats?.avgSlip}% propeller slip.`)"
               >
                 <Sliders class="w-3.5 h-3.5" />
@@ -1233,43 +1274,54 @@ const activeFuelTypes = computed(() => {
       <div v-else-if="activeTab === 'shop-trial'" class="h-full overflow-y-auto p-4 space-y-4">
         <!-- Benchmark Summary Card -->
         <div class="p-3.5 rounded-xl border border-border/80 bg-card space-y-3 shadow-2xs">
-          <div class="flex items-center justify-between gap-2 flex-wrap">
-            <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
                 <Fuel class="w-4 h-4" />
               </div>
-              <div>
-                <h4 class="text-sm font-bold text-foreground">Shop Trial SFOC Benchmark</h4>
-                <p class="text-xs text-muted-foreground">Engine testbed factory SFOC baseline</p>
+              <div class="min-w-0">
+                <h4 class="text-sm font-bold text-foreground truncate">Shop Trial SFOC Benchmark</h4>
+                <p class="text-xs text-muted-foreground truncate">Engine testbed factory SFOC baseline</p>
               </div>
             </div>
-            <Badge variant="outline" class="text-xs font-mono border-amber-500/30 text-amber-600 dark:text-amber-400">
+            <Badge variant="outline" class="text-xs font-mono border-amber-500/30 text-amber-600 dark:text-amber-400 shrink-0 px-2 py-0.5">
               165 g/kWh @ 85% MCR
             </Badge>
           </div>
 
           <!-- Quick Benchmark KPI Row -->
-          <div v-if="shopTrialStats" class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
-            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60">
-              <span class="text-xs text-muted-foreground font-medium block mb-0.5">Voyage Avg SFOC</span>
-              <span class="text-base sm:text-lg font-mono font-bold text-foreground">{{ format2(shopTrialStats.avgSfoc) }} g/kWh</span>
+          <div v-if="shopTrialStats" class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60 flex flex-col justify-between">
+              <span class="text-[11px] text-muted-foreground font-medium block truncate" title="Voyage Avg SFOC">Voyage Avg SFOC</span>
+              <div class="flex items-baseline gap-1 mt-1 whitespace-nowrap">
+                <span class="text-base sm:text-lg font-mono font-bold text-foreground tabular-nums">{{ format2(shopTrialStats.avgSfoc) }}</span>
+                <span class="text-[11px] font-medium text-muted-foreground">g/kWh</span>
+              </div>
             </div>
-            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60">
-              <span class="text-xs text-muted-foreground font-medium block mb-0.5">Avg Engine Load</span>
-              <span class="text-base sm:text-lg font-mono font-bold text-foreground">{{ format2(shopTrialStats.avgLoad) }}% MCR</span>
+            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60 flex flex-col justify-between">
+              <span class="text-[11px] text-muted-foreground font-medium block truncate" title="Avg Engine Load">Avg Engine Load</span>
+              <div class="flex items-baseline gap-1 mt-1 whitespace-nowrap">
+                <span class="text-base sm:text-lg font-mono font-bold text-foreground tabular-nums">{{ format2(shopTrialStats.avgLoad) }}%</span>
+                <span class="text-[11px] font-medium text-muted-foreground">MCR</span>
+              </div>
             </div>
-            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60">
-              <span class="text-xs text-muted-foreground font-medium block mb-0.5">Testbed Baseline</span>
-              <span class="text-base sm:text-lg font-mono font-bold text-foreground">{{ format2(shopTrialStats.baselineSfoc) }} g/kWh</span>
+            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60 flex flex-col justify-between">
+              <span class="text-[11px] text-muted-foreground font-medium block truncate" title="Testbed Baseline">Testbed Baseline</span>
+              <div class="flex items-baseline gap-1 mt-1 whitespace-nowrap">
+                <span class="text-base sm:text-lg font-mono font-bold text-foreground tabular-nums">{{ format2(shopTrialStats.baselineSfoc) }}</span>
+                <span class="text-[11px] font-medium text-muted-foreground">g/kWh</span>
+              </div>
             </div>
-            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60">
-              <span class="text-xs text-muted-foreground font-medium block mb-0.5">Efficiency Delta</span>
-              <span
-                class="text-base sm:text-lg font-mono font-bold"
-                :class="shopTrialStats.deltaPct > 5 ? 'text-rose-500' : shopTrialStats.deltaPct > 0 ? 'text-amber-500' : 'text-emerald-500'"
-              >
-                {{ shopTrialStats.deltaPct > 0 ? '+' : '' }}{{ format2(shopTrialStats.deltaPct) }}%
-              </span>
+            <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60 flex flex-col justify-between">
+              <span class="text-[11px] text-muted-foreground font-medium block truncate" title="Efficiency Delta">Efficiency Delta</span>
+              <div class="flex items-baseline gap-1 mt-1 whitespace-nowrap">
+                <span
+                  class="text-base sm:text-lg font-mono font-bold tabular-nums"
+                  :class="shopTrialStats.deltaPct > 5 ? 'text-rose-500' : shopTrialStats.deltaPct > 0 ? 'text-amber-500' : 'text-emerald-500'"
+                >
+                  {{ shopTrialStats.deltaPct > 0 ? '+' : '' }}{{ format2(shopTrialStats.deltaPct) }}%
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -1280,12 +1332,12 @@ const activeFuelTypes = computed(() => {
             <div class="flex items-center justify-between">
               <div class="space-y-0.5">
                 <div class="text-sm font-bold text-foreground flex items-center gap-2">
-                  <TrendingUp class="w-4 h-4 text-amber-500" />
+                  <TrendingUp class="w-4 h-4 text-amber-500 shrink-0" />
                   <span>SFOC vs. Engine Load (% MCR)</span>
                 </div>
                 <p class="text-xs text-muted-foreground">Click dot to inspect noon report</p>
               </div>
-              <Badge variant="outline" class="text-xs font-mono">
+              <Badge variant="outline" class="text-xs font-mono shrink-0">
                 {{ dailyNoons.length }} Noons
               </Badge>
             </div>
@@ -1306,28 +1358,28 @@ const activeFuelTypes = computed(() => {
           </div>
 
           <!-- Combustion Diagnostic Insights -->
-          <div class="p-3.5 rounded-xl bg-muted/30 border border-border/60 space-y-2 text-xs sm:text-sm" :class="isExpanded ? 'xl:col-span-1' : ''">
+          <div class="p-3.5 rounded-xl bg-muted/30 border border-border/60 space-y-2.5 text-xs sm:text-sm" :class="isExpanded ? 'xl:col-span-1' : ''">
             <div class="font-semibold text-foreground flex items-center gap-2 text-xs sm:text-sm">
-              <Zap class="w-4 h-4 text-amber-500" />
+              <Zap class="w-4 h-4 text-amber-500 shrink-0" />
               <span>Combustion & Thermal Diagnostics</span>
             </div>
             <p class="text-xs sm:text-sm text-muted-foreground leading-relaxed">
               SFOC points significantly above testbed baseline indicate thermal degradation, fuel injection wear, elevated scavenging temperatures, or suboptimal air fuel ratios.
             </p>
-            <div class="pt-1.5 flex items-center justify-between">
+            <div class="pt-2 border-t border-border/40 flex items-center justify-between gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                class="h-8 text-xs font-medium gap-1.5 px-3 cursor-pointer"
+                class="h-8 text-xs font-medium gap-1.5 px-3 cursor-pointer shadow-2xs hover:bg-muted"
                 @click="activeTab = 'noon'"
               >
                 <ArrowRight class="w-3.5 h-3.5" />
                 <span>Inspect D{{ currentNoon?.dayNumber || 1 }}</span>
               </Button>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                class="h-8 text-xs font-medium gap-1.5 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 px-3 cursor-pointer"
+                class="h-8 text-xs font-medium gap-1.5 px-3 cursor-pointer text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 hover:border-amber-500/50 shadow-2xs"
                 @click="emit('ask-copilot', `Analyze engine thermal efficiency and SFOC for vessel ${currentVoyage}: Average SFOC is ${shopTrialStats?.avgSfoc} g/kWh (${shopTrialStats?.deltaPct}% vs testbed baseline of 165 g/kWh).`)"
               >
                 <Sliders class="w-3.5 h-3.5" />

@@ -19,20 +19,28 @@ const props = withDefaults(
   }>(),
   {
     title: '',
-    initialMode: 'auto',
+    initialMode: 'table',
   }
 )
 
 function parseNumericValue(val: unknown): number | null {
   if (val === null || val === undefined || val === '') return null
   if (typeof val === 'number') return Number.isFinite(val) ? val : null
-  const cleaned = String(val).replace(/[^0-9.-]/g, '')
+  const str = String(val).trim()
+  // Reject calendar date formats (e.g. 2026-09-13, 2026/09/13, 13-09-2026, 13/09/2026, ISO timestamps)
+  if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(str) || /^\d{1,2}[-/]\d{1,2}[-/]\d{2,4}/.test(str)) return null
+  // Reject coordinate pairs (e.g. 22.7800°N, 141.9983°W or 22.78, 141.99)
+  if (/[°nsew]/i.test(str) && /,/.test(str)) return null
+  const cleaned = str.replace(/[^0-9.-]/g, '')
   if (!cleaned || cleaned === '-' || cleaned === '.') return null
   const num = parseFloat(cleaned)
   return Number.isFinite(num) ? num : null
 }
 
-// Discover which columns are numeric
+// Columns that must never be presented as numeric charts (coordinates, dates, timestamps, findings, IDs)
+const NON_CHARTABLE_COLUMNS = /^(date|time|timestamp|lat|lng|latitude|longitude|pos|position|coord|fix|status|verdict|finding|findings|rule|remark|audit|day|daynumber|vessel|vesselname|imo)$/i
+
+// Discover which columns are genuine numeric metrics with active variation
 const numericColumns = computed(() => {
   if (!props.columns?.length || !props.rows?.length) return []
   const list: Column[] = []
@@ -43,15 +51,27 @@ const numericColumns = computed(() => {
     : props.columns
 
   for (const col of candidateIndices) {
-    let numericCount = 0
+    const colId = (col.key || '').trim()
+    const colLabel = (col.label || '').trim()
+    if (NON_CHARTABLE_COLUMNS.test(colId) || NON_CHARTABLE_COLUMNS.test(colLabel)) {
+      continue
+    }
+
+    const values: number[] = []
     for (const r of props.rows) {
-      if (parseNumericValue(r[col.key]) !== null) {
-        numericCount++
+      const parsed = parseNumericValue(r[col.key])
+      if (parsed !== null) {
+        values.push(parsed)
       }
     }
-    // If at least 50% of rows have numeric values, treat as graphable metric
-    if (numericCount >= Math.ceil(props.rows.length * 0.5)) {
-      list.push(col)
+
+    // Must have at least 50% numeric rows, at least 2 points, and actual non-zero variation
+    if (values.length >= Math.ceil(props.rows.length * 0.5) && values.length >= 2) {
+      const first = values[0]
+      const hasVariation = values.some((v) => Math.abs(v - first) > 1e-4)
+      if (hasVariation) {
+        list.push(col)
+      }
     }
   }
 
@@ -62,25 +82,14 @@ const hasGraphableData = computed(() => {
   return numericColumns.value.length > 0 && props.rows.length >= 2
 })
 
-// Detect if dataset represents a trend / time-series
-const isLikelyTrend = computed(() => {
-  if (!props.columns?.length || !hasGraphableData.value) return false
-  const firstColLabel = (props.columns[0]?.label || '').toLowerCase()
-  return /day|date|time|timeline|period|hour|month|year|voyage|step|leg|interval|sample|trend/i.test(firstColLabel)
-})
-
-// Current display mode: 'table' or 'chart'
+// Current display mode: 'table' or 'chart' (always default to 'table' unless caller explicitly specified 'chart')
 const mode = ref<'table' | 'chart'>('table')
 
 // Synchronize initial mode
 watch(
-  () => [props.initialMode, isLikelyTrend.value, hasGraphableData.value] as const,
-  ([initialMode, isTrend, hasGraph]) => {
-    if (initialMode === 'chart') {
-      mode.value = 'chart'
-    } else if (initialMode === 'table') {
-      mode.value = 'table'
-    } else if (isTrend && hasGraph) {
+  () => [props.initialMode, hasGraphableData.value] as const,
+  ([initialMode, hasGraph]) => {
+    if (initialMode === 'chart' && hasGraph) {
       mode.value = 'chart'
     } else {
       mode.value = 'table'

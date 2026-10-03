@@ -24,6 +24,18 @@ function formatFinding(f: unknown): string {
   return String(f)
 }
 
+export function hasMeaningfulChartData(points: Array<{ label: string; value: number }>): boolean {
+  if (!Array.isArray(points) || points.length < 2) return false
+  const valid = points.filter((p) => p && typeof p.value === 'number' && Number.isFinite(p.value))
+  if (valid.length < 2) return false
+  // Check if there is any non-zero point
+  const hasNonZero = valid.some((p) => Math.abs(p.value) > 1e-4)
+  if (!hasNonZero) return false
+  // Must have meaningful variation across points to justify a trend chart
+  const first = valid[0].value
+  return valid.some((p) => Math.abs(p.value - first) > 1e-4)
+}
+
 function extractGenericChartsFromPayload(value: Record<string, unknown>): SentinelBlock[] {
   const chartBlocks: SentinelBlock[] = []
 
@@ -40,10 +52,14 @@ function extractGenericChartsFromPayload(value: Record<string, unknown>): Sentin
     const labelKey = keys.find((k) => /^(day|date|time|timestamp|hour|period|label|name|vessel|key)/i.test(k)) || keys[0]
     if (!labelKey) continue
 
-    // Find numeric candidate keys (excluding ids, years, timestamps)
+    // Find numeric candidate keys that represent true operational engineering metrics (excluding coordinates, dates, IDs)
+    const NON_OPERATIONAL_KEYS = /^(id|vesselid|imo|year|month|date|timestamp|lat|lng|latitude|longitude|pos|position|coord|heading|course|cog|day|daynumber|index|step|seq)$/i
+    const OPERATIONAL_METRIC_KEYS = /^(fuel|burn|consumption|slip|speed|sog|stw|loss|rpm|power|torque|kw|wind|wave|penalty|co2|cii|distance|run|steaming|hours|temp|pressure|flow|current|voltage|rate)/i
+
     const numericKeys = keys.filter((k) => {
       if (k === labelKey) return false
-      if (/^(id|vesselid|imo|year|month)$/i.test(k)) return false
+      if (NON_OPERATIONAL_KEYS.test(k)) return false
+      if (!OPERATIONAL_METRIC_KEYS.test(k)) return false
       const numCount = objects.filter((o) => typeof o[k] === 'number' && Number.isFinite(o[k])).length
       return numCount >= Math.ceil(objects.length * 0.5)
     })
@@ -59,7 +75,7 @@ function extractGenericChartsFromPayload(value: Record<string, unknown>): Sentin
         })
         .filter((p) => Number.isFinite(p.value))
 
-      if (points.length >= 2) {
+      if (hasMeaningfulChartData(points)) {
         const formattedKey = numKey
           .replace(/([A-Z])/g, ' $1')
           .replace(/[_-]+/g, ' ')
@@ -393,7 +409,7 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
         .map((p) => ({ label: `Day ${p.dayNumber}`, value: Number(p.slipPercent) }))
         .slice(0, 30)
 
-      if (slipPoints.length > 0) {
+      if (hasMeaningfulChartData(slipPoints)) {
         blocks.push({
           type: 'line-chart',
           title: 'Propulsion Apparent Slip Trend (%)',
@@ -402,14 +418,17 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
       }
 
       const status = String(value.slipThresholdStatus || 'normal')
+      const avgSlip = Number(value.averageSlipPercent) || 0
       const maxDay = value.maxSlipDay as Record<string, unknown> | undefined
-      blocks.push({
-        type: 'kpi',
-        label: 'Passage Avg Propeller Slip',
-        value: `${text(value.averageSlipPercent, '0')}%`,
-        detail: maxDay ? `Peak ${text(maxDay.slipPercent)}% on Day ${text(maxDay.dayNumber)} (Bf ${text(maxDay.windBf)})` : undefined,
-        tone: status === 'critical' ? 'destructive' : status === 'elevated' ? 'warning' : 'success',
-      })
+      if (avgSlip > 0 || status !== 'normal') {
+        blocks.push({
+          type: 'kpi',
+          label: 'Passage Avg Propeller Slip',
+          value: `${text(value.averageSlipPercent, '0')}%`,
+          detail: maxDay ? `Peak ${text(maxDay.slipPercent)}% on Day ${text(maxDay.dayNumber)} (Bf ${text(maxDay.windBf)})` : undefined,
+          tone: status === 'critical' ? 'destructive' : status === 'elevated' ? 'warning' : 'success',
+        })
+      }
     }
 
     if (result.name === 'evaluate_weather_impact_on_fuel' && value.found !== false && value.weatherFuelPenaltyMt !== undefined) {
@@ -418,29 +437,43 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
       const worstDay = value.worstWeatherDay as Record<string, unknown> | undefined
       const peakDayText = worstDay ? ` · Peak Day ${worstDay.dayNumber} (-${worstDay.speedLossKts} kts)` : ''
 
-      blocks.push(
-        {
+      const penaltyMt = Number(value.weatherFuelPenaltyMt) || 0
+      const speedLoss = Number(value.averageSpeedLossKnots) || 0
+
+      if (penaltyMt > 0 || speedLoss > 0.5) {
+        blocks.push(
+          {
+            type: 'kpi',
+            label: 'Passage Weather Penalty',
+            value: `+${text(value.weatherFuelPenaltyMt, '0')} MT`,
+            detail: `Cumulative ${daysCountText} · +${text(value.weatherFuelPenaltyPercent, '0')}% over calm baseline (${text(value.baselineCalmWaterFuelMt, '0')} MT)`,
+            tone: penaltyMt > 0 ? 'warning' : 'success',
+          },
+          {
+            type: 'kpi',
+            label: 'Passage Avg Speed Loss',
+            value: `-${text(value.averageSpeedLossKnots, '0')} kts`,
+            detail: `${text(value.heavyWeatherDaysCount, '0')} heavy weather days (Beaufort 6+)${peakDayText}`,
+            tone: speedLoss > 1.0 ? 'warning' : 'default',
+          },
+          {
+            type: 'kpi',
+            label: 'Passage Weather CO₂',
+            value: `+${text(value.weatherCo2PenaltyMt, '0')} MT CO₂`,
+            detail: `Cumulative emissions from wind and wave resistance (${daysCountText})`,
+            tone: 'warning',
+          },
+        )
+      } else {
+        // Calm passage: emit single concise confirmation instead of 3 redundant zero cards
+        blocks.push({
           type: 'kpi',
-          label: 'Passage Weather Penalty',
-          value: `+${text(value.weatherFuelPenaltyMt, '0')} MT`,
-          detail: `Cumulative ${daysCountText} · +${text(value.weatherFuelPenaltyPercent, '0')}% over calm baseline (${text(value.baselineCalmWaterFuelMt, '0')} MT)`,
-          tone: Number(value.weatherFuelPenaltyMt) > 0 ? 'warning' : 'success',
-        },
-        {
-          type: 'kpi',
-          label: 'Passage Avg Speed Loss',
-          value: `-${text(value.averageSpeedLossKnots, '0')} kts`,
-          detail: `${text(value.heavyWeatherDaysCount, '0')} heavy weather days (Beaufort 6+)${peakDayText}`,
-          tone: Number(value.averageSpeedLossKnots) > 1.0 ? 'warning' : 'default',
-        },
-        {
-          type: 'kpi',
-          label: 'Passage Weather CO₂',
-          value: `+${text(value.weatherCo2PenaltyMt, '0')} MT CO₂`,
-          detail: `Cumulative emissions from wind and wave resistance (${daysCountText})`,
-          tone: 'warning',
-        },
-      )
+          label: 'Passage Weather Impact',
+          value: 'Nominal (Calm)',
+          detail: `Favorable MetOcean conditions across ${daysCountText}. No added hydrodynamic fuel penalty detected.`,
+          tone: 'success',
+        })
+      }
 
       const impacts = Array.isArray(value.dailyImpacts) ? (value.dailyImpacts as Array<Record<string, unknown>>) : []
       const penaltyPoints = impacts
@@ -448,7 +481,7 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
         .map((d) => ({ label: `Day ${d.dayNumber}`, value: Number(d.weatherFuelPenaltyMt) }))
         .slice(0, 30)
 
-      if (penaltyPoints.length > 0) {
+      if (hasMeaningfulChartData(penaltyPoints) && penaltyMt > 0) {
         blocks.push({
           type: 'line-chart',
           title: 'Daily Weather Fuel Penalty (MT)',
@@ -461,7 +494,7 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
         .map((d) => ({ label: `Day ${d.dayNumber}`, value: Number(d.windBf) }))
         .slice(0, 30)
 
-      if (windPoints.length > 0) {
+      if (hasMeaningfulChartData(windPoints) && (penaltyMt > 0 || windPoints.some((p) => p.value >= 4))) {
         blocks.push({
           type: 'bar-chart',
           title: 'Encountered Wind Force (Beaufort Scale)',
@@ -474,30 +507,37 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
       const rec = value.recommendedPlan as Record<string, unknown> | undefined
       if (rec) {
         const feasible = rec.isFeasible === true
-        blocks.push(
-          {
-            type: 'kpi',
-            label: `Target Band ${text(value.targetRating, 'B')} Feasibility`,
-            value: feasible ? 'Feasible' : 'Infeasible without Speed Cut',
-            detail: text(rec.recommendedActionSummary, 'Operational recovery assessment').slice(0, 200),
-            tone: feasible ? 'success' : 'destructive',
-          },
-          ...(feasible ? [
+        const fuelSaved = Number(rec.fuelSavedMt) || 0
+        const delay = Number(rec.etaDelayHours ?? rec.projectedArrivalDelayHours) || 0
+        const speedCut = Number(rec.speedReductionPercent) || 0
+
+        // Only emit recovery blocks if recovery action is actually needed (not 0% cut / 0 delay on already compliant voyage)
+        if (!feasible || speedCut > 0 || fuelSaved > 0 || delay > 0) {
+          blocks.push(
             {
-              type: 'kpi' as const,
-              label: 'Recommended Speed / RPM',
-              value: `${text(rec.recommendedSpeedKts ?? rec.requiredAverageSpeedKts)} kts (${text(rec.recommendedRpm)} RPM)`,
-              detail: `Max fuel: ${text(rec.dailyFuelLimitMt ?? rec.dailyFuelConsumptionLimitMt)} MT/day · Saves ${text(rec.fuelSavedMt)} MT`,
-              tone: 'success' as const,
+              type: 'kpi',
+              label: `Target Band ${text(value.targetRating, 'B')} Feasibility`,
+              value: feasible ? 'Feasible' : 'Infeasible without Speed Cut',
+              detail: text(rec.recommendedActionSummary, 'Operational recovery assessment').slice(0, 200),
+              tone: feasible ? 'success' : 'destructive',
             },
-            {
-              type: 'kpi' as const,
-              label: 'Projected ETA Impact',
-              value: `+${text(rec.etaDelayHours ?? rec.projectedArrivalDelayHours, '0')} hrs delay`,
-              detail: text(rec.etaDelayDescription, 'Arrival window update').slice(0, 200),
-            },
-          ] : []),
-        )
+            ...(feasible ? [
+              {
+                type: 'kpi' as const,
+                label: 'Recommended Speed / RPM',
+                value: `${text(rec.recommendedSpeedKts ?? rec.requiredAverageSpeedKts)} kts (${text(rec.recommendedRpm)} RPM)`,
+                detail: `Max fuel: ${text(rec.dailyFuelLimitMt ?? rec.dailyFuelConsumptionLimitMt)} MT/day · Saves ${text(rec.fuelSavedMt)} MT`,
+                tone: 'success' as const,
+              },
+              {
+                type: 'kpi' as const,
+                label: 'Projected ETA Impact',
+                value: `+${text(rec.etaDelayHours ?? rec.projectedArrivalDelayHours, '0')} hrs delay`,
+                detail: text(rec.etaDelayDescription, 'Arrival window update').slice(0, 200),
+              },
+            ] : []),
+          )
+        }
       }
 
       const options = Array.isArray(value.alternativeOptions) ? (value.alternativeOptions as Array<Record<string, unknown>>) : []
@@ -561,17 +601,30 @@ function blocksFromToolResults(raw: SentinelRawResponse): SentinelBlock[] {
     const points = Array.isArray(value.points) ? value.points
       .filter((point): point is { label: string; value: number } => Boolean(point && typeof point === 'object' && typeof point.label === 'string' && typeof point.value === 'number' && Number.isFinite(point.value)))
       .slice(0, 100) : []
-    if (points.length) blocks.push({ type: 'line-chart', title: text(value.title, 'Telemetry trend'), points })
+    if (hasMeaningfulChartData(points)) blocks.push({ type: 'line-chart', title: text(value.title, 'Telemetry trend'), points })
 
-    // Generic chart fallback: If this tool result has not emitted any chart, synthesize charts from any numeric series
+    // Generic chart fallback: Synthesize charts only for custom / generic tools that have not emitted charts, provided they are not known domain tools with deliberate chart decisions
     const hasChart = blocks.slice(blocksBefore).some((b) => b.type === 'line-chart' || b.type === 'bar-chart')
-    if (!hasChart) {
+    const knownDomainTools = [
+      'get_voyage_overview_and_progress',
+      'get_vessel_daily_positions',
+      'evaluate_weather_impact_on_fuel',
+      'analyze_propulsion_and_slip',
+      'diagnose_voyage_degradation',
+      'calculate_voyage_recovery_plan',
+      'validate_vessel_noon_reports',
+      'get_fleet_connectivity',
+      'get_vessel_operational_context',
+      'search_operational_alerts',
+      'analyze_operational_alert',
+    ]
+    if (!hasChart && !knownDomainTools.includes(result.name)) {
       const genericCharts = extractGenericChartsFromPayload(value)
       blocks.push(...genericCharts)
     }
   }
 
-  return blocks.slice(0, 15)
+  return blocks.slice(0, 8)
 }
 
 export function formatSentinelResponse(raw: SentinelRawResponse): SentinelChatResponse {

@@ -70,12 +70,35 @@ export const propulsionSlipTool = (tenant?: string, event?: H3Event, injectedRec
       if (sorted.length > 0) {
         sorted.forEach((r, idx) => {
           const dayNumber = idx + 1
-          const sog = parseFloat(r.avgSpeed ?? r.noonreportdata?.Avg_Speed) || 0
-          const stw = parseFloat(r.engineSpeed ?? r.noonreportdata?.LOG_SPEED) || sog
-          const rpm = parseFloat(r.rpm ?? r.noonreportdata?.ME_RPM ?? r.noonreportdata?.RPM) || 0
-          const slipPercent = calculateApparentSlip(sog, stw)
-          const meConsumptionMt = parseFloat(r.meFuel ?? r.noonreportdata?.Total_HFOME_Consumed_In_MT ?? r.noonreportdata?.ME_Fuel_Oil_Cons) || 0
-          const windBf = parseFloat(r.noonreportdata?.Wind_Force) || 0
+          const sog = parseFloat(r.avgSpeed ?? r.sog ?? r.speed ?? r.noonreportdata?.Avg_Speed) || 0
+          const reportedSlip = parseFloat(r.slipPct ?? r.slipPercent ?? r.apparentSlip ?? r.noonreportdata?.Engine_Slip ?? r.noonreportdata?.Propeller_Slip)
+          let stw = parseFloat(r.engineSpeed ?? r.stw ?? r.logSpeed ?? r.noonreportdata?.LOG_SPEED) || 0
+          const rpm = parseFloat(r.rpm ?? r.meRpm ?? r.noonreportdata?.ME_RPM ?? r.noonreportdata?.RPM) || 0
+
+          let slipPercent = 0
+          if (!isNaN(reportedSlip) && reportedSlip !== 0) {
+            slipPercent = reportedSlip
+          } else if (stw > 0 && sog > 0 && Math.abs(stw - sog) > 0.05) {
+            slipPercent = calculateApparentSlip(sog, stw)
+          } else if (rpm > 0 && sog > 0) {
+            const estimatedStw = (rpm * 60 * 5.2) / 1852
+            if (estimatedStw > 0) {
+              slipPercent = calculateApparentSlip(sog, estimatedStw)
+            }
+          }
+
+          let meConsumptionMt = parseFloat(r.meFuel ?? r.me_fuel ?? r.noonreportdata?.Total_HFOME_Consumed_In_MT ?? r.noonreportdata?.ME_Fuel_Oil_Cons ?? r.fuelConsumedMt?.total ?? r.totalConsumption) || 0
+          if (meConsumptionMt === 0 && r.consumptionData && typeof r.consumptionData === 'object') {
+            for (const val of Object.values(r.consumptionData)) {
+              const v = typeof val === 'object' && val !== null && 'value' in val ? parseFloat((val as any).value) || 0 : parseFloat(val as any) || 0
+              meConsumptionMt += v
+            }
+          }
+          if (meConsumptionMt === 0 && r.massOfCo2) {
+            meConsumptionMt = ((parseFloat(r.massOfCo2) || 0) / 3.114) * 0.85
+          }
+
+          const windBf = parseFloat(r.windBf ?? r.windForce ?? r.weather?.beaufort ?? r.weather?.windBf ?? r.noonreportdata?.Wind_Force ?? r.noonreportdata?.Wind_Speed_BF) || 0
 
           propulsionTrend.push({
             dayNumber,
