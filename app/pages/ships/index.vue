@@ -6,7 +6,7 @@
  */
 import { h, computed, onMounted } from 'vue'
 import type { Column, ColumnDef } from '@tanstack/vue-table'
-import { Ship, Weight, Layers, Tags, SearchX } from 'lucide-vue-next'
+import { Ship, Layers, Tags, SearchX } from 'lucide-vue-next'
 
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -109,8 +109,8 @@ function handleRowClick(row: ShipRecord) {
     </header>
 
     <div v-if="isLoading && !hasLoaded" class="space-y-5">
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Skeleton v-for="i in 4" :key="i" class="h-24 rounded-xl" />
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Skeleton v-for="i in 3" :key="i" class="h-24 rounded-xl" />
       </div>
       <Skeleton class="h-96 w-full rounded-xl" />
     </div>
@@ -118,7 +118,6 @@ function handleRowClick(row: ShipRecord) {
     <template v-else>
       <KpiGrid>
         <KpiTile label="Total ships" :value="totals.total" hint="In the registry" tone="info" :icon="Ship" />
-        <KpiTile label="Total DWT" :value="totals.dwt.toLocaleString('en-US')" hint="Deadweight tonnage" tone="info" :icon="Weight" />
         <KpiTile label="Sister groups" :value="totals.sisterGroups" hint="Distinct groups" tone="success" :icon="Layers" />
         <KpiTile label="Categories" :value="totals.categories" hint="Vessel types" tone="warning" :icon="Tags" />
       </KpiGrid>
