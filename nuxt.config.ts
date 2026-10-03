@@ -43,6 +43,19 @@ export default defineNuxtConfig({
       ],
     },
   },
+  nitro: {
+    hooks: {
+      compiled() {
+        import('node:fs').then((fs) => {
+          const src = 'node_modules/@langchain/langgraph-sdk/dist/node_modules'
+          const dest = '.output/server/node_modules/@langchain/langgraph-sdk/dist/node_modules'
+          if (fs.existsSync(src)) {
+            fs.cpSync(src, dest, { recursive: true, force: true })
+          }
+        })
+      },
+    },
+  },
   app: {
     pageTransition: { name: "page", mode: "out-in" },
     head: {

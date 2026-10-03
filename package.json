@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "nuxt dev --port 3340",
-    "build": "nuxt build",
+    "build": "nuxt build && (cp -r node_modules/@langchain/langgraph-sdk/dist/node_modules .output/server/node_modules/@langchain/langgraph-sdk/dist/ 2>/dev/null || true)",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "test": "tsx --test tests/*.test.ts tests/**/*.test.ts",
