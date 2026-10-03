@@ -89,12 +89,18 @@ export default defineNuxtConfig({
 
       prefixRoutes(pages)
 
-      // Add tenant root redirect: /:tenant -> /:tenant/dashboard
+      // Add tenant root redirect: /:tenant -> /:tenant/emissions
       pages.push({
         name: 'tenant-root-redirect',
         path: '/:tenant',
-        redirect: (to: any) => `/${to.params.tenant}/dashboard`,
+        redirect: (to: any) => `/${to.params.tenant}/emissions`,
       })
+
+      // Redirect /:tenant/dashboard -> /:tenant/emissions
+      const dashPage = pages.find((p) => p.name?.includes('dashboard') || p.path?.endsWith('/dashboard'))
+      if (dashPage) {
+        dashPage.redirect = (to: any) => `/${to.params.tenant}/emissions`
+      }
 
       // Allow /live directly to redirect to default tenant
       pages.push({

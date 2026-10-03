@@ -39,7 +39,7 @@ const sampleTenants = [
 function selectTenant(tenantId: string) {
   const normalized = tenantId.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '')
   if (!normalized) return
-  navigateTo(`/${normalized}/dashboard`)
+  navigateTo(`/${normalized}/emissions`)
 }
 
 function handleCustomSubmit() {

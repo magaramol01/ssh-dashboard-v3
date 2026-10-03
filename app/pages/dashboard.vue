@@ -21,6 +21,9 @@ import { useVesselDashboard } from '~/composables/useVesselDashboard'
 definePageMeta({ middleware: 'require-dispatcher' })
 useHead({ title: 'Vessel Operations & Telemetry | Smart Ship Hub' })
 
+const { tenantPath } = useTenant()
+await navigateTo(tenantPath('/emissions'), { replace: true, redirectCode: 302 })
+
 const {
   selectedVesselId,
   selectedTelemetryParam,

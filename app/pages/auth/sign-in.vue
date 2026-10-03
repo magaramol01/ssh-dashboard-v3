@@ -25,7 +25,7 @@ const { set: setPersona } = usePersona()
 const { tenant } = useTenant()
 
 function targetDashboard() {
-  return tenant.value ? `/${tenant.value}/dashboard` : '/asiaticlloyd/dashboard'
+  return tenant.value ? `/${tenant.value}/emissions` : '/asiaticlloyd/emissions'
 }
 
 const email = ref('')

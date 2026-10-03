@@ -74,7 +74,7 @@ const NAV_BADGE = computed<Record<string, number>>(() => {
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton size="lg" as-child tooltip="Smart Ship Hub" class="group-data-[collapsible=icon]:!justify-center">
-            <NuxtLink :to="tenantPath('/dashboard')">
+            <NuxtLink :to="tenantPath('/emissions')">
               <span
                 class="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-xl shadow-sm group-data-[collapsible=icon]:size-6"
               >

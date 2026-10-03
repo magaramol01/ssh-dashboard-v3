@@ -28,6 +28,7 @@ export interface NavSection {
 }
 
 export const NAV: NavSection[] = [
+  /*
   {
     label: "Overview",
     items: [
@@ -35,10 +36,12 @@ export const NAV: NavSection[] = [
       { label: "Dashboard", to: "/dashboard", icon: "LayoutDashboard" },
     ],
   },
+  */
   {
     label: "Emissions",
     items: [{ label: "CII Tracking", to: "/emissions", icon: "Gauge", requires: "dispatcher" }],
   },
+  /*
   {
     label: "Inventory & Stores",
     items: [
@@ -46,16 +49,18 @@ export const NAV: NavSection[] = [
       { label: "Machinery & Equipment", to: "/catalog", icon: "Ship", requires: "dispatcher" },
     ],
   },
+  */
   {
     label: "Voyage Operations",
     items: [
-      { label: "Voyage Logs", to: "/shipments", icon: "FileText", requires: "dispatcher" },
+      // { label: "Voyage Logs", to: "/shipments", icon: "FileText", requires: "dispatcher" },
       { label: "AIS Fleet Radar", to: "/live", icon: "Radar", requires: "dispatcher" },
       { label: "Voyage Analytics", to: "/voyage-analytics", icon: "Sliders", requires: "dispatcher" },
-      { label: "New Charter Fixture", to: "/shipments/new", icon: "FilePlus", requires: "dispatcher" },
-      { label: "Track Consignment", to: "/tracking", icon: "Search" },
+      // { label: "New Charter Fixture", to: "/shipments/new", icon: "FilePlus", requires: "dispatcher" },
+      // { label: "Track Consignment", to: "/tracking", icon: "Search" },
     ],
   },
+  /*
   {
     label: "Maritime Network",
     items: [
@@ -64,14 +69,16 @@ export const NAV: NavSection[] = [
       { label: "Shipping Corridors", to: "/routes", icon: "Compass", requires: "dispatcher" },
     ],
   },
+  */
   {
     label: "Fleet & Manning",
     items: [
-      { label: "Vessel Roster", to: "/fleet", icon: "Ship", requires: "dispatcher" },
+      // { label: "Vessel Roster", to: "/fleet", icon: "Ship", requires: "dispatcher" },
       { label: "Ship Details", to: "/ships", icon: "Ship", requires: "dispatcher" },
-      { label: "Captains & Crew", to: "/drivers", icon: "UserCheck", requires: "dispatcher" },
+      // { label: "Captains & Crew", to: "/drivers", icon: "UserCheck", requires: "dispatcher" },
     ],
   },
+  /*
   {
     label: "Commercial",
     items: [{ label: "Charterers & Shippers", to: "/customers", icon: "Briefcase", requires: "dispatcher" }],
@@ -84,6 +91,7 @@ export const NAV: NavSection[] = [
     label: "Settings",
     items: [{ label: "Workspace", to: "/settings", icon: "Settings" }],
   },
+  */
 ];
 
 /** Walks NAV + returns the matching item for a given path (or null). Supports tenant prefix. */

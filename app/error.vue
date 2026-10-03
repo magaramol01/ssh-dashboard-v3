@@ -64,7 +64,7 @@ const hasStack = computed(() => Boolean(props.error.stack))
 function backToDashboard() {
   const route = useRoute()
   const seg = route?.path ? route.path.split('/').filter(Boolean)[0] : ''
-  const target = seg && !['_nuxt', 'api', 'auth'].includes(seg) ? `/${seg}/dashboard` : '/'
+  const target = seg && !['_nuxt', 'api', 'auth'].includes(seg) ? `/${seg}/emissions` : '/'
   clearError({ redirect: target })
 }
 </script>
